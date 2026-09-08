@@ -382,6 +382,33 @@ async function run() {
     assert.equal(postFlow.savedLeads[0].leadId, 'lead_post');
     assert.deepEqual(postFlow.savedLeads[0].answers, { ...postAnswers, lead_id: 'lead_post' });
 
+    const fallbackCriteriaFlow = await loadHandler({
+      lead: null,
+      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+    });
+    const fallbackCriteriaRes = await fallbackCriteriaFlow.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({
+        leadId: 'lead_fallback',
+        category: 'luxury',
+        fallbackCriteria: { city: 'High Point', budgetMax: 2000, bedrooms: 1 },
+      }),
+    });
+    const fallbackCriteriaBody = JSON.parse(fallbackCriteriaRes.body);
+
+    assert.equal(
+      fallbackCriteriaRes.statusCode,
+      200,
+      `expected fallback criteria to avoid 404, got ${fallbackCriteriaRes.statusCode}: ${fallbackCriteriaRes.body}`
+    );
+    assert.equal(fallbackCriteriaBody.ok, true);
+    assert.equal(fallbackCriteriaBody.criteria.city, 'High Point');
+    assert.equal(fallbackCriteriaBody.criteria.rentBudget, 2000);
+    assert.equal(fallbackCriteriaBody.criteria.bedrooms, 1);
+    assert.equal(fallbackCriteriaBody.properties.length, 1);
+    assert.equal(fallbackCriteriaBody.properties[0].name, 'POST Fallback Apartments');
+
     const postNoAnswers = await loadHandler({
       lead: null,
       entitlements: { paid27: true, purchasedCategory: 'luxury' },

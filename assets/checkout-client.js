@@ -20,7 +20,7 @@ let rrnConfigPromise = null;
 
 function rrnLeadId() {
   try {
-    const a = JSON.parse(sessionStorage.getItem(ANSWERS_KEY) || 'null');
+    const a = JSON.parse(sessionStorage.getItem(ANSWERS_KEY) || localStorage.getItem(ANSWERS_KEY) || 'null');
     return (a && a.lead_id) || null;
   } catch (_e) {
     return null;

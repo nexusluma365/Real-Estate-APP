@@ -197,6 +197,7 @@ async function submitLead() {
 
   try {
     sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
   } catch (_e) {}
 
   try {

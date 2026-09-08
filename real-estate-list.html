@@ -377,15 +377,13 @@
 <script>
 async function confirmListingAccess(){
   const params = new URLSearchParams(window.location.search);
-  const category = params.get("category") || "luxury";
-  const answers = (() => {
-    try { return JSON.parse(sessionStorage.getItem("rrn_answers_v1") || "null"); }
-    catch (_e) { return null; }
-  })();
+  const category = (params.get("category") || "luxury").toLowerCase();
+  const answers = readAnswers();
+  const leadId = answers.lead_id || params.get("leadId") || "";
 
-  if (answers && answers.lead_id && window.rrnFetchEntitlements) {
+  if (leadId && window.rrnFetchEntitlements) {
     try {
-      const ent = await rrnFetchEntitlements(answers.lead_id);
+      const ent = await rrnFetchEntitlements(leadId);
       if (ent && ent.paid27 && ent.purchasedCategory === category) return true;
     } catch (_e) {}
   }
@@ -467,13 +465,16 @@ function applyAnswerCriteria(){
   const category = (params.get("category") || "luxury").toLowerCase();
   const rentBudget = Number(answers.rent_budget);
   const beds = normalizeBedrooms(answers.beds_needed);
+  const urlCity = params.get("city") || params.get("c__y") || params.get("location") || "";
+  const urlBudget = Number(params.get("rentBudget") || params.get("budget") || "");
+  const urlBeds = params.get("bedrooms") || params.get("beds") || "";
   criteria = {
     ...criteria,
-    city: answers.preferred_city || answers.city || criteria.city,
-    area: answers.preferred_city || answers.city || criteria.area,
+    city: answers.preferred_city || answers.city || urlCity || criteria.city,
+    area: answers.preferred_city || answers.city || urlCity || criteria.area,
     style: category === "modern" ? "Modern" : "Luxury",
-    budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : criteria.budgetMax,
-    bedrooms: beds,
+    budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : Number.isFinite(urlBudget) && urlBudget > 0 ? urlBudget : criteria.budgetMax,
+    bedrooms: answers.beds_needed ? beds : urlBeds ? normalizeBedrooms(urlBeds) : beds,
   };
 }
 
@@ -563,14 +564,16 @@ function currentCategory(){
 
 async function loadVerifiedApartmentResults(){
   const answers = readAnswers();
-  if (!answers.lead_id) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const leadId = answers.lead_id || urlParams.get("leadId") || "";
+  if (!leadId) {
     serverResults = [];
     serverLoadMessage = "No saved questionnaire was found for this apartment search.";
     return;
   }
   try {
     const category = currentCategory();
-    const params = new URLSearchParams({ leadId: answers.lead_id, category });
+    const params = new URLSearchParams({ leadId, category });
     if (window.rrnApartmentPaymentIntentId) {
       const upsellIntentId = rrnApartmentPaymentIntentId(category);
       if (upsellIntentId) params.set("upsellPaymentIntentId", upsellIntentId);
@@ -578,14 +581,14 @@ async function loadVerifiedApartmentResults(){
     let res = await fetch("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers }),
+      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, fallbackCriteria: criteria }),
     });
     let data = await res.json().catch(()=>({}));
     if (res.status === 404 && data.error === "No saved questionnaire was found." && await resyncSavedQuestionnaire(answers)) {
       res = await fetch("/.netlify/functions/get-apartment-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers }),
+        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, fallbackCriteria: criteria }),
       });
       data = await res.json().catch(()=>({}));
     }

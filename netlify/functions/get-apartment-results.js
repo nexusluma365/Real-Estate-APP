@@ -46,6 +46,7 @@ function parseRequest(event) {
   let category = String(body.category || q.category || '').toLowerCase();
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
+  const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
   const token = body.token || q.token;
 
   if (token) {
@@ -57,7 +58,7 @@ function parseRequest(event) {
     category = data.category;
   }
 
-  return { leadId, category, upsellPaymentIntentId, answers };
+  return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria };
 }
 
 exports.handler = async (event) => {
@@ -67,7 +68,7 @@ exports.handler = async (event) => {
 
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
-  const { leadId, category, upsellPaymentIntentId, answers } = parsed;
+  const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria } = parsed;
 
   if (!leadId || !VALID_CATEGORIES.has(category)) {
     return json(400, { ok: false, error: 'Missing or invalid fields' });
@@ -90,6 +91,9 @@ exports.handler = async (event) => {
       } catch (err) {
         console.warn('lead resync save failed', err);
       }
+    }
+    if (!lead && fallbackCriteria) {
+      lead = leadFromFallbackCriteria(fallbackCriteria, leadId);
     }
     if (!lead) return json(404, { ok: false, error: 'No saved questionnaire was found.' });
 
@@ -138,6 +142,23 @@ exports.handler = async (event) => {
 function clientAnswersMatchLead(answers, leadId) {
   const answerLeadId = String(answers.lead_id || answers.leadId || '').trim();
   return !answerLeadId || answerLeadId === leadId;
+}
+
+function leadFromFallbackCriteria(criteria, leadId) {
+  const preferredCity = clean(criteria.city || criteria.area);
+  if (!preferredCity) return null;
+  return {
+    lead_id: leadId,
+    preferred_city: preferredCity,
+    rent_budget: Number(criteria.rentBudget || criteria.budgetMax) || '',
+    beds_needed:
+      criteria.bedrooms === 0 || criteria.bedrooms
+        ? String(criteria.bedrooms)
+        : clean(criteria.bedroomsLabel || ''),
+    move_timeline: clean(criteria.moveTimeline),
+    move_reason: clean(criteria.moveReason),
+    recovered_from: 'apartment-list-fallback',
+  };
 }
 
 async function recoverApartmentEntitlement(leadId, category, paymentIntentId, current) {

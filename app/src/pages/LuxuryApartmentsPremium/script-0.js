@@ -161,10 +161,11 @@
 
     function realEstateListUrl() {
       const params = new URLSearchParams({ category: APARTMENT_CATEGORY, city: selectedCity() });
+      const leadId = window.rrnLeadId ? rrnLeadId() : '';
+      if (leadId) params.set('leadId', leadId);
       return '/real-estate-list.html?' + params.toString();
     }
 
     function resultsUrl() {
       return '/after-payment-results/';
     }
-  
