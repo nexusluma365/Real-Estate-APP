@@ -1,0 +1,145 @@
+
+
+<div id="loadingOverlay">
+  <div class="load-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg></div>
+  <div class="load-title">RentReady is finding your matches</div>
+  <div class="load-status" id="loadStatus">Searching apartment communities…</div>
+  <div class="load-bar"><div class="load-bar-fill" id="loadBar"></div></div>
+</div>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="logo">
+      <span class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 9.8V19a1 1 0 0 0 1 1H10v-5.4h4V20h3.5a1 1 0 0 0 1-1V9.8"/></svg></span>
+      RentReady
+    </div>
+    <span class="header-status">Your Apartment Matches</span>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="welcome-line"><span class="dot"></span> Welcome back to RentReady</div>
+      <h1>Your apartment matches are ready.</h1>
+      <p class="hero-sub" id="heroSub">We searched using what you told us and found apartment communities that match your criteria.</p>
+
+      <div class="summary-card">
+        <div class="sc-item"><div class="sc-label">Location</div><div class="sc-value" id="scLocation">—</div></div>
+        <div class="sc-item"><div class="sc-label">Style</div><div class="sc-value" id="scStyle">—</div></div>
+        <div class="sc-item"><div class="sc-label">Budget</div><div class="sc-value" id="scBudget">—</div></div>
+        <div class="sc-item"><div class="sc-label">Bedrooms</div><div class="sc-value" id="scBedrooms">—</div></div>
+        <button class="sc-cta" id="openPanelBtn">Update my search</button>
+      </div>
+
+      <div class="match-strip" id="matchStrip"><!-- injected --></div>
+    </div>
+  </section>
+
+  <section class="section" id="listSection">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Your apartment matches</h2>
+        <span class="result-count" id="resultCount"></span>
+      </div>
+      <div id="listingList"><!-- injected --></div>
+    </div>
+  </section>
+
+  <section class="section" id="emptySection" style="display:none;">
+    <div class="wrap">
+      <div class="empty-state">
+        <h3>We couldn't find enough strong matches yet.</h3>
+        <p>Try expanding your area or adjusting one of your preferences.</p>
+        <div class="empty-actions">
+          <button class="btn btn-primary" id="emptyExpandBtn">Expand search area</button>
+          <button class="btn btn-secondary" id="emptyAdjustBtn">Adjust my search</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="nearby">
+    <div class="wrap">
+      <div class="nearby-head">
+        <div>
+          <h3>Not quite what you're looking for?</h3>
+          <p>Explore apartment communities in nearby Charlotte neighborhoods.</p>
+        </div>
+      </div>
+      <div class="area-pills" id="areaPills"><!-- injected --></div>
+    </div>
+  </section>
+
+  <section class="legal">
+    <div class="wrap">
+      <p>Apartment information, availability, pricing, deposits and screening requirements can change. Confirm current details directly with the property before applying or paying any fees. RentReady provides apartment search and preparation information and does not make rental approval decisions. Match scores reflect fit to your search preferences, not approval likelihood.</p>
+    </div>
+  </section>
+</main>
+
+<div class="panel-overlay" id="panelOverlay">
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Update my search</h3>
+      <button class="close-x" id="closePanelBtn" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+    </div>
+    <p class="panel-sub">Adjust what you're looking for and we'll update your matches.</p>
+
+    <div class="field">
+      <label for="fArea">Preferred area</label>
+      <select id="fArea">
+        <option>Uptown Charlotte</option>
+        <option>South End</option>
+        <option>NoDa</option>
+        <option>University City</option>
+        <option>Ballantyne</option>
+        <option>Dilworth</option>
+        <option>Plaza Midwood</option>
+        <option>Any area in Charlotte</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fStyle">Apartment style</label>
+      <select id="fStyle">
+        <option>Luxury</option>
+        <option>Modern</option>
+        <option>Standard</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fBudget">Budget (up to / month)</label>
+      <select id="fBudget">
+        <option value="1800">Up to $1,800</option>
+        <option value="2200">Up to $2,200</option>
+        <option value="2600">Up to $2,600</option>
+        <option value="3000">Up to $3,000</option>
+        <option value="3500">Up to $3,500</option>
+        <option value="4500">Up to $4,500</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fBeds">Bedrooms</label>
+      <select id="fBeds">
+        <option value="0">Studio</option>
+        <option value="1">1 Bedroom</option>
+        <option value="2">2 Bedrooms</option>
+        <option value="3">3 Bedrooms</option>
+        <option value="4">4+ Bedrooms</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Preferences</label>
+      <div class="chip-grid" id="prefChips"><!-- injected --></div>
+    </div>
+    <div class="panel-footer">
+      <button class="btn btn-primary btn-block" id="applySearchBtn">Update my matches</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"><!-- injected --></div>
+</div>
+
+

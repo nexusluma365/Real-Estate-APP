@@ -1,0 +1,124 @@
+[build]
+  base = "."
+  command = "cd app && npm install && npm run build"
+  publish = "app/dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.webp"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/real estate images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# --- Legacy / alternate URL aliases, preserved from the old multi-page site.
+# Each now points at the equivalent client-side route (no more physical
+# .html files) and 301s so the browser lands on the canonical URL, which
+# then falls through to the SPA catch-all below.
+[[redirects]]
+  from = "/renter-lead-form.html"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/renter-lead-form"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/Renter LeadForm.html"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/rent-ready-network"
+  to = "/after-payment-results"
+  status = 301
+
+[[redirects]]
+  from = "/rent-ready-network.html"
+  to = "/after-payment-results"
+  status = 301
+
+[[redirects]]
+  from = "/results"
+  to = "/after-payment-results"
+  status = 301
+
+[[redirects]]
+  from = "/After Payment Results.html"
+  to = "/after-payment-results"
+  status = 301
+
+[[redirects]]
+  from = "/Real-estate list.html"
+  to = "/real-estate-list"
+  status = 301
+
+[[redirects]]
+  from = "/modern-apartment-premium"
+  to = "/modern-apartments-premium"
+  status = 301
+
+[[redirects]]
+  from = "/modern-apartment-premium.html"
+  to = "/modern-apartments-premium"
+  status = 301
+
+[[redirects]]
+  from = "/Modern Apartment Upsell.html"
+  to = "/modern-apartments-premium"
+  status = 301
+
+[[redirects]]
+  from = "/luxury-apartment-premium"
+  to = "/luxury-apartments-premium"
+  status = 301
+
+[[redirects]]
+  from = "/luxury-apartment-premium.html"
+  to = "/luxury-apartments-premium"
+  status = 301
+
+[[redirects]]
+  from = "/Luxury Apartment Upsell.html"
+  to = "/luxury-apartments-premium"
+  status = 301
+
+# --- SPA fallback. MUST be the last redirect rule: any path not matched
+# above (including every real route like /real-estate-list,
+# /after-payment-results, etc.) gets the app shell, and React Router
+# renders the right page client-side from the URL.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -1,0 +1,95 @@
+[
+  {
+    "slug": "Questionnaire",
+    "routePath": "/",
+    "title": "RentReady Network — Deposit-Free Eligibility",
+    "scriptCount": 1,
+    "externalSrcs": []
+  },
+  {
+    "slug": "LuxuryApartmentsPremium",
+    "routePath": "/luxury-apartments-premium",
+    "title": "RentReady — Luxury Apartment Collection",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "ModernApartmentsPremium",
+    "routePath": "/modern-apartments-premium",
+    "title": "RentReady — Modern Apartment Collection",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "RealEstateList",
+    "routePath": "/real-estate-list",
+    "title": "RentReady — Your Apartment Matches",
+    "scriptCount": 1,
+    "externalSrcs": []
+  },
+  {
+    "slug": "AfterPaymentResults",
+    "routePath": "/after-payment-results",
+    "title": "RentReady Network — Your rental profile scan",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "RentreadyReviewCheckout",
+    "routePath": "/rentready-review-checkout",
+    "title": "RentReady Network - Secure Checkout",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "https://js.stripe.com/v3/"
+    ]
+  },
+  {
+    "slug": "CreditActionPackage",
+    "routePath": "/credit-action-package",
+    "title": "RentReady Credit Action Kit — $97",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "GamePlan",
+    "routePath": "/game-plan",
+    "title": "RentReady Network — Your RentReady Game Plan",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "Membership",
+    "routePath": "/membership",
+    "title": "RentReady Support — Membership",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "ThankYou",
+    "routePath": "/thank-you",
+    "title": "RentReady Network — You're All Set",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
+    "slug": "ResultsProcessing",
+    "routePath": "/results-processing",
+    "title": "RentReady Network — Preparing Your Results",
+    "scriptCount": 1,
+    "externalSrcs": []
+  }
+]

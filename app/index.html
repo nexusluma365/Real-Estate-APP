@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RentReady Network</title>
+<!--
+  These two scripts were previously included with a <script src="..."> tag
+  on 8 of the individual pages (checkout-client.js) and 1 page
+  (js.stripe.com/v3 — used directly by rentready-review-checkout.html).
+  Neither has any load-time side effects — they only define globals
+  (window.rrn*, window.Stripe) for pages to call later — so loading them
+  once here, before any page mounts, is behaviorally identical to how each
+  page loaded them individually, and guarantees they're always ready by
+  the time a page's own script runs.
+-->
+<script src="https://js.stripe.com/v3/"></script>
+<script src="/assets/checkout-client.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
+</body>
+</html>

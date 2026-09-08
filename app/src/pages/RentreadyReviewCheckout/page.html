@@ -1,0 +1,94 @@
+
+<div class="page">
+  <nav class="nav">
+    <div class="brand">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9v-6h6v6h2.5a1 1 0 0 0 1-1v-9"/></svg></span>
+      <span>RentReady&nbsp; Network</span>
+    </div>
+    <div class="secure"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 22s7-3.5 7-10V5l-7-3-7 3v7c0 6.5 7 10 7 10Z"/></svg><span>Secure eligibility checkout</span></div>
+  </nav>
+
+  <div class="progress" aria-label="Checkout progress">
+    <div class="step"><span class="dot">✓</span><span>Questionnaire</span></div>
+    <span class="bar"></span>
+    <div class="step"><span class="dot">✓</span><span>Housing Plan</span></div>
+    <span class="bar"></span>
+    <div class="step"><span class="dot active">3</span><span>Checkout</span></div>
+  </div>
+
+  <main class="content">
+    <section class="main">
+      <div class="hero-copy">
+        <h1>Good News — Your Next Home May Not Require a Security Deposit.</h1>
+        <p class="lead-kicker">See Your Rental Options</p>
+        <p class="lead">Continue with RentReady to see what property managers typically look for, Better Your Approval odds and schedule your next tour with confidence—</p>
+      </div>
+      <hr class="rule">
+
+      <h2>Payment details</h2>
+      <p class="copy">Your questionnaire is complete. Enter your payment details to unlock your personalized review.</p>
+      <div class="payment-form">
+        <div>
+          <label class="field-label" for="cardNumber">Credit card number</label>
+          <div class="card-field" id="cardNumber"></div>
+        </div>
+        <div class="payment-grid">
+          <div>
+            <label class="field-label" for="cardExpiry">Expiration date</label>
+            <div class="card-field" id="cardExpiry"></div>
+          </div>
+          <div>
+            <label class="field-label" for="cardCvc">CVC</label>
+            <div class="card-field" id="cardCvc"></div>
+          </div>
+          <div>
+            <label class="field-label" for="billingZip">ZIP</label>
+            <input class="billing-input" id="billingZip" name="postal_code" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="12345">
+          </div>
+        </div>
+        <div class="billing-grid">
+          <div>
+            <span class="field-label">Country</span>
+            <div class="country-field">United States</div>
+          </div>
+        </div>
+      </div>
+      <p class="error" id="paymentError"></p>
+      <p class="setup-note" id="setupNote"></p>
+
+      <div class="next-step">
+        <button class="cta" id="payBtn" type="button" disabled>Continue With RentReady <span>→</span></button>
+      </div>
+    </section>
+
+    <aside class="summary">
+      <div class="summary-head">
+        <p>RentReady Review</p>
+        <h2>Continue With RentReady</h2>
+      </div>
+      <div class="summary-body">
+        <div class="line-item">
+          <div><strong>RentReady Outlook</strong><span>One-time personalized review</span></div>
+          <div class="price">$10</div>
+        </div>
+        <div class="benefits">
+          <div class="benefit"><b>✓</b><span>Know What Property Managers Look For</span></div>
+          <div class="benefit"><b>✓</b><span>Better Your Approval odds</span></div>
+          <div class="benefit"><b>✓</b><span>View Listings</span></div>
+          <div class="benefit"><b>✓</b><span>Schedule Your Next Tour With Confidence</span></div>
+        </div>
+        <p class="plus">Plus: See whether your profile may fit lower-upfront or no-money-down leasing opportunities.</p>
+        <div class="mini-table">
+          <div class="mini-row"><span>Applicant</span><strong id="summaryName">Applicant</strong></div>
+          <div class="mini-row"><span>City</span><strong id="summaryCity">Not provided</strong></div>
+          <div class="mini-row"><span>Move timing</span><strong id="summaryMove">Not provided</strong></div>
+          <div class="mini-row"><span>Credit review</span><strong id="summaryCredit">Review</strong></div>
+        </div>
+        <p class="disclaimer">RentReady provides educational rental-readiness guidance based on the information you supplied. This is not a rental application, tenant-screening decision, landlord approval, or guarantee of approval, deposit terms, or no-deposit eligibility. Actual requirements vary by property.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+
+

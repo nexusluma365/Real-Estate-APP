@@ -1,0 +1,139 @@
+
+
+<div class="field" aria-hidden="true"></div>
+
+<nav class="nav">
+  <div class="nav-mark">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 11.5 12 4l9 7.5"></path>
+      <path d="M5.5 10v9a1 1 0 0 0 1 1H9v-6h6v6h2.5a1 1 0 0 0 1-1v-9"></path>
+    </svg>
+  </div>
+  <span class="nav-word">RentReady Network</span>
+</nav>
+
+<!-- SCAN STAGE -->
+<section class="stage" id="stage">
+  <div class="status-line">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="statusText">Initializing profile scan</span>
+  </div>
+
+  <div class="scene-wrap">
+    <div class="loader" id="loader" aria-hidden="true">
+      <div class="box box0"><div></div></div>
+      <div class="box box1"><div></div></div>
+      <div class="box box2"><div></div></div>
+      <div class="box box3"><div></div></div>
+      <div class="box box4"><div></div></div>
+      <div class="box box5"><div></div></div>
+      <div class="box box6"><div></div></div>
+      <div class="box box7"><div></div></div>
+      <div class="ground"><div></div></div>
+    </div>
+
+  </div>
+
+  <div class="readout">
+    <div class="readout-percent" id="percentText">0<span>%</span></div>
+    <div class="readout-phrase" id="phraseText">Pulling credit signals</div>
+    <div class="readout-bar"><div class="readout-bar-fill" id="barFill"></div></div>
+  </div>
+
+  <button class="skip-btn" id="skipBtn" type="button">Skip scan</button>
+</section>
+
+<!-- REPORT -->
+<section class="report" id="report" aria-live="polite">
+  <div class="report-shell">
+    <section class="brief-hero">
+      <div class="brief-hero-grid">
+        <div>
+          <div class="result-logo" aria-label="RentReady Network">
+            <span class="result-logo-mark">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 11.5 12 4l9 7.5"></path>
+                <path d="M5.5 10v9a1 1 0 0 0 1 1H9v-6h6v6h2.5a1 1 0 0 0 1-1v-9"></path>
+              </svg>
+            </span>
+            <span>RentReady Network</span>
+          </div>
+          <p class="brief-eyebrow">Your brief result</p>
+          <h1>Welcome to RentReady</h1>
+          <p class="brief-copy">You’re One Step Closer<br>to Your Next Home.</p>
+          <div class="continuity"><span class="continuity-dot" aria-hidden="true"></span><span>See Your Elligibility Below</span></div>
+        </div>
+
+        <aside class="outlook" aria-label="Your deposit outlook">
+          <div class="outlook-label">Your deposit outlook</div>
+          <div class="outlook-state" id="outlookState">Worth Exploring</div>
+          <p class="outlook-copy" id="outlookCopy">No-deposit options can depend on the property’s screening rules. Your current answers give you a useful starting point.</p>
+          <div class="signal-mini">
+            <div class="signal-row"><strong>Income fit</strong><span class="status warn" id="incomeStatus">Checking</span></div>
+            <div class="signal-row"><strong>Credit range</strong><span class="status warn" id="creditStatus">Checking</span></div>
+            <div class="signal-row"><strong>Move plan</strong><span class="status good" id="moveStatus">Ready</span></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="brief-section" id="briefResult">
+      <div class="brief-section-head">
+        <div class="scroll-cue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"></path>
+            <path d="m19 12-7 7-7-7"></path>
+          </svg>
+        </div>
+        <p class="brief-eyebrow">Find your fit</p>
+        <h2>Explore Apartment Options That Match Your Next Move.</h2>
+        <p class="brief-section-copy">Compare the type of home you want with the rental profile you are preparing.</p>
+      </div>
+      <div class="apartment-grid">
+        <a class="apartment-card" href="/luxury-apartments-premium.html">
+          <img class="apartment-image" src="real estate images/charlotte/charlotte 1.webp" alt="Luxury high-rise apartment building with pool deck" loading="lazy" decoding="async">
+          <h3>Luxury Apartments</h3>
+        </a>
+        <a class="apartment-card" href="/modern-apartments-premium.html">
+          <img class="apartment-image" src="real estate images/charlotte/charlotte.webp" alt="Modern apartment community with pool and outdoor seating" loading="lazy" decoding="async">
+          <h3>Modern Apartments</h3>
+        </a>
+      </div>
+    </section>
+
+    <section class="bridge">
+      <div class="bridge-inner">
+        <div>
+          <p class="brief-eyebrow">The part most renters miss</p>
+          <h2>A better result comes from knowing what the property will actually look at.</h2>
+          <p class="bridge-copy">Your brief result tells you where you stand. The next stage turns that result into a practical application strategy you can use before you tour, call a leasing office, or pay another application fee.</p>
+        </div>
+        <div class="value-stack" aria-label="What the next stage unlocks">
+          <div class="value-item"><div class="value-check">✓</div><div><strong>Your application risk check</strong><span>See which parts of your profile deserve attention first.</span></div></div>
+          <div class="value-item"><div class="value-check">✓</div><div><strong>Your document-ready list</strong><span>Know what to gather before a leasing office asks for it.</span></div></div>
+          <div class="value-item"><div class="value-check">✓</div><div><strong>Exact questions to ask</strong><span>Use simple scripts to learn a property’s screening rules before applying.</span></div></div>
+          <div class="value-item"><div class="value-check">✓</div><div><strong>Property-by-property comparison</strong><span>Compare what a property requires with the profile you already shared.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="offer" id="nextStep">
+      <div class="offer-card">
+        <p class="brief-eyebrow">Your next RentReady step</p>
+        <h2>Turn this result into your personal rental strategy.</h2>
+        <p>You already know a no-deposit move-in may be worth exploring. Now see what could affect your application, what to prepare, and what to ask before you spend money applying to the home you want.</p>
+        <div class="offer-actions">
+          <a class="primary-btn" href="/game-plan.html">See My Personalized Next Steps →</a>
+          <a class="secondary-btn" href="/luxury-apartments-premium.html">Continue Browsing Homes</a>
+        </div>
+        <p class="offer-note">Built from the rental details you already shared — no need to start over.</p>
+      </div>
+      <p class="disclosure">RentReady provides educational rental-readiness guidance based on the information you provide. Deposit requirements, screening standards, and approval decisions vary by property. RentReady does not guarantee approval or a security-deposit waiver.</p>
+    </section>
+  </div>
+
+</section>
+
+
+
+

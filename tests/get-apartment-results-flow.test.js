@@ -1,0 +1,409 @@
+const assert = require('assert');
+
+async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEntitlements }) {
+  const storePath = require.resolve('../netlify/functions/_lib/store');
+  const signPath = require.resolve('../netlify/functions/_lib/sign');
+  const stripePath = require.resolve('../netlify/functions/_lib/stripe');
+  const fnPath = require.resolve('../netlify/functions/get-apartment-results');
+  delete require.cache[fnPath];
+
+  const savedResults = [];
+  const savedLeads = [];
+  const retrieveCalls = [];
+  require.cache[storePath] = {
+    id: storePath,
+    filename: storePath,
+    loaded: true,
+    exports: {
+      getLead: async () => lead,
+      saveLead: async (leadId, answers) => savedLeads.push({ leadId, answers }),
+      getEntitlements: async () => entitlements,
+      getApartmentResults: async () => cached || null,
+      saveApartmentResults: async (leadId, category, results) => savedResults.push({ leadId, category, results }),
+      patchEntitlements: patchEntitlements || (async (leadId, patch) => ({ ...entitlements, ...patch, leadId })),
+    },
+  };
+  require.cache[signPath] = {
+    id: signPath,
+    filename: signPath,
+    loaded: true,
+    exports: { verify: () => null },
+  };
+  require.cache[stripePath] = {
+    id: stripePath,
+    filename: stripePath,
+    loaded: true,
+    exports: {
+      getStripe: () => ({
+        paymentIntents: {
+          retrieve: async (id) => {
+            retrieveCalls.push(id);
+            return upsellIntent;
+          },
+        },
+      }),
+    },
+  };
+
+  return { handler: require('../netlify/functions/get-apartment-results').handler, savedResults, savedLeads, retrieveCalls };
+}
+
+async function run() {
+  const oldFetch = global.fetch;
+  const oldGoogleKey = process.env.GOOGLE_PLACES_API_KEY;
+  const oldOpenAIKey = process.env.OPENAI_API_KEY;
+  const urls = [];
+  let textSearchCalls = 0;
+  process.env.GOOGLE_PLACES_API_KEY = 'google_test_key';
+  delete process.env.OPENAI_API_KEY;
+
+  global.fetch = async (url) => {
+    urls.push(String(url));
+    if (String(url).includes('/textsearch/')) {
+      textSearchCalls++;
+      const parsed = new URL(String(url));
+      const query = parsed.searchParams.get('query');
+      assert.match(query, /luxury|modern/i);
+      assert.match(query, /concord/i);
+      // Regression guard: a `type` filter on Text Search is a hard
+      // restriction, not a relevance hint, and real apartment communities
+      // are almost never tagged `real_estate_agency` in Google's data.
+      assert.equal(parsed.searchParams.get('type'), null);
+      return {
+        json: async () => ({
+          results: [
+            {
+              place_id: 'place_concord_1',
+              name: 'Concord Reserve Apartments',
+              formatted_address: '1600 Concord Pkwy, Concord, NC',
+              rating: 4.6,
+              user_ratings_total: 88,
+              business_status: 'OPERATIONAL',
+            },
+          ],
+        }),
+      };
+    }
+    if (String(url).includes('/details/')) {
+      return {
+        json: async () => ({
+          result: {
+            name: 'Concord Reserve Apartments',
+            formatted_address: '1600 Concord Pkwy, Concord, NC',
+            formatted_phone_number: '(704) 555-0199',
+            website: 'https://example.com/concord-reserve',
+            url: 'https://maps.google.com/?cid=concordreserve',
+            rating: 4.7,
+            user_ratings_total: 91,
+            business_status: 'OPERATIONAL',
+          },
+        }),
+      };
+    }
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+
+  try {
+    const { handler, savedResults } = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+        move_timeline: 'asap',
+      },
+      entitlements: {
+        paid27: true,
+        purchasedCategory: 'luxury',
+      },
+      cached: {
+        provider: 'google_places',
+        criteria: { category: 'luxury', city: 'Concord, NC', rentBudget: 1600, bedrooms: 1 },
+        properties: [
+          {
+            propertyId: 'old_demo',
+            name: 'Skyline House Uptown',
+            phone: '(704) 555-0188',
+            website: 'https://example.com/skyline-house',
+          },
+        ],
+      },
+    });
+
+    const res = await handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_123', category: 'luxury' },
+    });
+    const body = JSON.parse(res.body);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.provider, 'google_places');
+    assert.equal(body.criteria.city, 'Concord, NC');
+    assert.equal(body.criteria.rentBudget, 1600);
+    assert.equal(body.properties.length, 1);
+    assert.equal(body.properties[0].name, 'Concord Reserve Apartments');
+    assert.equal(body.properties[0].phone, '(704) 555-0199');
+    assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
+    assert.match(body.properties[0].availabilityNote, /availability/i);
+    assert.equal(savedResults.length, 1);
+    assert.equal(textSearchCalls, 1);
+    assert(urls.some((url) => url.includes('/textsearch/')));
+    assert(urls.some((url) => url.includes('/details/')));
+
+    urls.length = 0;
+    textSearchCalls = 0;
+    const recovery = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+      },
+      entitlements: {
+        paid27: false,
+        purchasedCategory: null,
+      },
+      upsellIntent: {
+        id: 'pi_modern_upsell',
+        status: 'succeeded',
+        metadata: { leadId: 'lead_123', product: 'modern', category: 'modern' },
+        customer: 'cus_test',
+        payment_method: 'pm_test',
+      },
+    });
+    const recoveryRes = await recovery.handler({
+      httpMethod: 'GET',
+      queryStringParameters: {
+        leadId: 'lead_123',
+        category: 'modern',
+        upsellPaymentIntentId: 'pi_modern_upsell',
+      },
+    });
+    const recoveryBody = JSON.parse(recoveryRes.body);
+
+    assert.equal(recoveryRes.statusCode, 200);
+    assert.equal(recoveryBody.ok, true);
+    assert.equal(recoveryBody.criteria.category, 'modern');
+    assert.deepEqual(recovery.retrieveCalls, ['pi_modern_upsell']);
+
+    urls.length = 0;
+    let deniedCalls = 0;
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        deniedCalls++;
+        return {
+          json: async () => ({
+            status: 'REQUEST_DENIED',
+            error_message: 'This API key is not authorized to use this service or API.',
+            results: [],
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+    const denied = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: 'studio',
+      },
+      entitlements: {
+        paid27: true,
+        purchasedCategory: 'luxury',
+      },
+    });
+    const deniedRes = await denied.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_123', category: 'luxury' },
+    });
+    const deniedBody = JSON.parse(deniedRes.body);
+
+    assert.equal(deniedRes.statusCode, 502);
+    assert.equal(deniedBody.ok, false);
+    assert.equal(deniedBody.googleStatus, 'REQUEST_DENIED');
+    assert.match(deniedBody.error, /Google Maps API setup issue/);
+    assert.equal(denied.savedResults.length, 0);
+    assert.equal(deniedCalls, 1);
+
+    urls.length = 0;
+    let broadSearchCalls = 0;
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        broadSearchCalls++;
+        return {
+          json: async () => ({
+            status: broadSearchCalls === 1 ? 'ZERO_RESULTS' : 'OK',
+            results:
+              broadSearchCalls === 1
+                ? []
+                : [
+                    {
+                      place_id: 'place_broader_1',
+                      name: 'Broad Concord Apartments',
+                      formatted_address: '10 Union St, Concord, NC',
+                      rating: 4.2,
+                      user_ratings_total: 42,
+                      business_status: 'OPERATIONAL',
+                    },
+                  ],
+          }),
+        };
+      }
+      if (String(url).includes('/details/')) {
+        return {
+          json: async () => ({
+            result: {
+              name: 'Broad Concord Apartments',
+              formatted_address: '10 Union St, Concord, NC',
+              formatted_phone_number: '(704) 555-0101',
+              website: 'https://example.com/broad-concord',
+              url: 'https://maps.google.com/?cid=broadconcord',
+              rating: 4.2,
+              user_ratings_total: 42,
+              business_status: 'OPERATIONAL',
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+    const broad = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: 'studio',
+      },
+      entitlements: {
+        paid27: true,
+        purchasedCategory: 'luxury',
+      },
+    });
+    const broadRes = await broad.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_123', category: 'luxury' },
+    });
+    const broadBody = JSON.parse(broadRes.body);
+
+    assert.equal(broadRes.statusCode, 200);
+    assert.equal(broadBody.properties.length, 1);
+    assert.equal(broadBody.properties[0].name, 'Broad Concord Apartments');
+    assert.equal(broadSearchCalls, 2);
+
+    urls.length = 0;
+    const emptyCache = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: 'studio',
+      },
+      entitlements: {
+        paid27: true,
+        purchasedCategory: 'luxury',
+      },
+      cached: {
+        provider: 'google_places',
+        criteria: { category: 'luxury', city: 'Concord, NC', rentBudget: 1600, bedrooms: 0 },
+        properties: [],
+      },
+    });
+    const emptyCacheRes = await emptyCache.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_123', category: 'luxury' },
+    });
+    const emptyCacheBody = JSON.parse(emptyCacheRes.body);
+
+    assert.equal(emptyCacheRes.statusCode, 200);
+    assert.equal(emptyCacheBody.properties.length, 1);
+    assert.equal(emptyCacheBody.properties[0].name, 'Broad Concord Apartments');
+    assert(urls.some((url) => url.includes('/textsearch/')));
+
+    // Regression: the results page calls this function with POST + a JSON
+    // body. When no server-side lead exists, paid users should still get
+    // results from the browser answers in that same request, and the
+    // answers should be persisted for future calls.
+    urls.length = 0;
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        return {
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                place_id: 'place_post_1',
+                name: 'POST Fallback Apartments',
+                formatted_address: '1 Postman Way, Concord, NC',
+                rating: 4.4,
+                user_ratings_total: 30,
+                business_status: 'OPERATIONAL',
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url).includes('/details/')) {
+        return {
+          json: async () => ({
+            result: {
+              name: 'POST Fallback Apartments',
+              formatted_address: '1 Postman Way, Concord, NC',
+              formatted_phone_number: '(704) 555-0177',
+              website: 'https://example.com/post-fallback',
+              url: 'https://maps.google.com/?cid=postfallback',
+              rating: 4.4,
+              user_ratings_total: 30,
+              business_status: 'OPERATIONAL',
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+
+    const postFlow = await loadHandler({
+      lead: null,
+      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+    });
+    const postAnswers = { preferred_city: 'Concord', rent_budget: 1600, beds_needed: '1' };
+    const postRes = await postFlow.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({ leadId: 'lead_post', category: 'luxury', answers: postAnswers }),
+    });
+    const postBody = JSON.parse(postRes.body);
+
+    assert.equal(postRes.statusCode, 200, `expected 200, got ${postRes.statusCode}: ${postRes.body}`);
+    assert.equal(postBody.ok, true);
+    assert.equal(postBody.criteria.city, 'Concord, NC');
+    assert.equal(postBody.properties.length, 1);
+    assert.equal(postBody.properties[0].name, 'POST Fallback Apartments');
+    assert.equal(postFlow.savedLeads.length, 1);
+    assert.equal(postFlow.savedLeads[0].leadId, 'lead_post');
+    assert.deepEqual(postFlow.savedLeads[0].answers, { ...postAnswers, lead_id: 'lead_post' });
+
+    const postNoAnswers = await loadHandler({
+      lead: null,
+      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+    });
+    const postNoAnswersRes = await postNoAnswers.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({ leadId: 'lead_post_2', category: 'luxury' }),
+    });
+    assert.equal(postNoAnswersRes.statusCode, 404);
+  } finally {
+    global.fetch = oldFetch;
+    if (oldGoogleKey === undefined) delete process.env.GOOGLE_PLACES_API_KEY;
+    else process.env.GOOGLE_PLACES_API_KEY = oldGoogleKey;
+    if (oldOpenAIKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = oldOpenAIKey;
+  }
+}
+
+run()
+  .then(() => console.log('get-apartment-results flow test passed'))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

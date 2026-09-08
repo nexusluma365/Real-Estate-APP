@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RentReady Network - Secure Checkout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#174b33;--green-2:#1f6a46;--accent:#56b07a;--bg:#f7faf7;--text:#174b33;--muted:#66766c;--line:#dce5df;--soft:#eef6f1;--panel:#fbfdfb;--font:-apple-system,BlinkMacSystemFont,'DM Sans','Helvetica Neue',sans-serif}
+html,body{min-height:100%;max-width:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:hidden}
+body{padding:24px}
+.page{min-height:calc(100dvh - 48px);background:#fff;border:1px solid #e4ece7;box-shadow:0 24px 70px rgba(23,75,51,.08);display:flex;flex-direction:column}
+.nav{display:flex;align-items:center;justify-content:space-between;width:min(100%,1320px);margin:0 auto;padding:28px 44px 16px}
+.brand,.secure{display:flex;align-items:center;gap:12px;font-weight:800;color:var(--green)}
+.brand-mark{width:38px;height:38px;border-radius:10px;background:var(--green);display:grid;place-items:center;color:#fff}
+.brand-mark svg,.secure svg{width:19px;height:19px;stroke:currentColor;fill:none}
+.secure{font-size:15px;color:var(--muted)}
+.progress{display:flex;align-items:center;justify-content:center;gap:18px;padding:34px 24px 46px;font-weight:800;font-size:18px;color:var(--green)}
+.step{display:flex;align-items:center;gap:14px;white-space:nowrap}
+.progress .dot{width:48px;height:48px;flex:0 0 48px;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:var(--accent)}
+.progress .dot.active{background:var(--accent);color:#fff}
+.progress .bar{width:96px;height:4px;border-radius:999px;background:var(--accent)}
+.content{width:min(100%,1160px);max-width:100%;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,400px);gap:48px;align-items:start;padding:0 44px 52px}
+.main{padding-top:8px}
+.hero-copy{max-width:650px;text-align:center}
+h1{font-size:clamp(32px,3.35vw,44px);line-height:1.08;letter-spacing:0;font-weight:900;margin:0 auto 22px;max-width:650px;overflow-wrap:break-word}
+.lead-kicker{font-size:19px;font-weight:800;line-height:1.35;color:var(--green);margin:0 auto 14px;overflow-wrap:break-word}
+.lead{font-size:17px;line-height:1.5;color:var(--muted);max-width:650px;margin:0 auto;overflow-wrap:break-word}
+.rule{border:0;border-top:1px solid var(--line);margin:30px 0 26px;max-width:650px}
+h2{font-size:24px;line-height:1.1;margin-bottom:12px}
+.copy{font-size:15px;line-height:1.55;color:var(--muted);max-width:650px;margin-bottom:20px;overflow-wrap:break-word}
+.field-label{display:block;font-size:14px;font-weight:800;color:var(--muted);margin-bottom:10px}
+.payment-form{width:100%;max-width:650px;display:grid;gap:14px}
+.card-field{height:52px;border:1.5px solid var(--line);border-radius:8px;background:#fff;padding:15px 17px;display:flex;align-items:center;box-shadow:0 1px 0 rgba(23,75,51,.03);cursor:text}
+.card-field:empty:before{content:"Loading secure card field...";color:#97a69d;font:600 15px var(--font)}
+.card-field .__PrivateStripeElement,.card-field iframe{width:100%!important;min-width:100%!important}
+.card-field.is-focused{border-color:rgba(86,176,122,.9);box-shadow:0 0 0 3px rgba(86,176,122,.13)}
+.card-field.is-invalid{border-color:#b85b52}
+.payment-grid{display:grid;grid-template-columns:1fr 1fr 126px;gap:14px}
+.billing-grid{display:grid;grid-template-columns:180px;gap:14px}
+.billing-input,.country-field{width:100%;height:52px;border:1.5px solid var(--line);border-radius:8px;background:#fff;padding:0 17px;font:600 15px var(--font);color:var(--text);box-shadow:0 1px 0 rgba(23,75,51,.03)}
+.billing-input:focus{outline:0;border-color:rgba(86,176,122,.9);box-shadow:0 0 0 3px rgba(86,176,122,.13)}
+.country-field{display:flex;align-items:center;color:var(--muted)}
+.next-step{max-width:650px;margin-top:22px;padding-top:24px;border-top:1px solid var(--line)}
+.cta{width:min(100%,480px);height:58px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:17px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 10px 24px rgba(86,176,122,.2);transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.cta:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 30px rgba(86,176,122,.24);background:#4ca66f}
+.cta:disabled{opacity:.7;cursor:not-allowed;box-shadow:none}
+.error{display:none;color:#a63b32;font-size:14px;line-height:1.45;margin-top:14px}
+.error.show{display:block}
+.setup-note{display:none;width:100%;max-width:650px;margin-top:14px;padding:14px 16px;border:1px solid #f0d2cf;border-radius:8px;background:#fff7f6;color:#a63b32;font-size:14px;line-height:1.45}
+.setup-note.show{display:block}
+.summary{min-width:0;border:1px solid var(--line);border-radius:8px;align-self:start;overflow:hidden;background:#fff;box-shadow:0 18px 46px rgba(23,75,51,.09)}
+.summary-head{background:var(--green);color:#fff;padding:30px 28px 32px}
+.summary-head p{font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;opacity:.72;margin-bottom:14px}
+.summary-head h2{font-size:28px;color:#fff;margin:0;line-height:1.08}
+.summary-body{padding:28px}
+.line-item{display:flex;align-items:center;justify-content:space-between;gap:24px;min-width:0;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.line-item > div:first-child{min-width:0}
+.line-item strong{display:block;font-size:18px;margin-bottom:4px}
+.line-item span{color:var(--muted);font-size:15px}
+.price{font-size:34px;font-weight:900;color:var(--green)}
+.benefits{display:grid;gap:18px;padding:28px 0;border-bottom:1px solid var(--line)}
+.benefit{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-items:start;color:var(--muted);font-size:16px;font-weight:700;line-height:1.42}
+.benefit b{width:24px;height:24px;border-radius:50%;background:rgba(86,176,122,.13);color:var(--accent);display:grid;place-items:center;font-size:14px;line-height:1;margin-top:1px}
+.plus{padding:26px 0;color:var(--muted);font-size:16px;line-height:1.45}
+.mini-table{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.mini-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 16px;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
+.mini-row:last-child{border-bottom:0}
+.mini-row strong{color:var(--green);text-align:right;overflow-wrap:anywhere}
+.disclaimer{font-size:12px;line-height:1.5;color:#9aaa9f;margin-top:26px}
+@media(max-width:1100px){.content{grid-template-columns:minmax(0,1fr) 370px;gap:32px;padding-inline:32px}h1{font-size:38px}.progress{font-size:16px}.progress .bar{width:62px}}
+@media(max-width:860px){body{padding:0}.page{width:100%;min-height:100dvh;border:0;overflow:hidden}.nav{padding:24px 20px}.secure span{display:none}.progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12px;padding:24px 20px 34px}.step{min-width:0;flex-direction:column;gap:8px;text-align:center;white-space:normal;line-height:1.15}.progress .bar{display:none}.progress .dot{width:34px;height:34px;flex-basis:34px;margin:0 auto}.content{width:100%;grid-template-columns:minmax(0,1fr);padding:0 20px 34px;gap:30px}.main{min-width:0;padding-top:0}.hero-copy{max-width:100%}h1{max-width:100%;font-size:29px;line-height:1.08}.lead,.lead-kicker{max-width:100%;font-size:16px}.payment-grid,.billing-grid{grid-template-columns:1fr}.summary{width:100%}.summary-head{padding:28px 28px 30px}.summary-head h2{font-size:28px}.summary-body{padding:26px}.line-item{gap:14px}.price{font-size:32px}.benefit{font-size:15px}.cta{width:100%}}
+</style>
+</head>
+<body>
+<div class="page">
+  <nav class="nav">
+    <div class="brand">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9v-6h6v6h2.5a1 1 0 0 0 1-1v-9"/></svg></span>
+      <span>RentReady&nbsp; Network</span>
+    </div>
+    <div class="secure"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 22s7-3.5 7-10V5l-7-3-7 3v7c0 6.5 7 10 7 10Z"/></svg><span>Secure eligibility checkout</span></div>
+  </nav>
+
+  <div class="progress" aria-label="Checkout progress">
+    <div class="step"><span class="dot">✓</span><span>Questionnaire</span></div>
+    <span class="bar"></span>
+    <div class="step"><span class="dot">✓</span><span>Housing Plan</span></div>
+    <span class="bar"></span>
+    <div class="step"><span class="dot active">3</span><span>Checkout</span></div>
+  </div>
+
+  <main class="content">
+    <section class="main">
+      <div class="hero-copy">
+        <h1>Good News — Your Next Home May Not Require a Security Deposit.</h1>
+        <p class="lead-kicker">See Your Rental Options</p>
+        <p class="lead">Continue with RentReady to see what property managers typically look for, Better Your Approval odds and schedule your next tour with confidence—</p>
+      </div>
+      <hr class="rule">
+
+      <h2>Payment details</h2>
+      <p class="copy">Your questionnaire is complete. Enter your payment details to unlock your personalized review.</p>
+      <div class="payment-form">
+        <div>
+          <label class="field-label" for="cardNumber">Credit card number</label>
+          <div class="card-field" id="cardNumber"></div>
+        </div>
+        <div class="payment-grid">
+          <div>
+            <label class="field-label" for="cardExpiry">Expiration date</label>
+            <div class="card-field" id="cardExpiry"></div>
+          </div>
+          <div>
+            <label class="field-label" for="cardCvc">CVC</label>
+            <div class="card-field" id="cardCvc"></div>
+          </div>
+          <div>
+            <label class="field-label" for="billingZip">ZIP</label>
+            <input class="billing-input" id="billingZip" name="postal_code" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="12345">
+          </div>
+        </div>
+        <div class="billing-grid">
+          <div>
+            <span class="field-label">Country</span>
+            <div class="country-field">United States</div>
+          </div>
+        </div>
+      </div>
+      <p class="error" id="paymentError"></p>
+      <p class="setup-note" id="setupNote"></p>
+
+      <div class="next-step">
+        <button class="cta" id="payBtn" type="button" disabled>Continue With RentReady <span>→</span></button>
+      </div>
+    </section>
+
+    <aside class="summary">
+      <div class="summary-head">
+        <p>RentReady Review</p>
+        <h2>Continue With RentReady</h2>
+      </div>
+      <div class="summary-body">
+        <div class="line-item">
+          <div><strong>RentReady Outlook</strong><span>One-time personalized review</span></div>
+          <div class="price">$10</div>
+        </div>
+        <div class="benefits">
+          <div class="benefit"><b>✓</b><span>Know What Property Managers Look For</span></div>
+          <div class="benefit"><b>✓</b><span>Better Your Approval odds</span></div>
+          <div class="benefit"><b>✓</b><span>View Listings</span></div>
+          <div class="benefit"><b>✓</b><span>Schedule Your Next Tour With Confidence</span></div>
+        </div>
+        <p class="plus">Plus: See whether your profile may fit lower-upfront or no-money-down leasing opportunities.</p>
+        <div class="mini-table">
+          <div class="mini-row"><span>Applicant</span><strong id="summaryName">Applicant</strong></div>
+          <div class="mini-row"><span>City</span><strong id="summaryCity">Not provided</strong></div>
+          <div class="mini-row"><span>Move timing</span><strong id="summaryMove">Not provided</strong></div>
+          <div class="mini-row"><span>Credit review</span><strong id="summaryCredit">Review</strong></div>
+        </div>
+        <p class="disclaimer">RentReady provides educational rental-readiness guidance based on the information you supplied. This is not a rental application, tenant-screening decision, landlord approval, or guarantee of approval, deposit terms, or no-deposit eligibility. Actual requirements vary by property.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+(function(){
+  var ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
+  var FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
+  var PRESCREEN_INTENT_KEY = 'rrn_prescreen_payment_intent_v1';
+  var RESULTS_URL = '/after-payment-results/';
+  var START_URL = '/index.html';
+  var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51TeycBPJOp8s8XsSvgsYs2KtFZt1F2fUg9W32bxS2rDcORtp4F89PUj54Dz1WJbhPS1i8vnouVLeSiUX9cWfzp4v00RLV2KMcT';
+  var stripe = null;
+  var elements = null;
+  var cardNumber = null;
+  var cardExpiry = null;
+  var cardCvc = null;
+  var paymentIntentId = '';
+  var paymentClientSecret = '';
+
+  function readAnswers(){
+    try { return JSON.parse(sessionStorage.getItem(ANSWERS_STORAGE_KEY) || localStorage.getItem(ANSWERS_STORAGE_KEY) || '{}') || {}; }
+    catch (_e) { return {}; }
+  }
+
+  function label(value, map){
+    return map[value] || String(value || '').replace(/_/g, ' ') || 'Not provided';
+  }
+
+  function showError(message){
+    var el = document.getElementById('paymentError');
+    el.textContent = message || 'Could not start checkout.';
+    el.classList.add('show');
+  }
+
+  function showSetupNote(message){
+    var el = document.getElementById('setupNote');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.add('show');
+  }
+
+  function bindElementState(element, id){
+    var wrapper = document.getElementById(id);
+    if (!wrapper) return;
+    wrapper.addEventListener('click', function(){ element.focus(); });
+    element.on('focus', function(){ wrapper.classList.add('is-focused'); });
+    element.on('blur', function(){ wrapper.classList.remove('is-focused'); });
+    element.on('change', function(event){
+      wrapper.classList.toggle('is-invalid', !!event.error);
+      if (event.error) showError(event.error.message);
+      else document.getElementById('paymentError').classList.remove('show');
+    });
+  }
+
+  async function fetchJson(url, options){
+    var res = await fetch(url, options);
+    var data = await res.json().catch(function(){ return {}; });
+    if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || 'Request failed.');
+    return data;
+  }
+
+  async function getStripePublishableKey(){
+    try {
+      var config = await fetchJson('/.netlify/functions/config');
+      if (config && config.stripePublishableKey) return config.stripePublishableKey;
+    } catch (err) {
+      console.warn('Using fallback Stripe publishable key', err);
+    }
+    return FALLBACK_STRIPE_PUBLISHABLE_KEY;
+  }
+
+  async function createPrescreenIntent(answers){
+    var intent = await fetchJson('/.netlify/functions/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: answers.lead_id, email: answers.email || '', answers: answers }),
+    });
+    paymentIntentId = intent.paymentIntentId;
+    paymentClientSecret = intent.clientSecret;
+    return intent;
+  }
+
+  function grantResultsAccess(){
+    try {
+      sessionStorage.setItem(FLOW_ACCESS_KEY, JSON.stringify({
+        step: 'prescreen-results',
+        status: 'confirmed',
+        at: Date.now(),
+      }));
+    } catch (_e) {}
+  }
+
+  function rememberPrescreenPaymentIntent(intentId){
+    if (!intentId) return;
+    try { sessionStorage.setItem(PRESCREEN_INTENT_KEY, intentId); } catch (_e) {}
+    try { localStorage.setItem(PRESCREEN_INTENT_KEY, intentId); } catch (_e) {}
+  }
+
+  function hydrateSummary(answers){
+    var full = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || 'Applicant';
+    document.getElementById('summaryName').textContent = full;
+    document.getElementById('summaryCity').textContent = answers.preferred_city || 'Not provided';
+    document.getElementById('summaryMove').textContent = label(answers.move_timeline, {
+      immediately: 'Immediately',
+      under_30: 'Under 30 days',
+      '30_60_days': '30-60 days',
+      '60_plus': '60+ days',
+      flexible: 'Flexible',
+      one_to_three_months: 'in 1-3 months',
+    });
+    document.getElementById('summaryCredit').textContent = label(answers.credit_score, {
+      under_580: 'Review',
+      '580_619': 'Review',
+      '620_659': 'Review',
+      '660_699': 'Positive',
+      '700_739': 'Strong',
+      '740_799': 'Strong',
+      '800_plus': 'Strong',
+    });
+  }
+
+  async function init(){
+    var answers = readAnswers();
+    var btn = document.getElementById('payBtn');
+    if (!answers.lead_id) {
+      window.location.replace(START_URL);
+      return;
+    }
+    hydrateSummary(answers);
+
+    try {
+      try {
+        var ent = await fetchJson('/.netlify/functions/get-entitlements?leadId=' + encodeURIComponent(answers.lead_id));
+        if (ent && ent.paid10) {
+          grantResultsAccess();
+          window.location.href = RESULTS_URL;
+          return;
+        }
+      } catch (err) {
+        console.warn('Could not load existing entitlement status', err);
+      }
+
+      if (!window.Stripe) throw new Error('Stripe did not load. Refresh the page and try again.');
+      var publishableKey = await getStripePublishableKey();
+      if (!publishableKey) throw new Error('Stripe publishable key is not configured.');
+      stripe = Stripe(publishableKey);
+      elements = stripe.elements({
+        fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap' }],
+      });
+      var cardStyle = {
+        base: {
+          color: '#174b33',
+          fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif',
+          fontSize: '16px',
+          fontWeight: '600',
+          '::placeholder': { color: '#97a69d' },
+        },
+        invalid: { color: '#a63b32' },
+      };
+      cardNumber = elements.create('cardNumber', { style: cardStyle, placeholder: '1234 1234 1234 1234' });
+      cardExpiry = elements.create('cardExpiry', { style: cardStyle });
+      cardCvc = elements.create('cardCvc', { style: cardStyle });
+      cardNumber.mount('#cardNumber');
+      cardExpiry.mount('#cardExpiry');
+      cardCvc.mount('#cardCvc');
+      bindElementState(cardNumber, 'cardNumber');
+      bindElementState(cardExpiry, 'cardExpiry');
+      bindElementState(cardCvc, 'cardCvc');
+      btn.disabled = false;
+    } catch (err) {
+      btn.disabled = true;
+      showSetupNote(err.message);
+    }
+  }
+
+  async function pay(){
+    var answers = readAnswers();
+    var btn = document.getElementById('payBtn');
+    var err = document.getElementById('paymentError');
+    var zipInput = document.getElementById('billingZip');
+    if (!stripe || !cardNumber || !answers.lead_id || btn.disabled) return;
+    err.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Starting secure checkout...';
+
+    try {
+      if (!paymentClientSecret) {
+        await createPrescreenIntent(answers);
+      }
+      btn.textContent = 'Confirming payment...';
+      var billingName = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || undefined;
+      var result = await stripe.confirmCardPayment(
+        paymentClientSecret,
+        {
+          payment_method: {
+            card: cardNumber,
+            billing_details: {
+              name: billingName,
+              email: answers.email || undefined,
+              address: {
+                postal_code: (zipInput && zipInput.value) || undefined,
+                country: 'US',
+              },
+            },
+          },
+        }
+      );
+      if (result.error) throw new Error(result.error.message || 'Payment was not completed.');
+
+      var stripeSucceeded = result.paymentIntent && result.paymentIntent.status === 'succeeded';
+      rememberPrescreenPaymentIntent(result.paymentIntent ? result.paymentIntent.id : paymentIntentId);
+      try {
+        var confirmed = await fetchJson('/.netlify/functions/confirm-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: answers.lead_id,
+            paymentIntentId: result.paymentIntent ? result.paymentIntent.id : paymentIntentId,
+            product: 'prescreen',
+          }),
+        });
+        if (confirmed.status !== 'succeeded') throw new Error('Payment is still processing. Please try again in a moment.');
+      } catch (confirmError) {
+        if (!stripeSucceeded) throw confirmError;
+        console.warn('Server confirmation failed after Stripe success', confirmError);
+      }
+
+      grantResultsAccess();
+      window.location.href = RESULTS_URL;
+    } catch (error) {
+      btn.disabled = false;
+      btn.innerHTML = 'Continue With RentReady <span>→</span>';
+      showError(error.message);
+    }
+  }
+
+  document.getElementById('payBtn').addEventListener('click', pay);
+  init();
+})();
+</script>
+</body>
+</html>
