@@ -63,6 +63,37 @@
     var verifyStatus = document.getElementById('verifyStatus');
     var outlookState = document.getElementById('outlookState');
     var outlookCopy = document.getElementById('outlookCopy');
+    var briefScoreMeter = document.getElementById('briefScoreMeter');
+    var briefScoreValue = document.getElementById('briefScoreValue');
+    var briefScoreLabel = document.getElementById('briefScoreLabel');
+    var briefScoreCopy = document.getElementById('briefScoreCopy');
+    var eligibilityNextSteps = document.getElementById('eligibilityNextSteps');
+    var profile = window.rentReadyProfile || createProfile(answers);
+    var primaryRisk = profile.primaryRisk;
+    var statusLevel = profile.score >= 80 ? 'good' : profile.score >= 62 ? 'warn' : 'risk';
+
+    if (briefScoreMeter) {
+      briefScoreMeter.style.setProperty('--score', profile.score);
+      briefScoreMeter.className = 'result-score ' + statusClass(statusLevel);
+    }
+    if (briefScoreValue) briefScoreValue.textContent = profile.score;
+    if (briefScoreLabel) briefScoreLabel.textContent = profile.status;
+    if (briefScoreCopy) {
+      briefScoreCopy.textContent = profile.score >= 80
+        ? 'Your profile has strong early signals. Keep confirming each property’s written rules before applying.'
+        : profile.score >= 62
+          ? 'Your profile has usable strengths, with a few items to verify before paying application fees.'
+          : 'Your best move is to prepare documents and confirm screening criteria before choosing where to apply.';
+    }
+    if (eligibilityNextSteps) {
+      var steps = (primaryRisk && primaryRisk.steps && primaryRisk.steps.length ? primaryRisk.steps : [
+        'Confirm the property’s written rental screening criteria.',
+        'Prepare income documents and rental-history details before touring.'
+      ]).slice(0, 3);
+      eligibilityNextSteps.innerHTML = steps.map(function(step, index){
+        return '<div class="next-step"><span>' + (index + 1) + '</span><p>' + escapeHtml(step) + '</p></div>';
+      }).join('');
+    }
 
     if (ratio >= 3) setBriefStatus(incomeStatus, 'Looks strong', 'good');
     else if (ratio >= 2.5) setBriefStatus(incomeStatus, 'Close — verify', 'warn');

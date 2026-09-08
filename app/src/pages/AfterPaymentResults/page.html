@@ -61,17 +61,28 @@
           <p class="brief-eyebrow">Your brief result</p>
           <h1>Welcome to RentReady</h1>
           <p class="brief-copy">You’re One Step Closer<br>to Your Next Home.</p>
-          <div class="continuity"><span class="continuity-dot" aria-hidden="true"></span><span>See Your Elligibility Below</span></div>
+          <div class="continuity"><span class="continuity-dot" aria-hidden="true"></span><span>See Your Eligibility Below</span></div>
         </div>
 
         <aside class="outlook" aria-label="Your deposit outlook">
           <div class="outlook-label">Your deposit outlook</div>
           <div class="outlook-state" id="outlookState">Worth Exploring</div>
           <p class="outlook-copy" id="outlookCopy">No-deposit options can depend on the property’s screening rules. Your current answers give you a useful starting point.</p>
+          <div class="result-score-row">
+            <div class="result-score" id="briefScoreMeter" style="--score:68"><span id="briefScoreValue">68</span></div>
+            <div class="result-score-copy">
+              <strong id="briefScoreLabel">Readiness snapshot</strong>
+              <p id="briefScoreCopy">We are comparing income, credit range, move timing, and property screening risks from your answers.</p>
+            </div>
+          </div>
           <div class="signal-mini">
             <div class="signal-row"><strong>Income fit</strong><span class="status warn" id="incomeStatus">Checking</span></div>
             <div class="signal-row"><strong>Credit range</strong><span class="status warn" id="creditStatus">Checking</span></div>
             <div class="signal-row"><strong>Move plan</strong><span class="status good" id="moveStatus">Ready</span></div>
+          </div>
+          <div class="eligibility-next" id="eligibilityNextSteps" aria-label="Recommended next steps">
+            <div class="next-step"><span>1</span><p>Confirm the property’s income and credit rules before applying.</p></div>
+            <div class="next-step"><span>2</span><p>Prepare income documents and rental-history details before touring.</p></div>
           </div>
         </aside>
       </div>
@@ -91,11 +102,11 @@
       </div>
       <div class="apartment-grid">
         <a class="apartment-card" href="/luxury-apartments-premium.html">
-          <img class="apartment-image" src="real estate images/charlotte/charlotte 1.webp" alt="Luxury high-rise apartment building with pool deck" loading="lazy" decoding="async">
+          <img class="apartment-image" src="/real estate images/charlotte/charlotte 1.webp" alt="Luxury high-rise apartment building with pool deck" loading="lazy" decoding="async">
           <h3>Luxury Apartments</h3>
         </a>
         <a class="apartment-card" href="/modern-apartments-premium.html">
-          <img class="apartment-image" src="real estate images/charlotte/charlotte.webp" alt="Modern apartment community with pool and outdoor seating" loading="lazy" decoding="async">
+          <img class="apartment-image" src="/real estate images/charlotte/charlotte.webp" alt="Modern apartment community with pool and outdoor seating" loading="lazy" decoding="async">
           <h3>Modern Apartments</h3>
         </a>
       </div>
@@ -133,7 +144,6 @@
   </div>
 
 </section>
-
 
 
 

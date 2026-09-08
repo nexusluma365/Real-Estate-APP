@@ -1550,7 +1550,7 @@
     min-height: 690px;
     background:
       linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.82)),
-      url("./hero-bg-optimized.jpg") center / cover no-repeat;
+      url("/hero-bg-optimized.jpg") center / cover no-repeat;
     border: 0;
     border-radius: 0;
     overflow: hidden;
@@ -1677,6 +1677,86 @@
     color:rgba(255,255,255,.7);
     margin:0 0 22px;
   }
+  .result-score-row{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:16px;
+    align-items:center;
+    margin:18px 0 20px;
+    padding:16px;
+    border-radius:8px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.12);
+  }
+  .result-score{
+    width:76px;
+    height:76px;
+    border-radius:50%;
+    display:grid;
+    place-items:center;
+    font-size:28px;
+    font-weight:760;
+    color:#fff;
+    background:conic-gradient(var(--primary) calc(var(--score, 68) * 1%), rgba(255,255,255,.18) 0);
+    position:relative;
+  }
+  .result-score:before{
+    content:"";
+    position:absolute;
+    inset:7px;
+    border-radius:50%;
+    background:rgba(0,0,0,.54);
+  }
+  .result-score span{
+    position:relative;
+    z-index:1;
+  }
+  .result-score.is-warn{background:conic-gradient(#c8932c calc(var(--score, 68) * 1%), rgba(255,255,255,.18) 0)}
+  .result-score.is-risk{background:conic-gradient(#d56b4f calc(var(--score, 68) * 1%), rgba(255,255,255,.18) 0)}
+  .result-score-copy{
+    text-align:left;
+    min-width:0;
+  }
+  .result-score-copy strong{
+    display:block;
+    color:#fff;
+    font-size:15px;
+    margin-bottom:5px;
+  }
+  .result-score-copy p{
+    margin:0;
+    color:rgba(255,255,255,.68);
+    font-size:13px;
+    line-height:1.45;
+  }
+  .eligibility-next{
+    display:grid;
+    gap:10px;
+    margin-top:18px;
+    padding-top:18px;
+    border-top:1px solid rgba(255,255,255,.14);
+  }
+  .next-step{
+    display:grid;
+    grid-template-columns:22px 1fr;
+    gap:10px;
+    align-items:start;
+    text-align:left;
+    color:rgba(255,255,255,.72);
+    font-size:13px;
+    line-height:1.45;
+  }
+  .next-step span:first-child{
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    display:grid;
+    place-items:center;
+    background:rgba(255,255,255,.1);
+    color:#7dd7a0;
+    font-size:12px;
+    font-weight:700;
+  }
   .signal-mini{display:grid;gap:10px;border-top:1px solid rgba(255,255,255,.14);padding-top:18px}
   .signal-row{display:flex;align-items:center;justify-content:space-between;gap:18px;font-size:14px}
   .signal-row strong{font-weight:600;color:#163e2c}
@@ -1783,7 +1863,7 @@
     inset:0;
     background:
       linear-gradient(rgba(0,0,0,.58), rgba(0,0,0,.84)),
-      url("./hero-card-optimized.jpg") center / cover no-repeat;
+      url("/hero-card-optimized.jpg") center / cover no-repeat;
     opacity: .24;
   }
   .bridge:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, rgba(0,0,0,.94), rgba(0,0,0,.76))}
@@ -1979,6 +2059,15 @@
         display: grid;
         grid-template-columns: 1fr;
         justify-items: center;
+        text-align: center;
+      }
+      .result-score-row,
+      .next-step{
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+      }
+      .result-score-copy{
         text-align: center;
       }
       .continuity{
