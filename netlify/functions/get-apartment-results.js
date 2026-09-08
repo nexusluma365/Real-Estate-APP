@@ -94,6 +94,13 @@ exports.handler = async (event) => {
     }
     if (!lead && fallbackCriteria) {
       lead = leadFromFallbackCriteria(fallbackCriteria, leadId);
+      if (lead) {
+        try {
+          await saveLead(leadId, lead);
+        } catch (err) {
+          console.warn('fallback lead save failed', err);
+        }
+      }
     }
     if (!lead) return json(404, { ok: false, error: 'No saved questionnaire was found.' });
 

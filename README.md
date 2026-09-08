@@ -44,11 +44,14 @@ STRIPE_WEBHOOK_SECRET
 EMAIL_LINK_SECRET
 GOOGLE_SCRIPT_URL
 GOOGLE_PLACES_API_KEY
+SUPABASE_URL
+SUPABASE_SECRET_KEY
 OPENAI_API_KEY
 OPENAI_MODEL
 ```
 
 `OPENAI_MODEL` is optional. If it is not set, the apartment-results function uses its default model.
+`SUPABASE_URL` and `SUPABASE_SECRET_KEY` are optional locally, but should be set in Netlify production so leads, entitlements, apartment results, and waiting-list entries persist in Supabase. Keep `SUPABASE_SECRET_KEY` server-only.
 
 After the first deploy, add the Stripe webhook endpoint:
 

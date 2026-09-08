@@ -7,6 +7,7 @@ app/dist/
 # Local Netlify state
 .netlify/
 .netlify-local-blobs/
+supabase/.temp/
 
 # Local environment files
 .env
