@@ -389,7 +389,6 @@ function listingHtml(result, index, isTop){
           <span class="listing-name">${apt.name}</span>
           ${isTop ? `<span class="best-badge">Best match</span>` : ""}
         </div>
-        <span class="match-badge">${rr.matchScore}% match</span>
       </div>
       <div class="listing-loc">${ICONS.pin} ${apt.locationLabel || apt.address || apt.area} ${ratingHtml(apt)}</div>
       <div class="listing-price">${rentRangeHtml(apt)}</div>
@@ -627,7 +626,6 @@ function openPropertyModal(id){
   document.getElementById("modalContent").innerHTML = `
     <div class="modal-photo">
       <img src="${apt.photo}" alt="${apt.name}">
-      <span class="match-badge">${rr.matchScore}% match</span>
       <button class="close-x" onclick="closePropertyModal()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
     </div>
     <div class="modal-body">
