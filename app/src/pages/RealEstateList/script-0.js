@@ -191,6 +191,16 @@ function currentCategory(){
   return (params.get("category") || "luxury").toLowerCase() === "modern" ? "modern" : "luxury";
 }
 
+async function fetchWithTimeout(url, options, timeoutMs = 22000){
+  const controller = new AbortController();
+  const timeout = setTimeout(()=> controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...(options || {}), signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function loadVerifiedApartmentResults(){
   const answers = readAnswers();
   const urlParams = new URLSearchParams(window.location.search);
@@ -209,14 +219,14 @@ async function loadVerifiedApartmentResults(){
       const upsellIntentId = rrnApartmentPaymentIntentId(category);
       if (upsellIntentId) params.set("upsellPaymentIntentId", upsellIntentId);
     }
-    let res = await fetch("/.netlify/functions/get-apartment-results", {
+    let res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
     });
     let data = await res.json().catch(()=>({}));
     if (res.status === 404 && data.error === "No saved questionnaire was found." && await resyncSavedQuestionnaire(answers)) {
-      res = await fetch("/.netlify/functions/get-apartment-results", {
+      res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
@@ -241,17 +251,19 @@ async function loadVerifiedApartmentResults(){
     console.warn("Verified apartment results unavailable", err);
     nearbyAreas = [];
     serverResults = [];
-    serverLoadMessage = err.message || "Verified apartment results could not be loaded right now.";
+    serverLoadMessage = err.name === "AbortError"
+      ? "Apartment results are taking longer than expected. Try updating the city and state, or refresh in a moment."
+      : err.message || "Verified apartment results could not be loaded right now.";
   }
 }
 
 async function resyncSavedQuestionnaire(answers){
   try {
-    const res = await fetch("/.netlify/functions/submit-lead", {
+    const res = await fetchWithTimeout("/.netlify/functions/submit-lead", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(answers),
-    });
+    }, 12000);
     const data = await res.json().catch(()=>({}));
     return !!(res.ok && data && data.saved);
   } catch (_e) {
@@ -404,9 +416,11 @@ function renderHeroAndSummary(){
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = "Up to " + money(criteria.budgetMax);
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = criteria.city
-    ? `${matchText} matched what you're looking for — ${criteria.style.toLowerCase()}, ${bedroomText}, ${cityName || criteria.city}.`
-    : "Enter a city and state to search verified apartment communities.");
+  document.getElementById("heroSub").textContent = serverLoadMessage && !currentResults.length
+    ? serverLoadMessage
+    : criteria.city
+      ? `${matchText} matched what you're looking for — ${criteria.style.toLowerCase()}, ${bedroomText}, ${cityName || criteria.city}.`
+      : "Enter a city and state to search verified apartment communities.";
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
     ? `Explore apartment communities near ${criteria.city}.`
     : `Update your city and state to search another U.S. market.`;
@@ -500,7 +514,19 @@ function runLoadingSequence(onDone, overlayMode){
       clearInterval(interval);
       bar.style.width = "100%";
       setTimeout(()=>{
-        Promise.resolve(onDone()).finally(()=> overlay.classList.add("hide"));
+        Promise.resolve()
+          .then(onDone)
+          .catch(err => {
+            console.error("Could not render apartment results", err);
+            serverLoadMessage = err && err.message ? err.message : "Apartment results could not be shown right now.";
+            currentResults = [];
+            try {
+              renderHeroAndSummary();
+              renderResults();
+              renderAreaPills();
+            } catch (_e) {}
+          })
+          .finally(()=> overlay.classList.add("hide"));
       }, reduced ? 0 : 220);
     }
   }, step || 10);
