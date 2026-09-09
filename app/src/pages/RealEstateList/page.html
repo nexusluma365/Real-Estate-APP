@@ -14,20 +14,27 @@
       RentReady
     </div>
     <nav class="main-nav" aria-label="Apartment sections">
-      <span class="active">Homes</span>
-      <span>Matches</span>
-      <span>Saved</span>
-      <span>Support</span>
+      <button class="nav-link active" type="button" data-scroll-target="hero">Homes</button>
+      <button class="nav-link" type="button" data-scroll-target="listSection">Matches</button>
+      <button class="nav-link" type="button" data-scroll-target="nearbySection">Saved</button>
+      <button class="nav-link" type="button" data-scroll-target="supportSection">Support</button>
     </nav>
     <div class="header-actions">
       <span class="header-status">Your Apartment Matches</span>
-      <button class="header-icon" type="button" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <button class="header-icon" id="headerMenuBtn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="headerMenu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="header-menu" id="headerMenu">
+        <button type="button" data-scroll-target="hero">Home</button>
+        <button type="button" data-scroll-target="listSection">View matches</button>
+        <button type="button" data-scroll-target="nearbySection">Nearby options</button>
+        <button type="button" data-scroll-target="supportSection">Support info</button>
+        <button type="button" data-menu-action="search">Update search</button>
+      </div>
     </div>
   </div>
 </header>
 
 <main>
-  <section class="hero">
+  <section class="hero" id="hero">
     <div class="wrap">
       <div class="welcome-line"><span class="dot"></span> Welcome back to RentReady</div>
       <h1 id="heroTitle">We found your matches.</h1>
@@ -70,7 +77,7 @@
     </div>
   </section>
 
-  <section class="nearby">
+  <section class="nearby" id="nearbySection">
     <div class="wrap">
       <div class="nearby-head">
         <div>
@@ -82,7 +89,7 @@
     </div>
   </section>
 
-  <section class="trust-strip">
+  <section class="trust-strip" id="supportSection">
     <div class="wrap">
       <div class="trust-grid">
         <div class="trust-item">
