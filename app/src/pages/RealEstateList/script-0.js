@@ -365,7 +365,6 @@ function listingHtml(result, index, isTop){
     <div class="listing-photo">
       ${photoHtml(apt)}
       <div class="photo-actions">
-        <button class="icon-btn" type="button" aria-label="Save ${apt.name}">${ICONS.heart}</button>
         <button class="icon-btn" type="button" aria-label="Share ${apt.name}">${ICONS.share}</button>
         <button class="icon-btn" type="button" aria-label="Hide ${apt.name}">${ICONS.hide}</button>
         <button class="icon-btn" type="button" aria-label="More options for ${apt.name}">${ICONS.more}</button>
