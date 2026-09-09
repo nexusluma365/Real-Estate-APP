@@ -253,7 +253,7 @@ async function fetchGooglePlaces(criteria) {
 function googlePlaceQueries(criteria) {
   const category = criteria.category === 'luxury' ? 'luxury' : 'modern';
   const bedroomText = criteria.bedroomsLabel ? `${criteria.bedroomsLabel} ` : '';
-  const primary = criteria.searchArea && criteria.searchArea !== criteria.city ? `${criteria.searchArea}, ${criteria.city}` : criteria.city;
+  const primary = searchLocationForArea(criteria.searchArea, criteria.city);
   const locations = [primary];
   if (criteria.searchArea && criteria.searchArea !== criteria.city) locations.push(criteria.city);
 
@@ -269,6 +269,16 @@ function usSearchLocation(location) {
   const value = clean(location);
   if (!value) return '';
   return normalizeCityState(value) ? value : `${value}, United States`;
+}
+
+function searchLocationForArea(searchArea, city) {
+  const area = clean(searchArea);
+  const baseCity = clean(city);
+  if (!area || area === baseCity) return baseCity;
+  if (normalizeCityState(area)) return area;
+  if (!baseCity) return area;
+  if (area.toLowerCase().includes(baseCity.toLowerCase())) return area;
+  return `${area}, ${baseCity}`;
 }
 
 function unique(values) {
@@ -574,13 +584,27 @@ function nearbyAreasFromProperties(properties, criteria) {
   const seen = new Set();
   const out = [];
   for (const property of properties) {
-    const area = clean(property.area);
-    if (!area || area === criteria.city || seen.has(area.toLowerCase())) continue;
+    const area = formatNearbyArea(property.area, criteria);
+    if (!area || seen.has(area.toLowerCase())) continue;
     seen.add(area.toLowerCase());
     out.push(area);
     if (out.length >= 8) break;
   }
   return out;
+}
+
+function formatNearbyArea(area, criteria) {
+  const value = clean(area);
+  const city = clean(criteria.city);
+  if (!value) return '';
+  const normalizedArea = normalizeCityState(value);
+  if (normalizedArea) return normalizedArea;
+  if (!city) return value;
+  const normalizedCity = normalizeCityState(city);
+  const cityName = clean(city.split(',')[0]);
+  if (normalizedCity && cityName && value.toLowerCase() === cityName.toLowerCase()) return normalizedCity;
+  if (value.toLowerCase().includes(city.toLowerCase())) return value;
+  return `${value}, ${city}`;
 }
 
 function enrich(property, ai) {

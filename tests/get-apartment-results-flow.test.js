@@ -149,7 +149,7 @@ async function run() {
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
     assert.equal(body.properties[0].image, '');
-    assert.deepEqual(body.nearbyAreas, ['Concord']);
+    assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
     assert.equal(textSearchCalls, 1);
@@ -610,6 +610,68 @@ async function run() {
     assert(variedQueries.some((query) => query.includes('Tiny Test District, Austin, TX')));
     assert(variedQueries.some((query) => query.includes('Austin, TX') && !query.includes('Tiny Test District')));
     assert(areaFallbackCalls > 4);
+
+    urls.length = 0;
+    variedQueries.length = 0;
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        const parsed = new URL(String(url));
+        const query = parsed.searchParams.get('query');
+        variedQueries.push(query);
+        return {
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                place_id: 'place_specific_area',
+                name: 'Specific Area Apartments',
+                formatted_address: '9 Main St, Austin, TX',
+                rating: 4.5,
+                user_ratings_total: 44,
+                business_status: 'OPERATIONAL',
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url).includes('/details/')) {
+        return {
+          json: async () => ({
+            result: {
+              name: 'Specific Area Apartments',
+              formatted_address: '9 Main St, Austin, TX',
+              url: 'https://maps.google.com/?cid=specificarea',
+              rating: 4.5,
+              user_ratings_total: 44,
+              business_status: 'OPERATIONAL',
+              address_components: [
+                { long_name: 'Downtown Austin', types: ['neighborhood', 'political'] },
+              ],
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+    const specificArea = await loadHandler({
+      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
+      entitlements: { paid27: true, purchasedCategory: 'modern' },
+    });
+    const specificAreaRes = await specificArea.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({
+        leadId: 'lead_specific_area',
+        category: 'modern',
+        requestCriteria: { city: 'Austin, TX', area: 'Downtown Austin, Austin, TX', rentBudget: 2100, bedrooms: 2 },
+      }),
+    });
+    const specificAreaBody = JSON.parse(specificAreaRes.body);
+    assert.equal(specificAreaRes.statusCode, 200);
+    assert.deepEqual(specificAreaBody.nearbyAreas, ['Downtown Austin, Austin, TX']);
+    assert(variedQueries.some((query) => query.includes('Downtown Austin, Austin, TX')));
+    assert(!variedQueries.some((query) => query.includes('Downtown Austin, Austin, TX, Austin, TX')));
 
     urls.length = 0;
     variedQueries.length = 0;
