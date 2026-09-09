@@ -13,7 +13,16 @@
       <span class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 9.8V19a1 1 0 0 0 1 1H10v-5.4h4V20h3.5a1 1 0 0 0 1-1V9.8"/></svg></span>
       RentReady
     </div>
-    <span class="header-status">Your Apartment Matches</span>
+    <nav class="main-nav" aria-label="Apartment sections">
+      <span class="active">Homes</span>
+      <span>Matches</span>
+      <span>Saved</span>
+      <span>Support</span>
+    </nav>
+    <div class="header-actions">
+      <span class="header-status">Your Apartment Matches</span>
+      <button class="header-icon" type="button" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
   </div>
 </header>
 
@@ -31,9 +40,11 @@
         <div class="sc-item"><div class="sc-label">Bedrooms</div><div class="sc-value" id="scBedrooms">—</div></div>
         <button class="sc-cta" id="openPanelBtn">Update my search</button>
       </div>
-
-      <div class="match-strip" id="matchStrip"><!-- injected --></div>
     </div>
+  </section>
+
+  <section class="category-row" aria-label="Search match categories">
+    <div class="match-strip" id="matchStrip"><!-- injected --></div>
   </section>
 
   <section class="section" id="listSection">
@@ -68,6 +79,29 @@
         </div>
       </div>
       <div class="area-pills" id="areaPills"><!-- injected --></div>
+    </div>
+  </section>
+
+  <section class="trust-strip">
+    <div class="wrap">
+      <div class="trust-grid">
+        <div class="trust-item">
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.4 8.4-8 9-4.6-.6-8-4-8-9V7l8-4z"/><path d="M8.5 12l2.2 2.2L16 9"/></svg></div>
+          <div><strong>Verified listings</strong><span>Property facts come from live listing providers when available.</span></div>
+        </div>
+        <div class="trust-item">
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="3"/></svg></div>
+          <div><strong>Current search</strong><span>Area changes re-run the search against your active criteria.</span></div>
+        </div>
+        <div class="trust-item">
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 0 1 16 0"/><path d="M4 12v5a2 2 0 0 0 2 2h2v-7H4zM20 12v5a2 2 0 0 1-2 2h-2v-7h4z"/></svg></div>
+          <div><strong>RentReady support</strong><span>Use each property link to confirm pricing and availability.</span></div>
+        </div>
+        <div class="trust-item">
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.4 7-11.5A7 7 0 0 0 5 9.5C5 14.6 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg></div>
+          <div><strong>Flexible areas</strong><span>Nearby options include city and state for clearer searching.</span></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -136,5 +170,3 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal" id="modalContent"><!-- injected --></div>
 </div>
-
-
