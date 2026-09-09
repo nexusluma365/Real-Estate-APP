@@ -713,7 +713,6 @@ function listingHtml(result, index, isTop){
       <div class="listing-loc">${ICONS.pin} ${apt.locationLabel || apt.address || apt.area} ${ratingHtml(apt)}</div>
       <p class="listing-reason">${rr.matchReason}</p>
       <div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
-      <div><span class="pricing-note">${ICONS.warn} Check current availability</span></div>
       <div class="listing-footer">
         ${callLineHtml(apt)}
         ${actionButtonsHtml(apt)}
