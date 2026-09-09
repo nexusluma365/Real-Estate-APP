@@ -36,10 +36,11 @@ exports.handler = async function handler(event) {
   const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL || '';
   if (!googleScriptUrl) {
     return json(200, {
-      ok: false,
+      ok: saved,
       saved,
       sheetsOk: false,
-      error: saved ? 'GOOGLE_SCRIPT_URL is not configured.' : 'Could not save questionnaire.',
+      warning: saved ? 'GOOGLE_SCRIPT_URL is not configured; lead was saved without Google Sheets forwarding.' : undefined,
+      error: saved ? undefined : 'Could not save questionnaire.',
     });
   }
 
@@ -55,18 +56,20 @@ exports.handler = async function handler(event) {
 
     const sheetsOk = !!(res.ok && data && data.ok !== false);
     return json(200, {
-      ok: sheetsOk,
+      ok: saved || sheetsOk,
       saved,
       sheetsOk,
       sheets: data,
-      error: sheetsOk ? undefined : saved ? 'Google Sheets did not accept the lead.' : 'Could not save questionnaire.',
+      warning: saved && !sheetsOk ? 'Google Sheets did not accept the lead; lead was still saved.' : undefined,
+      error: saved || sheetsOk ? undefined : 'Could not save questionnaire.',
     });
   } catch (err) {
     return json(200, {
-      ok: false,
+      ok: saved,
       saved,
       sheetsOk: false,
-      error: saved ? String(err && err.message ? err.message : err) : 'Could not save questionnaire.',
+      warning: saved ? String(err && err.message ? err.message : err) : undefined,
+      error: saved ? undefined : 'Could not save questionnaire.',
     });
   }
 };

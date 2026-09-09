@@ -40,9 +40,10 @@ async function run() {
     const missingSheetsBody = JSON.parse(missingSheetsRes.body);
 
     assert.equal(missingSheetsRes.statusCode, 200);
-    assert.equal(missingSheetsBody.ok, false);
+    assert.equal(missingSheetsBody.ok, true);
     assert.equal(missingSheetsBody.saved, true);
     assert.equal(missingSheetsBody.sheetsOk, false);
+    assert.match(missingSheetsBody.warning, /Google Sheets forwarding/);
     assert.equal(missingSheets.savedLeads.length, 1);
     assert.equal(missingSheets.savedLeads[0].leadId, 'lead_123');
     assert.equal(missingSheets.savedLeads[0].answers.preferred_city, 'High Point, NC');
@@ -73,6 +74,7 @@ async function run() {
     assert.equal(forwardedBody.ok, true);
     assert.equal(forwardedBody.saved, true);
     assert.equal(forwardedBody.sheetsOk, true);
+    assert.equal(forwardedBody.error, undefined);
     assert.equal(forwarded.savedLeads.length, 1);
     assert.equal(forwarded.savedLeads[0].leadId, 'lead_456');
     assert.equal(forwardedPayload.lead_id, 'lead_456');
