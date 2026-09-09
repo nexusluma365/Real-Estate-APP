@@ -432,7 +432,8 @@ function buildCriteria(lead, category, overrideCriteria) {
   const leadLocation = clean(lead.preferred_city || lead.city);
   const parsedRequestedLocation = normalizeCityState(requestedLocation);
   const parsedLeadLocation = normalizeCityState(leadLocation);
-  const parsedLocation = parsedRequestedLocation || parsedLeadLocation;
+  const rawLocation = requestedLocation || leadLocation;
+  const parsedLocation = parsedRequestedLocation || parsedLeadLocation || rawLocation;
   const rentBudget = Number(lead.rent_budget) || null;
   const bedrooms = normalizeBedrooms(lead.beds_needed);
   const overrideBedrooms = normalizeBedrooms(override.bedrooms);
@@ -441,6 +442,10 @@ function buildCriteria(lead, category, overrideCriteria) {
     category,
     city: parsedLocation,
     searchArea: parsedRequestedLocation && requestedArea ? requestedArea : parsedLocation,
+    locationWarning:
+      parsedLocation && parsedLocation === rawLocation && !normalizeCityState(rawLocation)
+        ? 'City/state was not normalized; Google Places will interpret the saved location text.'
+        : null,
     rentBudget: Number(override.rentBudget || override.budgetMax) || rentBudget,
     bedrooms: overrideBedrooms === null ? bedrooms : overrideBedrooms,
     bedroomsLabel: bedroomLabel(overrideBedrooms === null ? bedrooms : overrideBedrooms),

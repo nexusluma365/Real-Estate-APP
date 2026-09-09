@@ -536,17 +536,21 @@ async function run() {
     assert.equal(fullStateBody.criteria.city, 'Austin, TX');
     assert(variedQueries.some((query) => query.includes('Austin, TX')));
 
-    const invalidLocation = await loadHandler({
+    urls.length = 0;
+    variedQueries.length = 0;
+    const ambiguousLocation = await loadHandler({
       lead: { preferred_city: 'Springfield', rent_budget: 1500, beds_needed: '1' },
       entitlements: { paid27: true, purchasedCategory: 'luxury' },
     });
-    const invalidLocationRes = await invalidLocation.handler({
+    const ambiguousLocationRes = await ambiguousLocation.handler({
       httpMethod: 'GET',
-      queryStringParameters: { leadId: 'lead_invalid', category: 'luxury' },
+      queryStringParameters: { leadId: 'lead_ambiguous', category: 'luxury' },
     });
-    const invalidLocationBody = JSON.parse(invalidLocationRes.body);
-    assert.equal(invalidLocationRes.statusCode, 400);
-    assert.match(invalidLocationBody.error, /city and state/i);
+    const ambiguousLocationBody = JSON.parse(ambiguousLocationRes.body);
+    assert.equal(ambiguousLocationRes.statusCode, 200);
+    assert.equal(ambiguousLocationBody.criteria.city, 'Springfield');
+    assert.match(ambiguousLocationBody.criteria.locationWarning, /not normalized/i);
+    assert(variedQueries.some((query) => query.includes('Springfield')));
 
     const postNoAnswers = await loadHandler({
       lead: null,
