@@ -205,8 +205,10 @@
   .empty-state h3{font-size:22px;font-weight:800;color:#1d1d1f;}
   .empty-state p{margin:9px auto 0;max-width:410px;color:var(--ink-muted);font-size:14px;line-height:1.55;font-weight:600;}
   .empty-actions{display:flex;gap:10px;justify-content:center;margin-top:22px;flex-wrap:wrap;}
-  .legal{margin-top:46px;padding:34px 0 58px;border-top:1px solid var(--line);background:var(--bg-soft);}
-  .legal p{font-size:12px;line-height:1.7;color:var(--ink-muted);max-width:780px;font-weight:600;}
+  .legal{margin-top:46px;padding:34px 0 58px;border-top:1px solid var(--line);background:var(--bg-soft);text-align:center;}
+  .legal p{font-size:12px;line-height:1.7;color:var(--ink-muted);max-width:920px;margin:0 auto;font-weight:600;}
+  .legal a{color:var(--accent);font-weight:800;text-decoration:none;}
+  .legal a:hover,.legal a:focus-visible{text-decoration:underline;}
 
   /* ---------- loading ---------- */
   #loadingOverlay{position:fixed;inset:0;z-index:200;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .55s var(--ease),visibility .55s;}
