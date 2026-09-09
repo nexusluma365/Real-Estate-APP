@@ -48,7 +48,17 @@ function parseRequest(event) {
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
   const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
-  const requestCriteria = body.requestCriteria && typeof body.requestCriteria === 'object' ? body.requestCriteria : null;
+  const bodyRequestCriteria = body.requestCriteria && typeof body.requestCriteria === 'object' ? body.requestCriteria : null;
+  const queryRequestCriteria =
+    q.city || q.location || q.area || q.searchArea || q.rentBudget || q.budget || q.bedrooms || q.beds
+      ? {
+          city: q.city || q.location || '',
+          area: q.area || q.searchArea || '',
+          rentBudget: q.rentBudget || q.budget || '',
+          bedrooms: q.bedrooms || q.beds || '',
+        }
+      : null;
+  const requestCriteria = bodyRequestCriteria || queryRequestCriteria;
   const token = body.token || q.token;
 
   if (token) {
@@ -420,14 +430,17 @@ function buildCriteria(lead, category, overrideCriteria) {
   const override = overrideCriteria && typeof overrideCriteria === 'object' ? overrideCriteria : {};
   const requestedLocation = clean(override.city || override.location || override.area);
   const leadLocation = clean(lead.preferred_city || lead.city);
-  const parsedLocation = normalizeCityState(requestedLocation || leadLocation);
+  const parsedRequestedLocation = normalizeCityState(requestedLocation);
+  const parsedLeadLocation = normalizeCityState(leadLocation);
+  const parsedLocation = parsedRequestedLocation || parsedLeadLocation;
   const rentBudget = Number(lead.rent_budget) || null;
   const bedrooms = normalizeBedrooms(lead.beds_needed);
   const overrideBedrooms = normalizeBedrooms(override.bedrooms);
+  const requestedArea = clean(override.searchArea || override.area);
   return {
     category,
     city: parsedLocation,
-    searchArea: clean(override.searchArea || override.area) || parsedLocation,
+    searchArea: parsedRequestedLocation && requestedArea ? requestedArea : parsedLocation,
     rentBudget: Number(override.rentBudget || override.budgetMax) || rentBudget,
     bedrooms: overrideBedrooms === null ? bedrooms : overrideBedrooms,
     bedroomsLabel: bedroomLabel(overrideBedrooms === null ? bedrooms : overrideBedrooms),
@@ -439,14 +452,29 @@ function buildCriteria(lead, category, overrideCriteria) {
 function normalizeCityState(city) {
   const value = clean(city);
   if (!value) return '';
-  const commaMatch = value.match(/^(.+?),\s*([A-Za-z]{2})$/);
+  const commaMatch = value.match(/^(.+?),\s*([A-Za-z]{2}|[A-Za-z][A-Za-z\s.]+)$/);
   const spaceMatch = value.match(/^(.+?)\s+([A-Za-z]{2})$/);
   const match = commaMatch || spaceMatch;
   if (!match) return '';
   const place = clean(match[1]).replace(/\s+/g, ' ');
-  const state = match[2].toUpperCase();
+  const state = normalizeStateCode(match[2]);
   if (!place || !VALID_STATE_CODES.has(state)) return '';
   return `${place}, ${state}`;
+}
+
+function normalizeStateCode(value) {
+  const state = clean(value).replace(/\./g, '').toUpperCase();
+  const names = {
+    ALABAMA:'AL', ALASKA:'AK', ARIZONA:'AZ', ARKANSAS:'AR', CALIFORNIA:'CA', COLORADO:'CO', CONNECTICUT:'CT',
+    DELAWARE:'DE', FLORIDA:'FL', GEORGIA:'GA', HAWAII:'HI', IDAHO:'ID', ILLINOIS:'IL', INDIANA:'IN', IOWA:'IA',
+    KANSAS:'KS', KENTUCKY:'KY', LOUISIANA:'LA', MAINE:'ME', MARYLAND:'MD', MASSACHUSETTS:'MA', MICHIGAN:'MI',
+    MINNESOTA:'MN', MISSISSIPPI:'MS', MISSOURI:'MO', MONTANA:'MT', NEBRASKA:'NE', NEVADA:'NV', 'NEW HAMPSHIRE':'NH',
+    'NEW JERSEY':'NJ', 'NEW MEXICO':'NM', 'NEW YORK':'NY', 'NORTH CAROLINA':'NC', 'NORTH DAKOTA':'ND', OHIO:'OH',
+    OKLAHOMA:'OK', OREGON:'OR', PENNSYLVANIA:'PA', 'RHODE ISLAND':'RI', 'SOUTH CAROLINA':'SC', 'SOUTH DAKOTA':'SD',
+    TENNESSEE:'TN', TEXAS:'TX', UTAH:'UT', VERMONT:'VT', VIRGINIA:'VA', WASHINGTON:'WA', 'WEST VIRGINIA':'WV',
+    WISCONSIN:'WI', WYOMING:'WY', 'DISTRICT OF COLUMBIA':'DC',
+  };
+  return names[state] || state;
 }
 
 function normalizeBedrooms(value) {

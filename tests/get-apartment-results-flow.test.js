@@ -501,6 +501,41 @@ async function run() {
     assert(variedQueries.some((query) => query.includes('New York, NY')));
     assert(variedQueries.some((query) => query.includes('Mount Vernon, WA')));
 
+    urls.length = 0;
+    variedQueries.length = 0;
+    const bridgeFallback = await loadHandler({
+      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
+      entitlements: { paid27: true, purchasedCategory: 'modern' },
+    });
+    const bridgeFallbackRes = await bridgeFallback.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({
+        leadId: 'lead_bridge',
+        category: 'modern',
+        requestCriteria: { city: 'Downtown Austin', area: 'Downtown Austin', rentBudget: 2100, bedrooms: 2 },
+      }),
+    });
+    const bridgeFallbackBody = JSON.parse(bridgeFallbackRes.body);
+    assert.equal(bridgeFallbackRes.statusCode, 200);
+    assert.equal(bridgeFallbackBody.criteria.city, 'Austin, TX');
+    assert(variedQueries.some((query) => query.includes('Austin, TX')));
+
+    urls.length = 0;
+    variedQueries.length = 0;
+    const fullState = await loadHandler({
+      lead: { preferred_city: 'Concord, NC', rent_budget: 2100, beds_needed: '2' },
+      entitlements: { paid27: true, purchasedCategory: 'modern' },
+    });
+    const fullStateRes = await fullState.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_full_state', category: 'modern', city: 'Austin, Texas' },
+    });
+    const fullStateBody = JSON.parse(fullStateRes.body);
+    assert.equal(fullStateRes.statusCode, 200);
+    assert.equal(fullStateBody.criteria.city, 'Austin, TX');
+    assert(variedQueries.some((query) => query.includes('Austin, TX')));
+
     const invalidLocation = await loadHandler({
       lead: { preferred_city: 'Springfield', rent_budget: 1500, beds_needed: '1' },
       entitlements: { paid27: true, purchasedCategory: 'luxury' },
