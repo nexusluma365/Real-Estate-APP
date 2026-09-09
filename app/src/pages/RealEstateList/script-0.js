@@ -393,12 +393,19 @@ function listingHtml(result, index, isTop){
 }
 
 function renderHeroAndSummary(){
+  const cityLabel = criteria.city || "";
+  const cityName = cityLabel ? cityLabel.split(",")[0].trim() || cityLabel : "";
+  const matchText = `${currentResults.length} ${currentResults.length === 1 ? "apartment community" : "apartment communities"}`;
+  const bedroomText = bedroomLabel(criteria.bedrooms).toLowerCase();
+  document.getElementById("heroTitle").textContent = cityName
+    ? `We found your ${cityName} matches.`
+    : "We found your matches.";
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = "Up to " + money(criteria.budgetMax);
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = serverLoadMessage || (criteria.city
-    ? `${currentResults.length} verified apartment communities in ${criteria.city} match your ${criteria.style.toLowerCase()}, ${bedroomLabel(criteria.bedrooms).toLowerCase()} search.`
+  document.getElementById("heroSub").textContent = criteria.city
+    ? `${matchText} matched what you're looking for — ${criteria.style.toLowerCase()}, ${bedroomText}, ${cityName || criteria.city}.`
     : "Enter a city and state to search verified apartment communities.");
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
     ? `Explore apartment communities near ${criteria.city}.`
