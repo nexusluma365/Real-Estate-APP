@@ -16,6 +16,20 @@
 -->
 <script src="https://js.stripe.com/v3/"></script>
 <script src="/assets/checkout-client.js"></script>
+<style>
+  a[href*="netlify.com"][style*="fixed"],
+  iframe[src*="netlify"],
+  iframe[title*="Netlify"],
+  [aria-label*="Netlify"][style*="fixed"],
+  [data-netlify-badge],
+  [class*="netlify-badge"],
+  [id*="netlify-badge"] {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+</style>
 </head>
 <body>
 <div id="root"></div>
