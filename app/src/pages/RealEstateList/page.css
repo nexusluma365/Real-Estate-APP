@@ -208,8 +208,21 @@
   .empty-actions{display:flex;gap:10px;justify-content:center;margin-top:22px;flex-wrap:wrap;}
   .legal{margin-top:46px;padding:34px 0 58px;border-top:1px solid var(--line);background:var(--bg-soft);text-align:center;}
   .legal p{font-size:12px;line-height:1.7;color:var(--ink-muted);max-width:920px;margin:0 auto;font-weight:600;}
-  .legal a{color:var(--accent);font-weight:800;text-decoration:none;}
-  .legal a:hover,.legal a:focus-visible{text-decoration:underline;}
+  .legal-link{appearance:none;border:0;background:transparent;color:var(--accent);font:inherit;font-weight:800;padding:0;text-decoration:none;}
+  .legal-link:hover,.legal-link:focus-visible{text-decoration:underline;}
+
+  /* ---------- legal modal ---------- */
+  .legal-modal-overlay{position:fixed;inset:0;z-index:170;background:rgba(16,47,34,.42);display:flex;align-items:center;justify-content:center;padding:22px;opacity:0;visibility:hidden;transition:opacity .35s var(--ease),visibility .35s;}
+  .legal-modal-overlay.open{opacity:1;visibility:visible;}
+  .legal-modal{position:relative;width:min(100%,620px);max-height:84vh;overflow-y:auto;background:rgba(255,255,255,.97);border:1px solid rgba(255,255,255,.88);border-radius:18px;padding:30px;box-shadow:0 32px 80px -38px rgba(0,0,0,.5);backdrop-filter:blur(22px) saturate(160%);transform:translateY(10px) scale(.98);transition:transform .38s var(--ease);}
+  .legal-modal-overlay.open .legal-modal{transform:translateY(0) scale(1);}
+  .legal-close{position:absolute;top:16px;right:16px;background:var(--bg-soft);}
+  .legal-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--good);font-size:13px;font-weight:800;}
+  .legal-kicker::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 5px rgba(28,140,99,.11);}
+  .legal-modal h3{padding-right:42px;color:#1d1d1f;font-size:28px;line-height:1.1;font-weight:800;}
+  .legal-modal-copy{margin-top:18px;color:var(--ink-muted);font-size:14px;line-height:1.7;font-weight:600;}
+  .legal-modal-copy p + p{margin-top:14px;}
+  @media (max-width:640px){.legal-modal-overlay{padding:0;align-items:flex-end}.legal-modal{max-height:88vh;border-radius:18px 18px 0 0;padding:28px 22px 26px}.legal-modal h3{font-size:24px;}}
 
   /* ---------- loading ---------- */
   #loadingOverlay{position:fixed;inset:0;z-index:200;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .55s var(--ease),visibility .55s;}

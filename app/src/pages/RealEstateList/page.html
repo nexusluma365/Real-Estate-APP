@@ -114,7 +114,7 @@
 
   <section class="legal">
     <div class="wrap">
-      <p>🔒 Your information is protected. By continuing, you agree that RentReady may use your information to provide your results and, where permitted, send relevant housing and marketing communications. We do not sell your personal information. <a href="/privacy.html">Privacy Policy</a> · <a href="/terms.html">Terms</a></p>
+      <p>🔒 Your information is protected. By continuing, you agree that RentReady may use your information to provide your results and, where permitted, send relevant housing and marketing communications. We do not sell your personal information. <button type="button" class="legal-link" data-legal-modal="privacy">Privacy Policy</button> · <button type="button" class="legal-link" data-legal-modal="terms">Terms</button></p>
     </div>
   </section>
 </main>
@@ -176,4 +176,13 @@
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal" id="modalContent"><!-- injected --></div>
+</div>
+
+<div class="legal-modal-overlay" id="legalModalOverlay" aria-hidden="true">
+  <div class="legal-modal" role="dialog" aria-modal="true" aria-labelledby="legalModalTitle">
+    <button class="close-x legal-close" id="legalModalClose" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+    <p class="legal-kicker">RentReady</p>
+    <h3 id="legalModalTitle">Privacy Policy</h3>
+    <div class="legal-modal-copy" id="legalModalCopy"></div>
+  </div>
 </div>

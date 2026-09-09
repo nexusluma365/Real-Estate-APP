@@ -612,6 +612,48 @@ document.addEventListener("keydown", e=>{
 });
 
 const modalOverlay = document.getElementById("modalOverlay");
+const legalModalOverlay = document.getElementById("legalModalOverlay");
+const legalModalTitle = document.getElementById("legalModalTitle");
+const legalModalCopy = document.getElementById("legalModalCopy");
+const legalModalClose = document.getElementById("legalModalClose");
+const LEGAL_COPY = {
+  privacy: {
+    title: "Privacy Policy",
+    body: `
+      <p>RentReady uses the information you provide to prepare your apartment results, understand your housing preferences, and help connect you with relevant apartment information.</p>
+      <p>Where permitted, RentReady may send housing-related updates, reminders, and marketing communications. You can opt out of marketing communications when an unsubscribe option is provided.</p>
+      <p>We do not sell your personal information. We may share limited information with service providers that help us operate RentReady, process requests, improve the experience, or comply with legal requirements.</p>
+    `
+  },
+  terms: {
+    title: "Terms",
+    body: `
+      <p>RentReady provides apartment search and preparation information. Listing availability, pricing, fees, deposits, amenities, and screening requirements can change and should be confirmed directly with the property before applying or paying any fees.</p>
+      <p>RentReady does not make rental approval decisions and does not guarantee that a renter will qualify for, tour, lease, or be approved by any apartment community.</p>
+      <p>By continuing, you agree that RentReady may use your information to provide your results and, where permitted, send relevant housing and marketing communications.</p>
+    `
+  }
+};
+function openLegalModal(type){
+  const content = LEGAL_COPY[type];
+  if(!content || !legalModalOverlay || !legalModalTitle || !legalModalCopy) return;
+  legalModalTitle.textContent = content.title;
+  legalModalCopy.innerHTML = content.body;
+  legalModalOverlay.classList.add("open");
+  legalModalOverlay.setAttribute("aria-hidden", "false");
+}
+function closeLegalModal(){
+  if(!legalModalOverlay) return;
+  legalModalOverlay.classList.remove("open");
+  legalModalOverlay.setAttribute("aria-hidden", "true");
+}
+document.querySelectorAll("[data-legal-modal]").forEach(btn=>{
+  btn.addEventListener("click", ()=>openLegalModal(btn.dataset.legalModal));
+});
+legalModalClose?.addEventListener("click", closeLegalModal);
+legalModalOverlay?.addEventListener("click", e=>{ if(e.target === legalModalOverlay) closeLegalModal(); });
+document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeLegalModal(); });
+
 function openPropertyModal(id){
   const result = currentResults.find(r => r.verified.id === id);
   if(!result) return;
