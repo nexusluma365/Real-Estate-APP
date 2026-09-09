@@ -64,7 +64,7 @@
       <div class="nearby-head">
         <div>
           <h3>Not quite what you're looking for?</h3>
-          <p>Explore apartment communities in nearby Charlotte neighborhoods.</p>
+          <p id="nearbyCopy">Explore apartment communities near your search area.</p>
         </div>
       </div>
       <div class="area-pills" id="areaPills"><!-- injected --></div>
@@ -87,17 +87,12 @@
     <p class="panel-sub">Adjust what you're looking for and we'll update your matches.</p>
 
     <div class="field">
+      <label for="fCity">City & state</label>
+      <input type="text" id="fCity" placeholder="Austin, TX">
+    </div>
+    <div class="field">
       <label for="fArea">Preferred area</label>
-      <select id="fArea">
-        <option>Uptown Charlotte</option>
-        <option>South End</option>
-        <option>NoDa</option>
-        <option>University City</option>
-        <option>Ballantyne</option>
-        <option>Dilworth</option>
-        <option>Plaza Midwood</option>
-        <option>Any area in Charlotte</option>
-      </select>
+      <select id="fArea"></select>
     </div>
     <div class="field">
       <label for="fStyle">Apartment style</label>

@@ -96,6 +96,10 @@ async function run() {
             rating: 4.7,
             user_ratings_total: 91,
             business_status: 'OPERATIONAL',
+            address_components: [
+              { long_name: 'Concord', types: ['locality', 'political'] },
+              { short_name: 'NC', types: ['administrative_area_level_1', 'political'] },
+            ],
           },
         }),
       };
@@ -144,6 +148,8 @@ async function run() {
     assert.equal(body.properties[0].name, 'Concord Reserve Apartments');
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
+    assert.equal(body.properties[0].image, '');
+    assert.deepEqual(body.nearbyAreas, ['Concord']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
     assert.equal(textSearchCalls, 1);
@@ -262,6 +268,10 @@ async function run() {
               rating: 4.2,
               user_ratings_total: 42,
               business_status: 'OPERATIONAL',
+              address_components: [
+                { long_name: 'Downtown Concord', types: ['neighborhood', 'political'] },
+                { long_name: 'Concord', types: ['locality', 'political'] },
+              ],
             },
           }),
         };
@@ -354,6 +364,9 @@ async function run() {
               rating: 4.4,
               user_ratings_total: 30,
               business_status: 'OPERATIONAL',
+              address_components: [
+                { long_name: 'Concord', types: ['locality', 'political'] },
+              ],
             },
           }),
         };
@@ -365,7 +378,7 @@ async function run() {
       lead: null,
       entitlements: { paid27: true, purchasedCategory: 'luxury' },
     });
-    const postAnswers = { preferred_city: 'Concord', rent_budget: 1600, beds_needed: '1' };
+    const postAnswers = { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' };
     const postRes = await postFlow.handler({
       httpMethod: 'POST',
       queryStringParameters: null,
@@ -392,7 +405,7 @@ async function run() {
       body: JSON.stringify({
         leadId: 'lead_fallback',
         category: 'luxury',
-        fallbackCriteria: { city: 'High Point', budgetMax: 2000, bedrooms: 1 },
+        fallbackCriteria: { city: 'High Point, NC', budgetMax: 2000, bedrooms: 1 },
       }),
     });
     const fallbackCriteriaBody = JSON.parse(fallbackCriteriaRes.body);
@@ -403,11 +416,102 @@ async function run() {
       `expected fallback criteria to avoid 404, got ${fallbackCriteriaRes.statusCode}: ${fallbackCriteriaRes.body}`
     );
     assert.equal(fallbackCriteriaBody.ok, true);
-    assert.equal(fallbackCriteriaBody.criteria.city, 'High Point');
+    assert.equal(fallbackCriteriaBody.criteria.city, 'High Point, NC');
     assert.equal(fallbackCriteriaBody.criteria.rentBudget, 2000);
     assert.equal(fallbackCriteriaBody.criteria.bedrooms, 1);
     assert.equal(fallbackCriteriaBody.properties.length, 1);
     assert.equal(fallbackCriteriaBody.properties[0].name, 'POST Fallback Apartments');
+
+    urls.length = 0;
+    const variedQueries = [];
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        const parsed = new URL(String(url));
+        const query = parsed.searchParams.get('query');
+        variedQueries.push(query);
+        const cityMatch = query.match(/in (.+)$/);
+        const searched = cityMatch ? cityMatch[1] : 'Unknown, US';
+        const cityName = searched.split(',')[0];
+        return {
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                place_id: `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`,
+                name: `${cityName} Apartments`,
+                formatted_address: `1 Main St, ${searched}`,
+                rating: 4.3,
+                user_ratings_total: 25,
+                business_status: 'OPERATIONAL',
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url).includes('/details/')) {
+        const placeId = new URL(String(url)).searchParams.get('place_id');
+        const cityName = placeId.replace(/^place_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return {
+          json: async () => ({
+            result: {
+              name: `${cityName} Apartments`,
+              formatted_address: `1 Main St, ${cityName}`,
+              url: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
+              rating: 4.3,
+              user_ratings_total: 25,
+              business_status: 'OPERATIONAL',
+              address_components: [
+                { long_name: `${cityName} Center`, types: ['neighborhood', 'political'] },
+              ],
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+    for (const city of ['Austin, TX', 'New York, NY', 'Mount Vernon, WA']) {
+      const varied = await loadHandler({
+        lead: { preferred_city: 'Concord, NC', rent_budget: 2100, beds_needed: '2' },
+        entitlements: { paid27: true, purchasedCategory: 'modern' },
+        cached: {
+          provider: 'google_places',
+          criteria: { category: 'modern', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 2100, bedrooms: 2 },
+          properties: [{ propertyId: 'old_real', name: 'Old Real Apartments', website: 'https://real.example.org' }],
+        },
+      });
+      const variedRes = await varied.handler({
+        httpMethod: 'POST',
+        queryStringParameters: null,
+        body: JSON.stringify({
+          leadId: 'lead_varied',
+          category: 'modern',
+          requestCriteria: { city, area: city, rentBudget: 2100, bedrooms: 2 },
+        }),
+      });
+      const variedBody = JSON.parse(variedRes.body);
+      assert.equal(variedRes.statusCode, 200, `expected ${city} to search successfully`);
+      assert.equal(variedBody.criteria.city, city);
+      assert.equal(variedBody.properties.length, 1);
+      assert.notEqual(variedBody.properties[0].name, 'Old Real Apartments');
+      assert.equal(variedBody.properties[0].image, '');
+      assert.equal(varied.savedResults.length, 1);
+    }
+    assert(variedQueries.some((query) => query.includes('Austin, TX')));
+    assert(variedQueries.some((query) => query.includes('New York, NY')));
+    assert(variedQueries.some((query) => query.includes('Mount Vernon, WA')));
+
+    const invalidLocation = await loadHandler({
+      lead: { preferred_city: 'Springfield', rent_budget: 1500, beds_needed: '1' },
+      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+    });
+    const invalidLocationRes = await invalidLocation.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_invalid', category: 'luxury' },
+    });
+    const invalidLocationBody = JSON.parse(invalidLocationRes.body);
+    assert.equal(invalidLocationRes.statusCode, 400);
+    assert.match(invalidLocationBody.error, /city and state/i);
 
     const postNoAnswers = await loadHandler({
       lead: null,

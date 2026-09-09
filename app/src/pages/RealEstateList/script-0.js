@@ -57,12 +57,11 @@ const MOCK_APARTMENTS = [
   { id:"p14", name:"Trade Street Modern", area:"Uptown Charlotte", address:"525 E Trade St, Charlotte, NC", phone:"+17045550455", phoneDisplay:"(704) 555-0455", website:"https://example.com/trade-street-modern", mapsUrl:"https://maps.google.com/?q=Trade+Street+Modern+Charlotte+NC", rating:4.3, reviewCount:62, photo:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:true, bedroomsOffered:[1,2], pool:false, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1950,max:2650} },
 ];
 
-const ALL_AREAS = ["Uptown Charlotte","South End","NoDa","University City","Ballantyne","Dilworth","Plaza Midwood"];
 const ALL_PREFS = ["Modern","Pool","Fitness Center","Balcony","High-Rise","Pet Friendly"];
 
 let criteria = {
-  city: "Charlotte, NC",
-  area: "Uptown Charlotte",
+  city: "",
+  area: "",
   style: "Luxury",
   budgetMax: 3000,
   bedrooms: 2,
@@ -72,8 +71,12 @@ let criteria = {
 let currentResults = [];
 let serverResults = null;
 let serverLoadMessage = "";
+let nearbyAreas = [];
+let hasSavedLead = false;
 const bedroomLabel = n => n === 0 ? "Studio" : (n >= 4 ? "4+ Bedrooms" : n + (n===1?" Bedroom":" Bedrooms"));
 const money = n => "$" + n.toLocaleString("en-US");
+const htmlEscape = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+const jsString = value => JSON.stringify(String(value ?? "")).replace(/[<>&]/g, ch => ({ "<":"\\u003c", ">":"\\u003e", "&":"\\u0026" }[ch]));
 
 function readAnswers(){
   try {
@@ -90,12 +93,14 @@ function applyAnswerCriteria(){
   const rentBudget = Number(answers.rent_budget);
   const beds = normalizeBedrooms(answers.beds_needed);
   const urlCity = params.get("city") || params.get("c__y") || params.get("location") || "";
+  const urlArea = params.get("area") || params.get("searchArea") || "";
   const urlBudget = Number(params.get("rentBudget") || params.get("budget") || "");
   const urlBeds = params.get("bedrooms") || params.get("beds") || "";
+  const city = answers.preferred_city || answers.city || urlCity || "";
   criteria = {
     ...criteria,
-    city: answers.preferred_city || answers.city || urlCity || criteria.city,
-    area: answers.preferred_city || answers.city || urlCity || criteria.area,
+    city,
+    area: urlArea || city,
     style: category === "modern" ? "Modern" : "Luxury",
     budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : Number.isFinite(urlBudget) && urlBudget > 0 ? urlBudget : criteria.budgetMax,
     bedrooms: answers.beds_needed ? beds : urlBeds ? normalizeBedrooms(urlBeds) : beds,
@@ -117,7 +122,7 @@ function styleAdjacent(a,b){
 function computeMatch(apt, crit){
   let score = 0;
   const matchedPrefs = [];
-  if(crit.area === "Any area in Charlotte") score += 15;
+  if(!crit.area || crit.area === crit.city) score += 15;
   else if(apt.area === crit.area) score += 25;
   else score += 6;
 
@@ -172,9 +177,10 @@ function computeMatch(apt, crit){
   return { propertyId: apt.id, matchScore: score, matchReason, locationSummary, bestFor, potentialTradeoff, tags: tags.slice(0,4) };
 }
 function rankApartments(crit){
-  if (serverResults) {
+  if (Array.isArray(serverResults)) {
     return serverResults;
   }
+  if (hasSavedLead) return [];
   return MOCK_APARTMENTS
     .map(apt => ({ verified: apt, rentReady: computeMatch(apt, crit) }))
     .sort((a,b) => b.rentReady.matchScore - a.rentReady.matchScore)
@@ -190,9 +196,11 @@ async function loadVerifiedApartmentResults(){
   const answers = readAnswers();
   const urlParams = new URLSearchParams(window.location.search);
   const leadId = answers.lead_id || urlParams.get("leadId") || "";
+  hasSavedLead = !!leadId;
   if (!leadId) {
-    serverResults = [];
-    serverLoadMessage = "No saved questionnaire was found for this apartment search.";
+    serverResults = null;
+    nearbyAreas = [];
+    serverLoadMessage = "Previewing sample apartment cards. Complete the questionnaire to search live Google Places results.";
     return;
   }
   try {
@@ -205,25 +213,26 @@ async function loadVerifiedApartmentResults(){
     let res = await fetch("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, fallbackCriteria: criteria }),
+      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
     });
     let data = await res.json().catch(()=>({}));
     if (res.status === 404 && data.error === "No saved questionnaire was found." && await resyncSavedQuestionnaire(answers)) {
       res = await fetch("/.netlify/functions/get-apartment-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, fallbackCriteria: criteria }),
+        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
       });
       data = await res.json().catch(()=>({}));
     }
     if (!res.ok || !data.ok) throw new Error(data.error || "Could not load apartment results.");
     if (data.criteria) {
       criteria.city = data.criteria.city || criteria.city;
-      criteria.area = data.criteria.city || criteria.area;
+      criteria.area = data.criteria.searchArea || data.criteria.city || criteria.area;
       criteria.style = data.criteria.category === "modern" ? "Modern" : "Luxury";
       criteria.budgetMax = Number(data.criteria.rentBudget) || criteria.budgetMax;
       criteria.bedrooms = normalizeBedrooms(data.criteria.bedrooms);
     }
+    nearbyAreas = Array.isArray(data.nearbyAreas) ? data.nearbyAreas : [];
     serverResults = Array.isArray(data.properties) ? data.properties.map(serverPropertyToResult) : [];
     serverLoadMessage = data.message || "";
     if (data.message) {
@@ -231,6 +240,7 @@ async function loadVerifiedApartmentResults(){
     }
   } catch (err) {
     console.warn("Verified apartment results unavailable", err);
+    nearbyAreas = [];
     serverResults = [];
     serverLoadMessage = err.message || "Verified apartment results could not be loaded right now.";
   }
@@ -255,25 +265,27 @@ function serverPropertyToResult(property){
   const apt = {
     id: property.propertyId,
     name: property.name || "Apartment community",
-    area: criteria.city,
-    address: property.address || criteria.city,
+    area: property.area || criteria.city,
+    address: property.address || "",
     phone,
     phoneDisplay: phone,
     website: property.website || "",
     mapsUrl: property.directions || "",
     rating: typeof property.rating === "number" ? property.rating : null,
-    reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : 0,
-    photo: property.image,
+    reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : null,
+    photo: property.image || "",
     locationLabel: property.address || criteria.city,
     style: criteria.style,
-    highRise: false,
-    bedroomsOffered: [criteria.bedrooms],
-    pool: false,
-    fitnessCenter: false,
-    balcony: false,
-    petFriendly: false,
-    modern: currentCategory() === "modern",
-    estRent:{ min: criteria.budgetMax, max: criteria.budgetMax },
+    highRise: null,
+    bedroomsOffered: [],
+    pool: null,
+    fitnessCenter: null,
+    balcony: null,
+    petFriendly: null,
+    modern: null,
+    estRent: null,
+    source: property.source || "Google Places",
+    facts: [property.source || "Google Places"].filter(Boolean),
   };
   const reasons = Array.isArray(property.matchReasons) ? property.matchReasons : [];
   return {
@@ -293,6 +305,10 @@ function serverPropertyToResult(property){
 const ICONS = {
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.4 7-11.5A7 7 0 0 0 5 9.5C5 14.6 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>',
   star: '<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.2 6.8.7-5.1 4.6 1.5 6.7L12 17.4 5.9 20.7l1.5-6.7-5.1-4.6 6.8-.7L12 2.5z"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6z"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+  hide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6A2 2 0 0 0 13.4 13.4"/><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5 0 9 5 10 8a13.8 13.8 0 0 1-2.6 4.3"/><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12c1 3 5 8 10 8a10.8 10.8 0 0 0 4.2-.9"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .6 2.9a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.5 2.9.6a2 2 0 0 1 1.8 2.1z"/></svg>',
   globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>',
   map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>',
@@ -303,7 +319,28 @@ const ICONS = {
 
 function ratingHtml(apt){
   if(!apt.rating) return "";
-  return `<span class="listing-rating">${ICONS.star} ${apt.rating.toFixed(1)} <span class="rc">(${apt.reviewCount})</span></span>`;
+  const count = typeof apt.reviewCount === "number" ? ` <span class="rc">(${apt.reviewCount})</span>` : "";
+  return `<span class="listing-rating">${ICONS.star} ${apt.rating.toFixed(1)}${count}</span>`;
+}
+function rentRangeHtml(apt){
+  if(!apt.estRent) return "Contact for pricing";
+  if(apt.estRent.min === apt.estRent.max) return `${money(apt.estRent.min)} <span>/ target budget</span>`;
+  return `${money(apt.estRent.min)} - ${money(apt.estRent.max)} <span>/ mo</span>`;
+}
+function listingFactsHtml(apt, crit){
+  const facts = Array.isArray(apt.facts) && apt.facts.length
+    ? apt.facts
+    : [
+        apt.bedroomsOffered && apt.bedroomsOffered.includes(crit.bedrooms) ? bedroomLabel(crit.bedrooms).replace("Bedrooms", "beds").replace("Bedroom", "bed") : "",
+        apt.highRise === true ? "High-rise" : apt.highRise === false ? "Garden-style" : "",
+        apt.petFriendly === true ? "Pet friendly" : "",
+      ].filter(Boolean);
+  if (!facts.length) return "";
+  return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
+}
+function photoHtml(apt){
+  if (apt.photo) return `<img src="${apt.photo}" alt="${apt.name} exterior" loading="lazy">`;
+  return `<div class="photo-placeholder" role="img" aria-label="No property photo available">${ICONS.pin}</div>`;
 }
 function callLineHtml(apt){
   if(apt.phone){
@@ -313,8 +350,8 @@ function callLineHtml(apt){
 }
 function actionButtonsHtml(apt){
   const secondary = apt.phone
-    ? (apt.website ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : `<a class="btn btn-secondary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} Maps</a>`)
-    : (apt.website ? `<a class="btn btn-primary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : `<a class="btn btn-primary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>`);
+    ? (apt.website ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} Maps</a>` : "")
+    : (apt.website ? `<a class="btn btn-primary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-primary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>` : "");
   return `<div class="listing-actions">
       <button class="btn btn-primary" onclick="openPropertyModal('${apt.id}')">View apartment</button>
       ${secondary}
@@ -322,10 +359,20 @@ function actionButtonsHtml(apt){
 }
 function listingHtml(result, index, isTop){
   const { verified: apt, rentReady: rr } = result;
+  const facts = listingFactsHtml(apt, criteria);
   return `
   <article class="listing ${isTop ? "top" : ""}">
     <div class="listing-num">${index + 1}</div>
-    <div class="listing-photo"><img src="${apt.photo}" alt="${apt.name} exterior" loading="lazy"></div>
+    <div class="listing-photo">
+      ${photoHtml(apt)}
+      <div class="photo-actions">
+        <button class="icon-btn" type="button" aria-label="Save ${apt.name}">${ICONS.heart}</button>
+        <button class="icon-btn" type="button" aria-label="Share ${apt.name}">${ICONS.share}</button>
+        <button class="icon-btn" type="button" aria-label="Hide ${apt.name}">${ICONS.hide}</button>
+        <button class="icon-btn" type="button" aria-label="More options for ${apt.name}">${ICONS.more}</button>
+      </div>
+      <span class="status-pill"><span class="status-dot"></span> Verified community</span>
+    </div>
     <div class="listing-main">
       <div class="listing-top-row">
         <div class="listing-name-wrap">
@@ -335,6 +382,8 @@ function listingHtml(result, index, isTop){
         <span class="match-badge">${rr.matchScore}% match</span>
       </div>
       <div class="listing-loc">${ICONS.pin} ${apt.locationLabel || apt.address || apt.area} ${ratingHtml(apt)}</div>
+      <div class="listing-price">${rentRangeHtml(apt)}</div>
+      ${facts ? `<div class="listing-details">${facts}</div>` : ""}
       <p class="listing-reason">${rr.matchReason}</p>
       <div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
       <div class="listing-footer">
@@ -346,11 +395,16 @@ function listingHtml(result, index, isTop){
 }
 
 function renderHeroAndSummary(){
-  document.getElementById("scLocation").textContent = criteria.city;
+  document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = "Up to " + money(criteria.budgetMax);
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = serverLoadMessage || `${currentResults.length} verified apartment communities in ${criteria.city} match your ${criteria.style.toLowerCase()}, ${bedroomLabel(criteria.bedrooms).toLowerCase()} search.`;
+  document.getElementById("heroSub").textContent = serverLoadMessage || (criteria.city
+    ? `${currentResults.length} verified apartment communities in ${criteria.city} match your ${criteria.style.toLowerCase()}, ${bedroomLabel(criteria.bedrooms).toLowerCase()} search.`
+    : "Enter a city and state to search verified apartment communities.");
+  document.getElementById("nearbyCopy").textContent = nearbyAreas.length
+    ? `Explore apartment communities near ${criteria.city}.`
+    : `Update your city and state to search another U.S. market.`;
 }
 
 function levelWord(v){ return v >= 80 ? "Excellent" : v >= 60 ? "Strong" : v >= 40 ? "Good" : "Limited"; }
@@ -395,8 +449,9 @@ function renderResults(){
 }
 
 function renderAreaPills(){
-  document.getElementById("areaPills").innerHTML = ALL_AREAS.map(a => `
-    <button class="area-pill ${a===criteria.area ? "active": ""}" onclick="selectArea('${a}')">${a}</button>
+  const areas = nearbyAreas.length ? nearbyAreas : [];
+  document.getElementById("areaPills").innerHTML = areas.map(a => `
+    <button class="area-pill ${a===criteria.area ? "active": ""}" onclick="selectArea(${jsString(a)})">${htmlEscape(a)}</button>
   `).join("");
 }
 function renderPrefChips(){
@@ -413,6 +468,10 @@ function renderAll(){
   renderMatchStrip();
   renderResults();
   renderAreaPills();
+}
+async function refreshResults(){
+  await loadVerifiedApartmentResults();
+  renderAll();
 }
 
 function runLoadingSequence(onDone, overlayMode){
@@ -435,14 +494,17 @@ function runLoadingSequence(onDone, overlayMode){
     } else {
       clearInterval(interval);
       bar.style.width = "100%";
-      setTimeout(()=>{ onDone(); overlay.classList.add("hide"); }, reduced ? 0 : 220);
+      setTimeout(()=>{
+        Promise.resolve(onDone()).finally(()=> overlay.classList.add("hide"));
+      }, reduced ? 0 : 220);
     }
   }, step || 10);
 }
 
 const panelOverlay = document.getElementById("panelOverlay");
 function openPanel(){
-  document.getElementById("fArea").value = criteria.area;
+  document.getElementById("fCity").value = criteria.city;
+  renderAreaSelect();
   document.getElementById("fStyle").value = criteria.style;
   document.getElementById("fBudget").value = String(criteria.budgetMax);
   document.getElementById("fBeds").value = String(criteria.bedrooms);
@@ -450,21 +512,29 @@ function openPanel(){
   panelOverlay.classList.add("open");
 }
 function closePanel(){ panelOverlay.classList.remove("open"); }
+function renderAreaSelect(){
+  const areaSelect = document.getElementById("fArea");
+  const options = [criteria.city, ...nearbyAreas].filter(Boolean);
+  const unique = Array.from(new Set(options.map(a => String(a).trim()).filter(Boolean)));
+  areaSelect.innerHTML = unique.map(a => `<option value="${htmlEscape(a)}">${htmlEscape(a === criteria.city ? "Any area in " + criteria.city : a)}</option>`).join("");
+  areaSelect.value = unique.includes(criteria.area) ? criteria.area : criteria.city;
+}
 document.getElementById("openPanelBtn").addEventListener("click", openPanel);
 document.getElementById("closePanelBtn").addEventListener("click", closePanel);
 panelOverlay.addEventListener("click", e => { if(e.target === panelOverlay) closePanel(); });
-document.getElementById("applySearchBtn").addEventListener("click", ()=>{
-  criteria.area = document.getElementById("fArea").value;
+document.getElementById("applySearchBtn").addEventListener("click", async ()=>{
+  criteria.city = document.getElementById("fCity").value.trim();
+  criteria.area = document.getElementById("fArea").value || criteria.city;
   criteria.style = document.getElementById("fStyle").value;
   criteria.budgetMax = parseInt(document.getElementById("fBudget").value, 10);
   criteria.bedrooms = parseInt(document.getElementById("fBeds").value, 10);
   criteria.preferences = Array.from(document.querySelectorAll(".chip-toggle.active")).map(b=>b.dataset.pref);
   closePanel();
-  runLoadingSequence(renderAll, true);
+  runLoadingSequence(refreshResults, true);
 });
 
-function selectArea(area){ criteria.area = area; runLoadingSequence(renderAll, true); }
-document.getElementById("emptyExpandBtn").addEventListener("click", ()=>{ criteria.area = "Any area in Charlotte"; runLoadingSequence(renderAll, true); });
+function selectArea(area){ criteria.area = area; runLoadingSequence(refreshResults, true); }
+document.getElementById("emptyExpandBtn").addEventListener("click", ()=>{ criteria.area = criteria.city; runLoadingSequence(refreshResults, true); });
 document.getElementById("emptyAdjustBtn").addEventListener("click", openPanel);
 
 const modalOverlay = document.getElementById("modalOverlay");

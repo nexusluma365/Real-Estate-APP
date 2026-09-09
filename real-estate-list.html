@@ -10,6 +10,8 @@
 <style>
   :root{
     --bg:#ffffff;
+    --surface:#ffffff;
+    --surface-elevated:rgba(255,255,255,.86);
     --bg-soft:#F3F6F3;
     --ink:#163E2C;
     --ink-muted:#637268;
@@ -19,19 +21,20 @@
     --accent:#1A4731;
     --accent-dark:#123725;
     --accent-soft:#E9F7F0;
+    --blue:#1A4731;
     --good:#1C8C63;
     --good-soft:#E9F7F0;
     --warn:#946116;
     --warn-soft:#FBF2DE;
-    --radius:14px;
-    --shadow: 0 1px 2px rgba(26,71,49,0.05);
-    --shadow-md: 0 18px 44px -24px rgba(26,71,49,0.28);
+    --radius:22px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 24px 70px -34px rgba(0,0,0,0.36);
     --ease: cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
-  body{ background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,-apple-system,sans-serif; -webkit-font-smoothing:antialiased; }
-  h1,h2,h3,.font-display{ font-family:'Manrope',system-ui,sans-serif; letter-spacing:-0.01em; margin:0; }
+  body{ background:linear-gradient(180deg,#FFFFFF 0,#F3F6F3 100%); color:var(--ink); font-family:'Inter',system-ui,-apple-system,sans-serif; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,.font-display{ font-family:'Manrope',system-ui,sans-serif; letter-spacing:0; margin:0; }
   p{margin:0;}
   button{font-family:inherit; cursor:pointer;}
   a{color:inherit; text-decoration:none;}
@@ -39,46 +42,48 @@
 
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; } }
 
-  .wrap{max-width:940px; margin:0 auto; padding:0 24px;}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 24px;}
   @media (max-width:640px){ .wrap{padding:0 16px;} }
 
   .eyebrow{ font-size:12.5px; font-weight:700; letter-spacing:.03em; color:var(--accent); }
 
   /* ---------------- HEADER ---------------- */
-  .site-header{ position:sticky; top:0; z-index:40; background:rgba(255,255,255,.92); backdrop-filter:blur(16px) saturate(160%); border-bottom:1px solid var(--line); }
-  .site-header .wrap{ display:flex; align-items:center; justify-content:space-between; height:66px; max-width:1040px; }
+  .site-header{ position:sticky; top:0; z-index:40; background:rgba(255,255,255,.88); backdrop-filter:blur(22px) saturate(180%); border-bottom:1px solid var(--line); }
+  .site-header .wrap{ display:flex; align-items:center; justify-content:space-between; height:64px; max-width:1120px; }
   .logo{display:flex; align-items:center; gap:9px; font-family:'Manrope'; font-weight:800; font-size:18px;}
-  .logo-mark{ width:30px; height:30px; border-radius:8px; background:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .logo-mark{ width:30px; height:30px; border-radius:9px; background:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 10px 26px -16px rgba(26,71,49,.7); }
   .logo-mark svg{width:16px; height:16px;}
   .header-status{ font-size:13.5px; font-weight:600; color:var(--ink-muted); }
 
   /* ---------------- HERO ---------------- */
-  .hero{ padding:40px 0 0; max-width:1040px; margin:0 auto; }
-  .hero .wrap{max-width:1040px;}
+  .hero{ padding:42px 0 0; max-width:1120px; margin:0 auto; }
+  .hero .wrap{max-width:1120px;}
   .welcome-line{ font-size:13.5px; font-weight:600; color:var(--good); display:flex; align-items:center; gap:7px; }
   .welcome-line .dot{width:7px;height:7px;border-radius:50%;background:var(--good);}
-  .hero h1{ font-size:clamp(26px,3.6vw,36px); font-weight:800; margin-top:12px; line-height:1.15; }
-  .hero-sub{ margin-top:10px; font-size:15.5px; color:var(--ink-muted); max-width:560px; line-height:1.55; }
+  .hero h1{ font-size:clamp(34px,5vw,62px); font-weight:800; margin-top:12px; line-height:1.04; max-width:760px; }
+  .hero-sub{ margin-top:14px; font-size:17px; color:var(--ink-muted); max-width:680px; line-height:1.55; }
 
   /* ---------------- SEARCH SUMMARY BAR ---------------- */
   .summary-card{
-    margin-top:26px; background:var(--bg-soft); border:1px solid var(--line); border-radius:var(--radius);
-    padding:16px 18px; display:grid; grid-template-columns:repeat(4,1fr) auto; gap:6px; align-items:center;
+    margin-top:30px; background:var(--surface-elevated); border:1px solid rgba(255,255,255,.72); border-radius:24px;
+    padding:10px; display:grid; grid-template-columns:repeat(4,1fr) auto; gap:4px; align-items:center;
+    box-shadow:0 28px 70px -46px rgba(0,0,0,.32), inset 0 0 0 1px rgba(0,0,0,.04);
+    backdrop-filter:blur(18px) saturate(160%);
   }
   @media (max-width:760px){ .summary-card{grid-template-columns:1fr 1fr;} .summary-card .sc-cta{grid-column:1/-1; margin-top:8px;} }
-  .sc-item{padding:2px 12px; border-right:1px solid var(--line);}
-  .sc-item:first-child{padding-left:0;}
+  .sc-item{padding:10px 14px; border-right:1px solid var(--line);}
+  .sc-item:first-child{padding-left:14px;}
   @media (max-width:760px){ .sc-item{border-right:none;} }
   .sc-label{ font-size:10.5px; font-weight:700; letter-spacing:.05em; color:var(--ink-faint); text-transform:uppercase; }
-  .sc-value{ font-size:14.5px; font-weight:700; margin-top:2px; }
-  .sc-cta{ background:var(--accent); color:#fff; border:none; padding:11px 16px; border-radius:9px; font-weight:700; font-size:13.5px; white-space:nowrap; transition:background .28s var(--ease), box-shadow .28s var(--ease), transform .28s var(--ease); box-shadow:0 10px 22px -14px rgba(26,71,49,.45); }
-  .sc-cta:hover{ background:var(--accent-dark); transform:translateY(-1px); box-shadow:0 16px 30px -16px rgba(26,71,49,.55); }
+  .sc-value{ font-size:15px; font-weight:800; margin-top:2px; color:#1d1d1f; }
+  .sc-cta{ background:var(--accent); color:#fff; border:none; padding:13px 17px; border-radius:16px; font-weight:800; font-size:13.5px; white-space:nowrap; transition:background .28s var(--ease), box-shadow .28s var(--ease), transform .28s var(--ease); box-shadow:0 18px 34px -20px rgba(26,71,49,.58); }
+  .sc-cta:hover{ background:var(--accent-dark); transform:translateY(-1px); box-shadow:0 22px 42px -22px rgba(26,71,49,.62); }
 
   /* ---------------- MATCH OVERVIEW (compact strip) ---------------- */
   .match-strip{ margin-top:22px; display:flex; flex-wrap:wrap; gap:10px; }
   .match-pill{
-    flex:1; min-width:150px; background:#fff; border:1px solid var(--line); border-radius:10px;
-    padding:11px 14px; display:flex; align-items:center; gap:9px;
+    flex:1; min-width:150px; background:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.72); border-radius:18px;
+    padding:13px 15px; display:flex; align-items:center; gap:10px; box-shadow:var(--shadow);
   }
   .match-pill .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
   .match-pill.good .dot{ background:var(--good); }
@@ -88,60 +93,79 @@
   .match-pill .mp-value{ font-size:13.5px; font-weight:700; }
 
   /* ---------------- SECTION HEADS ---------------- */
-  .section{ padding:44px 0 0; }
+  .section{ padding:46px 0 0; }
   .section-head{ margin-bottom:18px; display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .section-head h2{ font-size:20px; font-weight:800; }
+  .section-head h2{ font-size:24px; font-weight:800; }
   .result-count{ font-size:13px; color:var(--ink-faint); font-weight:600; }
 
-  /* ---------------- LISTING ROWS ---------------- */
+  /* ---------------- LISTING CARDS ---------------- */
   .listing{
-    display:flex; gap:16px; padding:16px; border:1px solid var(--line); border-radius:var(--radius);
-    margin-bottom:12px; background:#fff; transition:border-color .28s var(--ease), box-shadow .28s var(--ease), transform .28s var(--ease);
+    position:relative; overflow:hidden; display:grid; grid-template-columns:minmax(260px, 42%) 1fr; gap:0;
+    border:1px solid rgba(255,255,255,.82); border-radius:28px; margin-bottom:20px;
+    background:rgba(255,255,255,.9); box-shadow:0 26px 80px -48px rgba(0,0,0,.38), inset 0 0 0 1px rgba(0,0,0,.035);
+    transition:border-color .28s var(--ease), box-shadow .28s var(--ease), transform .28s var(--ease);
   }
-  .listing:hover{ border-color:var(--line-strong); box-shadow:var(--shadow-md); transform:translateY(-1px); }
-  .listing.top{ background:linear-gradient(180deg,#F4FBF7,#E9F7F0); border-color:rgba(26,71,49,.18); }
-  @media (max-width:600px){ .listing{ flex-direction:column; } }
+  .listing:hover{ border-color:rgba(255,255,255,.98); box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .listing.top{ background:linear-gradient(135deg,rgba(255,255,255,.96),rgba(238,249,243,.94)); }
+  @media (max-width:760px){ .listing{ grid-template-columns:1fr; border-radius:24px; } }
 
   .listing-num{
-    width:22px; flex-shrink:0; text-align:center; font-family:'Manrope'; font-weight:800; font-size:14px; color:var(--ink-faint); padding-top:2px;
+    position:absolute; top:18px; left:18px; z-index:3; width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-family:'Manrope'; font-weight:800; font-size:13px;
+    color:var(--ink); background:rgba(255,255,255,.9); box-shadow:0 12px 28px -18px rgba(0,0,0,.45); backdrop-filter:blur(12px);
   }
-  .listing-photo{ width:150px; height:112px; border-radius:10px; overflow:hidden; flex-shrink:0; background:var(--bg-soft); }
-  @media (max-width:600px){ .listing-photo{ width:100%; height:170px; } }
+  .listing-photo{ position:relative; min-height:318px; overflow:hidden; background:var(--bg-soft); }
+  @media (max-width:760px){ .listing-photo{ min-height:310px; } }
   .listing-photo img{ width:100%; height:100%; object-fit:cover; }
+  .photo-placeholder{ width:100%; height:100%; min-height:318px; display:flex; align-items:center; justify-content:center; color:rgba(26,71,49,.35); background:linear-gradient(135deg,#F3F6F3,#E9F7F0); }
+  .photo-placeholder svg{ width:56px; height:56px; }
+  .listing-photo::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,0) 42%,rgba(0,0,0,.5)); pointer-events:none; }
+  .photo-actions{ position:absolute; top:16px; right:16px; z-index:3; display:flex; gap:10px; }
+  .icon-btn{ width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.76); background:rgba(255,255,255,.9); color:var(--ink); display:flex; align-items:center; justify-content:center; box-shadow:0 12px 30px -18px rgba(0,0,0,.5); backdrop-filter:blur(14px) saturate(150%); transition:transform .24s var(--ease), background .24s var(--ease); }
+  .icon-btn:hover{ transform:translateY(-1px) scale(1.02); background:#fff; }
+  .icon-btn svg{ width:21px; height:21px; }
+  .photo-count{ position:absolute; right:16px; bottom:16px; z-index:3; background:rgba(0,0,0,.66); color:#fff; border-radius:999px; padding:7px 10px; font-size:12px; font-weight:800; backdrop-filter:blur(10px); }
+  .status-pill{ position:absolute; left:18px; bottom:16px; z-index:3; display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,.92); color:var(--ink); border-radius:999px; padding:8px 12px; font-size:12.5px; font-weight:800; box-shadow:0 12px 32px -18px rgba(0,0,0,.5); backdrop-filter:blur(12px); }
+  .status-pill .status-dot{ width:9px; height:9px; border-radius:50%; background:var(--good); box-shadow:0 0 0 4px rgba(10,159,85,.12); }
 
-  .listing-main{ flex:1; min-width:0; }
+  .listing-main{ min-width:0; padding:28px 28px 24px; display:flex; flex-direction:column; }
+  @media (max-width:760px){ .listing-main{ padding:22px 20px 20px; } }
   .listing-top-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
   .listing-name-wrap{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .listing-name{ font-family:'Manrope'; font-weight:800; font-size:16.5px; }
-  .best-badge{ background:var(--accent); color:#fff; font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px; letter-spacing:.02em; }
-  .match-badge{ font-size:12.5px; font-weight:700; color:var(--accent-dark); background:#fff; border:1px solid var(--line-strong); padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .listing-name{ font-family:'Manrope'; font-weight:800; font-size:clamp(22px,2.4vw,34px); line-height:1.04; color:var(--ink); }
+  .best-badge{ background:var(--accent); color:#fff; font-size:11px; font-weight:800; padding:6px 10px; border-radius:999px; letter-spacing:.02em; }
+  .match-badge{ font-size:12.5px; font-weight:800; color:var(--accent-dark); background:var(--accent-soft); border:1px solid rgba(11,107,70,.12); padding:7px 10px; border-radius:999px; white-space:nowrap; }
   .listing.top .match-badge{ border-color:rgba(26,71,49,.18); }
 
-  .listing-loc{ font-size:13px; color:var(--ink-muted); margin-top:3px; display:flex; align-items:center; gap:5px; }
-  .listing-loc svg{ width:12px; height:12px; flex-shrink:0; }
+  .listing-loc{ font-size:14px; color:var(--ink-muted); margin-top:8px; display:flex; align-items:center; gap:6px; line-height:1.45; }
+  .listing-loc svg{ width:14px; height:14px; flex-shrink:0; }
   .listing-rating{ font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; margin-left:8px; color:var(--ink); }
   .listing-rating svg{ width:12px; height:12px; fill:#E8A63A; stroke:none; }
   .listing-rating .rc{ color:var(--ink-faint); font-weight:500; }
 
-  .listing-reason{ font-size:13.5px; color:var(--ink-muted); line-height:1.5; margin-top:8px; max-width:560px; }
-  .listing-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
-  .tag{ font-size:11.5px; font-weight:600; color:var(--accent-dark); background:#fff; border:1px solid var(--line-strong); border-radius:999px; padding:4px 9px; }
+  .listing-price{ margin-top:18px; font-family:'Manrope'; font-size:clamp(28px,3.6vw,44px); line-height:1; font-weight:800; color:var(--ink); }
+  .listing-price span{ font-family:'Inter'; font-size:14px; font-weight:700; color:var(--ink-muted); }
+  .listing-details{ display:flex; flex-wrap:wrap; gap:9px 14px; margin-top:13px; font-size:15px; font-weight:800; color:#1d1d1f; }
+  .listing-details span{ color:var(--ink-muted); font-weight:600; }
+  .listing-reason{ font-size:14.5px; color:var(--ink-muted); line-height:1.58; margin-top:16px; max-width:640px; }
+  .listing-tags{ display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+  .tag{ font-size:12px; font-weight:700; color:#1d1d1f; background:#f6f7f7; border:1px solid rgba(0,0,0,.06); border-radius:999px; padding:7px 10px; }
   .listing.top .tag{ background:#fff; }
 
-  .listing-footer{ margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .call-line{ display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:700; color:var(--ink); }
+  .listing-footer{ margin-top:auto; padding-top:20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .call-line{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:var(--ink); }
   .call-line svg{ width:15px; height:15px; color:var(--good); flex-shrink:0; }
   .call-line a{ color:var(--accent-dark); }
   .call-line a:hover{ text-decoration:underline; }
   .no-phone{ font-size:13px; color:var(--ink-faint); font-weight:600; }
 
-  .listing-actions{ display:flex; gap:8px; flex-wrap:wrap; }
-  .btn{ border-radius:9px; font-weight:700; font-size:13px; padding:9px 13px; text-align:center; border:1px solid transparent; display:inline-flex; align-items:center; justify-content:center; gap:6px; transition:background .28s var(--ease), border-color .28s var(--ease), color .28s var(--ease), transform .28s var(--ease), box-shadow .28s var(--ease); }
+  .listing-actions{ display:flex; gap:9px; flex-wrap:wrap; }
+  .btn{ border-radius:15px; font-weight:800; font-size:13px; padding:11px 14px; min-height:42px; text-align:center; border:1px solid transparent; display:inline-flex; align-items:center; justify-content:center; gap:7px; transition:background .28s var(--ease), border-color .28s var(--ease), color .28s var(--ease), transform .28s var(--ease), box-shadow .28s var(--ease); }
   .btn-primary{ background:var(--accent); color:#fff; }
-  .btn-primary:hover{ background:var(--accent-dark); transform:translateY(-1px); box-shadow:0 14px 24px -16px rgba(26,71,49,.6); }
-  .btn-secondary{ background:#fff; color:var(--ink); border-color:var(--line-strong); }
-  .btn-secondary:hover{ border-color:var(--accent); color:var(--accent-dark); }
-  .btn svg{ width:13px; height:13px; }
+  .btn-primary:hover{ background:var(--accent-dark); transform:translateY(-1px); box-shadow:0 16px 30px -20px rgba(26,71,49,.66); }
+  .btn-secondary{ background:#f6f7f7; color:var(--ink); border-color:rgba(0,0,0,.06); }
+  .btn-secondary:hover{ border-color:rgba(0,0,0,.14); background:#fff; }
+  .btn svg{ width:14px; height:14px; }
 
   .pricing-note{ font-size:11.5px; font-weight:600; color:var(--warn); background:var(--warn-soft); border-radius:7px; padding:5px 9px; margin-top:10px; display:inline-flex; align-items:center; gap:6px; }
   .pricing-note svg{ width:12px; height:12px; }
@@ -191,7 +215,10 @@
   .panel-sub{ font-size:13px; color:var(--ink-muted); margin-top:4px; margin-bottom:20px; }
   .field{ margin-bottom:18px; }
   .field label{ display:block; font-size:11.5px; font-weight:700; letter-spacing:.03em; color:var(--ink-muted); text-transform:uppercase; margin-bottom:7px; }
-  .field select{ width:100%; padding:11px 13px; border-radius:9px; border:1px solid var(--line-strong); font-size:14px; font-family:inherit; font-weight:600; color:var(--ink); background:#fff; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23637268' stroke-width='2.4'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 13px center; transition:border-color .28s var(--ease), box-shadow .28s var(--ease); }
+  .field input,
+  .field select{ width:100%; padding:11px 13px; border-radius:9px; border:1px solid var(--line-strong); font-size:14px; font-family:inherit; font-weight:600; color:var(--ink); background:#fff; transition:border-color .28s var(--ease), box-shadow .28s var(--ease); }
+  .field select{ appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23637268' stroke-width='2.4'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 13px center; }
+  .field input:focus,
   .field select:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 4px rgba(26,71,49,.08); }
   .chip-grid{ display:flex; flex-wrap:wrap; gap:7px; }
   .chip-toggle{ padding:8px 13px; border-radius:999px; border:1px solid var(--line-strong); font-size:13px; font-weight:600; background:#fff; color:var(--ink); transition:background .28s var(--ease), border-color .28s var(--ease), color .28s var(--ease), transform .28s var(--ease); }
@@ -296,7 +323,7 @@
       <div class="nearby-head">
         <div>
           <h3>Not quite what you're looking for?</h3>
-          <p>Explore apartment communities in nearby Charlotte neighborhoods.</p>
+          <p id="nearbyCopy">Explore apartment communities near your search area.</p>
         </div>
       </div>
       <div class="area-pills" id="areaPills"><!-- injected --></div>
@@ -319,17 +346,12 @@
     <p class="panel-sub">Adjust what you're looking for and we'll update your matches.</p>
 
     <div class="field">
+      <label for="fCity">City & state</label>
+      <input type="text" id="fCity" placeholder="Austin, TX">
+    </div>
+    <div class="field">
       <label for="fArea">Preferred area</label>
-      <select id="fArea">
-        <option>Uptown Charlotte</option>
-        <option>South End</option>
-        <option>NoDa</option>
-        <option>University City</option>
-        <option>Ballantyne</option>
-        <option>Dilworth</option>
-        <option>Plaza Midwood</option>
-        <option>Any area in Charlotte</option>
-      </select>
+      <select id="fArea"></select>
     </div>
     <div class="field">
       <label for="fStyle">Apartment style</label>
@@ -433,12 +455,11 @@ const MOCK_APARTMENTS = [
   { id:"p14", name:"Trade Street Modern", area:"Uptown Charlotte", address:"525 E Trade St, Charlotte, NC", phone:"+17045550455", phoneDisplay:"(704) 555-0455", website:"https://example.com/trade-street-modern", mapsUrl:"https://maps.google.com/?q=Trade+Street+Modern+Charlotte+NC", rating:4.3, reviewCount:62, photo:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:true, bedroomsOffered:[1,2], pool:false, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1950,max:2650} },
 ];
 
-const ALL_AREAS = ["Uptown Charlotte","South End","NoDa","University City","Ballantyne","Dilworth","Plaza Midwood"];
 const ALL_PREFS = ["Modern","Pool","Fitness Center","Balcony","High-Rise","Pet Friendly"];
 
 let criteria = {
-  city: "Charlotte, NC",
-  area: "Uptown Charlotte",
+  city: "",
+  area: "",
   style: "Luxury",
   budgetMax: 3000,
   bedrooms: 2,
@@ -448,8 +469,12 @@ let criteria = {
 let currentResults = [];
 let serverResults = null;
 let serverLoadMessage = "";
+let nearbyAreas = [];
+let hasSavedLead = false;
 const bedroomLabel = n => n === 0 ? "Studio" : (n >= 4 ? "4+ Bedrooms" : n + (n===1?" Bedroom":" Bedrooms"));
 const money = n => "$" + n.toLocaleString("en-US");
+const htmlEscape = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+const jsString = value => JSON.stringify(String(value ?? "")).replace(/[<>&]/g, ch => ({ "<":"\\u003c", ">":"\\u003e", "&":"\\u0026" }[ch]));
 
 function readAnswers(){
   try {
@@ -466,12 +491,14 @@ function applyAnswerCriteria(){
   const rentBudget = Number(answers.rent_budget);
   const beds = normalizeBedrooms(answers.beds_needed);
   const urlCity = params.get("city") || params.get("c__y") || params.get("location") || "";
+  const urlArea = params.get("area") || params.get("searchArea") || "";
   const urlBudget = Number(params.get("rentBudget") || params.get("budget") || "");
   const urlBeds = params.get("bedrooms") || params.get("beds") || "";
+  const city = answers.preferred_city || answers.city || urlCity || "";
   criteria = {
     ...criteria,
-    city: answers.preferred_city || answers.city || urlCity || criteria.city,
-    area: answers.preferred_city || answers.city || urlCity || criteria.area,
+    city,
+    area: urlArea || city,
     style: category === "modern" ? "Modern" : "Luxury",
     budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : Number.isFinite(urlBudget) && urlBudget > 0 ? urlBudget : criteria.budgetMax,
     bedrooms: answers.beds_needed ? beds : urlBeds ? normalizeBedrooms(urlBeds) : beds,
@@ -493,7 +520,7 @@ function styleAdjacent(a,b){
 function computeMatch(apt, crit){
   let score = 0;
   const matchedPrefs = [];
-  if(crit.area === "Any area in Charlotte") score += 15;
+  if(!crit.area || crit.area === crit.city) score += 15;
   else if(apt.area === crit.area) score += 25;
   else score += 6;
 
@@ -548,9 +575,10 @@ function computeMatch(apt, crit){
   return { propertyId: apt.id, matchScore: score, matchReason, locationSummary, bestFor, potentialTradeoff, tags: tags.slice(0,4) };
 }
 function rankApartments(crit){
-  if (serverResults) {
+  if (Array.isArray(serverResults)) {
     return serverResults;
   }
+  if (hasSavedLead) return [];
   return MOCK_APARTMENTS
     .map(apt => ({ verified: apt, rentReady: computeMatch(apt, crit) }))
     .sort((a,b) => b.rentReady.matchScore - a.rentReady.matchScore)
@@ -566,9 +594,11 @@ async function loadVerifiedApartmentResults(){
   const answers = readAnswers();
   const urlParams = new URLSearchParams(window.location.search);
   const leadId = answers.lead_id || urlParams.get("leadId") || "";
+  hasSavedLead = !!leadId;
   if (!leadId) {
-    serverResults = [];
-    serverLoadMessage = "No saved questionnaire was found for this apartment search.";
+    serverResults = null;
+    nearbyAreas = [];
+    serverLoadMessage = "Previewing sample apartment cards. Complete the questionnaire to search live Google Places results.";
     return;
   }
   try {
@@ -581,25 +611,26 @@ async function loadVerifiedApartmentResults(){
     let res = await fetch("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, fallbackCriteria: criteria }),
+      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
     });
     let data = await res.json().catch(()=>({}));
     if (res.status === 404 && data.error === "No saved questionnaire was found." && await resyncSavedQuestionnaire(answers)) {
       res = await fetch("/.netlify/functions/get-apartment-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, fallbackCriteria: criteria }),
+        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
       });
       data = await res.json().catch(()=>({}));
     }
     if (!res.ok || !data.ok) throw new Error(data.error || "Could not load apartment results.");
     if (data.criteria) {
       criteria.city = data.criteria.city || criteria.city;
-      criteria.area = data.criteria.city || criteria.area;
+      criteria.area = data.criteria.searchArea || data.criteria.city || criteria.area;
       criteria.style = data.criteria.category === "modern" ? "Modern" : "Luxury";
       criteria.budgetMax = Number(data.criteria.rentBudget) || criteria.budgetMax;
       criteria.bedrooms = normalizeBedrooms(data.criteria.bedrooms);
     }
+    nearbyAreas = Array.isArray(data.nearbyAreas) ? data.nearbyAreas : [];
     serverResults = Array.isArray(data.properties) ? data.properties.map(serverPropertyToResult) : [];
     serverLoadMessage = data.message || "";
     if (data.message) {
@@ -607,6 +638,7 @@ async function loadVerifiedApartmentResults(){
     }
   } catch (err) {
     console.warn("Verified apartment results unavailable", err);
+    nearbyAreas = [];
     serverResults = [];
     serverLoadMessage = err.message || "Verified apartment results could not be loaded right now.";
   }
@@ -631,25 +663,27 @@ function serverPropertyToResult(property){
   const apt = {
     id: property.propertyId,
     name: property.name || "Apartment community",
-    area: criteria.city,
-    address: property.address || criteria.city,
+    area: property.area || criteria.city,
+    address: property.address || "",
     phone,
     phoneDisplay: phone,
     website: property.website || "",
     mapsUrl: property.directions || "",
     rating: typeof property.rating === "number" ? property.rating : null,
-    reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : 0,
-    photo: property.image,
+    reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : null,
+    photo: property.image || "",
     locationLabel: property.address || criteria.city,
     style: criteria.style,
-    highRise: false,
-    bedroomsOffered: [criteria.bedrooms],
-    pool: false,
-    fitnessCenter: false,
-    balcony: false,
-    petFriendly: false,
-    modern: currentCategory() === "modern",
-    estRent:{ min: criteria.budgetMax, max: criteria.budgetMax },
+    highRise: null,
+    bedroomsOffered: [],
+    pool: null,
+    fitnessCenter: null,
+    balcony: null,
+    petFriendly: null,
+    modern: null,
+    estRent: null,
+    source: property.source || "Google Places",
+    facts: [property.source || "Google Places"].filter(Boolean),
   };
   const reasons = Array.isArray(property.matchReasons) ? property.matchReasons : [];
   return {
@@ -669,6 +703,10 @@ function serverPropertyToResult(property){
 const ICONS = {
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.4 7-11.5A7 7 0 0 0 5 9.5C5 14.6 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>',
   star: '<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.2 6.8.7-5.1 4.6 1.5 6.7L12 17.4 5.9 20.7l1.5-6.7-5.1-4.6 6.8-.7L12 2.5z"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6z"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+  hide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6A2 2 0 0 0 13.4 13.4"/><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5 0 9 5 10 8a13.8 13.8 0 0 1-2.6 4.3"/><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12c1 3 5 8 10 8a10.8 10.8 0 0 0 4.2-.9"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .6 2.9a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.5 2.9.6a2 2 0 0 1 1.8 2.1z"/></svg>',
   globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>',
   map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>',
@@ -679,7 +717,28 @@ const ICONS = {
 
 function ratingHtml(apt){
   if(!apt.rating) return "";
-  return `<span class="listing-rating">${ICONS.star} ${apt.rating.toFixed(1)} <span class="rc">(${apt.reviewCount})</span></span>`;
+  const count = typeof apt.reviewCount === "number" ? ` <span class="rc">(${apt.reviewCount})</span>` : "";
+  return `<span class="listing-rating">${ICONS.star} ${apt.rating.toFixed(1)}${count}</span>`;
+}
+function rentRangeHtml(apt){
+  if(!apt.estRent) return "Contact for pricing";
+  if(apt.estRent.min === apt.estRent.max) return `${money(apt.estRent.min)} <span>/ target budget</span>`;
+  return `${money(apt.estRent.min)} - ${money(apt.estRent.max)} <span>/ mo</span>`;
+}
+function listingFactsHtml(apt, crit){
+  const facts = Array.isArray(apt.facts) && apt.facts.length
+    ? apt.facts
+    : [
+        apt.bedroomsOffered && apt.bedroomsOffered.includes(crit.bedrooms) ? bedroomLabel(crit.bedrooms).replace("Bedrooms", "beds").replace("Bedroom", "bed") : "",
+        apt.highRise === true ? "High-rise" : apt.highRise === false ? "Garden-style" : "",
+        apt.petFriendly === true ? "Pet friendly" : "",
+      ].filter(Boolean);
+  if (!facts.length) return "";
+  return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
+}
+function photoHtml(apt){
+  if (apt.photo) return `<img src="${apt.photo}" alt="${apt.name} exterior" loading="lazy">`;
+  return `<div class="photo-placeholder" role="img" aria-label="No property photo available">${ICONS.pin}</div>`;
 }
 function callLineHtml(apt){
   if(apt.phone){
@@ -689,8 +748,8 @@ function callLineHtml(apt){
 }
 function actionButtonsHtml(apt){
   const secondary = apt.phone
-    ? (apt.website ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : `<a class="btn btn-secondary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} Maps</a>`)
-    : (apt.website ? `<a class="btn btn-primary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : `<a class="btn btn-primary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>`);
+    ? (apt.website ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} Maps</a>` : "")
+    : (apt.website ? `<a class="btn btn-primary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-primary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>` : "");
   return `<div class="listing-actions">
       <button class="btn btn-primary" onclick="openPropertyModal('${apt.id}')">View apartment</button>
       ${secondary}
@@ -698,10 +757,20 @@ function actionButtonsHtml(apt){
 }
 function listingHtml(result, index, isTop){
   const { verified: apt, rentReady: rr } = result;
+  const facts = listingFactsHtml(apt, criteria);
   return `
   <article class="listing ${isTop ? "top" : ""}">
     <div class="listing-num">${index + 1}</div>
-    <div class="listing-photo"><img src="${apt.photo}" alt="${apt.name} exterior" loading="lazy"></div>
+    <div class="listing-photo">
+      ${photoHtml(apt)}
+      <div class="photo-actions">
+        <button class="icon-btn" type="button" aria-label="Save ${apt.name}">${ICONS.heart}</button>
+        <button class="icon-btn" type="button" aria-label="Share ${apt.name}">${ICONS.share}</button>
+        <button class="icon-btn" type="button" aria-label="Hide ${apt.name}">${ICONS.hide}</button>
+        <button class="icon-btn" type="button" aria-label="More options for ${apt.name}">${ICONS.more}</button>
+      </div>
+      <span class="status-pill"><span class="status-dot"></span> Verified community</span>
+    </div>
     <div class="listing-main">
       <div class="listing-top-row">
         <div class="listing-name-wrap">
@@ -711,6 +780,8 @@ function listingHtml(result, index, isTop){
         <span class="match-badge">${rr.matchScore}% match</span>
       </div>
       <div class="listing-loc">${ICONS.pin} ${apt.locationLabel || apt.address || apt.area} ${ratingHtml(apt)}</div>
+      <div class="listing-price">${rentRangeHtml(apt)}</div>
+      ${facts ? `<div class="listing-details">${facts}</div>` : ""}
       <p class="listing-reason">${rr.matchReason}</p>
       <div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
       <div class="listing-footer">
@@ -722,11 +793,16 @@ function listingHtml(result, index, isTop){
 }
 
 function renderHeroAndSummary(){
-  document.getElementById("scLocation").textContent = criteria.city;
+  document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = "Up to " + money(criteria.budgetMax);
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = serverLoadMessage || `${currentResults.length} verified apartment communities in ${criteria.city} match your ${criteria.style.toLowerCase()}, ${bedroomLabel(criteria.bedrooms).toLowerCase()} search.`;
+  document.getElementById("heroSub").textContent = serverLoadMessage || (criteria.city
+    ? `${currentResults.length} verified apartment communities in ${criteria.city} match your ${criteria.style.toLowerCase()}, ${bedroomLabel(criteria.bedrooms).toLowerCase()} search.`
+    : "Enter a city and state to search verified apartment communities.");
+  document.getElementById("nearbyCopy").textContent = nearbyAreas.length
+    ? `Explore apartment communities near ${criteria.city}.`
+    : `Update your city and state to search another U.S. market.`;
 }
 
 function levelWord(v){ return v >= 80 ? "Excellent" : v >= 60 ? "Strong" : v >= 40 ? "Good" : "Limited"; }
@@ -771,8 +847,9 @@ function renderResults(){
 }
 
 function renderAreaPills(){
-  document.getElementById("areaPills").innerHTML = ALL_AREAS.map(a => `
-    <button class="area-pill ${a===criteria.area ? "active": ""}" onclick="selectArea('${a}')">${a}</button>
+  const areas = nearbyAreas.length ? nearbyAreas : [];
+  document.getElementById("areaPills").innerHTML = areas.map(a => `
+    <button class="area-pill ${a===criteria.area ? "active": ""}" onclick="selectArea(${jsString(a)})">${htmlEscape(a)}</button>
   `).join("");
 }
 function renderPrefChips(){
@@ -789,6 +866,10 @@ function renderAll(){
   renderMatchStrip();
   renderResults();
   renderAreaPills();
+}
+async function refreshResults(){
+  await loadVerifiedApartmentResults();
+  renderAll();
 }
 
 function runLoadingSequence(onDone, overlayMode){
@@ -811,14 +892,17 @@ function runLoadingSequence(onDone, overlayMode){
     } else {
       clearInterval(interval);
       bar.style.width = "100%";
-      setTimeout(()=>{ onDone(); overlay.classList.add("hide"); }, reduced ? 0 : 220);
+      setTimeout(()=>{
+        Promise.resolve(onDone()).finally(()=> overlay.classList.add("hide"));
+      }, reduced ? 0 : 220);
     }
   }, step || 10);
 }
 
 const panelOverlay = document.getElementById("panelOverlay");
 function openPanel(){
-  document.getElementById("fArea").value = criteria.area;
+  document.getElementById("fCity").value = criteria.city;
+  renderAreaSelect();
   document.getElementById("fStyle").value = criteria.style;
   document.getElementById("fBudget").value = String(criteria.budgetMax);
   document.getElementById("fBeds").value = String(criteria.bedrooms);
@@ -826,21 +910,29 @@ function openPanel(){
   panelOverlay.classList.add("open");
 }
 function closePanel(){ panelOverlay.classList.remove("open"); }
+function renderAreaSelect(){
+  const areaSelect = document.getElementById("fArea");
+  const options = [criteria.city, ...nearbyAreas].filter(Boolean);
+  const unique = Array.from(new Set(options.map(a => String(a).trim()).filter(Boolean)));
+  areaSelect.innerHTML = unique.map(a => `<option value="${htmlEscape(a)}">${htmlEscape(a === criteria.city ? "Any area in " + criteria.city : a)}</option>`).join("");
+  areaSelect.value = unique.includes(criteria.area) ? criteria.area : criteria.city;
+}
 document.getElementById("openPanelBtn").addEventListener("click", openPanel);
 document.getElementById("closePanelBtn").addEventListener("click", closePanel);
 panelOverlay.addEventListener("click", e => { if(e.target === panelOverlay) closePanel(); });
-document.getElementById("applySearchBtn").addEventListener("click", ()=>{
-  criteria.area = document.getElementById("fArea").value;
+document.getElementById("applySearchBtn").addEventListener("click", async ()=>{
+  criteria.city = document.getElementById("fCity").value.trim();
+  criteria.area = document.getElementById("fArea").value || criteria.city;
   criteria.style = document.getElementById("fStyle").value;
   criteria.budgetMax = parseInt(document.getElementById("fBudget").value, 10);
   criteria.bedrooms = parseInt(document.getElementById("fBeds").value, 10);
   criteria.preferences = Array.from(document.querySelectorAll(".chip-toggle.active")).map(b=>b.dataset.pref);
   closePanel();
-  runLoadingSequence(renderAll, true);
+  runLoadingSequence(refreshResults, true);
 });
 
-function selectArea(area){ criteria.area = area; runLoadingSequence(renderAll, true); }
-document.getElementById("emptyExpandBtn").addEventListener("click", ()=>{ criteria.area = "Any area in Charlotte"; runLoadingSequence(renderAll, true); });
+function selectArea(area){ criteria.area = area; runLoadingSequence(refreshResults, true); }
+document.getElementById("emptyExpandBtn").addEventListener("click", ()=>{ criteria.area = criteria.city; runLoadingSequence(refreshResults, true); });
 document.getElementById("emptyAdjustBtn").addEventListener("click", openPanel);
 
 const modalOverlay = document.getElementById("modalOverlay");

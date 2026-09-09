@@ -16,11 +16,12 @@ const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
 
 const VALID_CATEGORIES = new Set(['modern', 'luxury']);
-const FALLBACK_IMAGES = {
-  modern: '/real estate images/charlotte/charlotte.webp',
-  luxury: '/real estate images/charlotte/charlotte 1.webp',
-};
 const MAX_RESULTS = 8;
+const VALID_STATE_CODES = new Set([
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
+]);
 
 class GooglePlacesError extends Error {
   constructor(message, status) {
@@ -47,6 +48,7 @@ function parseRequest(event) {
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
   const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
+  const requestCriteria = body.requestCriteria && typeof body.requestCriteria === 'object' ? body.requestCriteria : null;
   const token = body.token || q.token;
 
   if (token) {
@@ -58,7 +60,7 @@ function parseRequest(event) {
     category = data.category;
   }
 
-  return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria };
+  return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria };
 }
 
 exports.handler = async (event) => {
@@ -68,7 +70,7 @@ exports.handler = async (event) => {
 
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
-  const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria } = parsed;
+  const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
 
   if (!leadId || !VALID_CATEGORIES.has(category)) {
     return json(400, { ok: false, error: 'Missing or invalid fields' });
@@ -104,7 +106,13 @@ exports.handler = async (event) => {
     }
     if (!lead) return json(404, { ok: false, error: 'No saved questionnaire was found.' });
 
-    const criteria = buildCriteria(lead, category);
+    const criteria = buildCriteria(lead, category, requestCriteria || fallbackCriteria);
+    if (!criteria.city) {
+      return json(400, {
+        ok: false,
+        error: 'Please enter a U.S. city and state, like Austin, TX.',
+      });
+    }
     const cached = await getApartmentResults(leadId, category);
     if (isUsableCachedResult(cached, criteria)) return json(200, { ok: true, ...cached });
 
@@ -127,6 +135,7 @@ exports.handler = async (event) => {
       const empty = {
         provider: process.env.GOOGLE_PLACES_API_KEY ? 'google_places' : 'not_configured',
         criteria,
+        nearbyAreas: [],
         message: process.env.GOOGLE_PLACES_API_KEY
           ? 'No verified apartment communities were returned for this search. Try a broader city or contact RentReady support.'
           : 'Google Places is not configured yet, so RentReady cannot generate verified apartment recommendations.',
@@ -137,7 +146,7 @@ exports.handler = async (event) => {
     }
 
     const properties = await rankWithOpenAI(rawProperties, criteria);
-    const result = { provider: 'google_places', message: null, criteria, properties };
+    const result = { provider: 'google_places', message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
     await saveApartmentResults(leadId, category, result);
     return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result });
   } catch (err) {
@@ -234,7 +243,7 @@ async function fetchGooglePlaces(criteria) {
 function googlePlaceQueries(criteria) {
   const category = criteria.category === 'luxury' ? 'luxury' : 'modern';
   const bedroomText = criteria.bedroomsLabel ? `${criteria.bedroomsLabel} ` : '';
-  const city = criteria.city;
+  const city = criteria.searchArea && criteria.searchArea !== criteria.city ? `${criteria.searchArea}, ${criteria.city}` : criteria.city;
   return [
     `${category} ${bedroomText}apartments in ${city}`,
     `${category} apartment communities in ${city}`,
@@ -259,7 +268,7 @@ async function fetchPlaceDetails(placeId, key) {
   if (!placeId) return null;
   const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
   url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'name,formatted_address,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,photo,types,business_status');
+  url.searchParams.set('fields', 'name,formatted_address,address_components,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,photo,types,business_status');
   url.searchParams.set('key', key);
 
   try {
@@ -281,9 +290,10 @@ function normalizePlace(place, details, criteria, key) {
     propertyId: place.place_id || '',
     name: source.name || place.name || '',
     address: source.formatted_address || place.formatted_address || '',
+    area: addressArea(source.address_components || place.address_components, criteria),
     phone: source.formatted_phone_number || source.international_phone_number || '',
     website: source.website || '',
-    image: photoUrl(photoRef, key) || FALLBACK_IMAGES[criteria.category],
+    image: photoUrl(photoRef, key),
     rating: typeof source.rating === 'number' ? source.rating : typeof place.rating === 'number' ? place.rating : null,
     reviewCount:
       typeof source.user_ratings_total === 'number'
@@ -394,6 +404,7 @@ function defaultRank(properties, criteria) {
 function isUsableCachedResult(cached, criteria) {
   if (!cached || cached.provider !== 'google_places') return false;
   if (!cached.criteria || cached.criteria.category !== criteria.category || cached.criteria.city !== criteria.city) return false;
+  if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
   if (Number(cached.criteria.rentBudget || 0) !== Number(criteria.rentBudget || 0)) return false;
   if (Number(cached.criteria.bedrooms ?? -1) !== Number(criteria.bedrooms ?? -1)) return false;
   const properties = Array.isArray(cached.properties) ? cached.properties : [];
@@ -405,41 +416,37 @@ function isUsableCachedResult(cached, criteria) {
   });
 }
 
-function buildCriteria(lead, category) {
-  const city = normalizeCity(clean(lead.preferred_city || lead.city)) || 'United States';
+function buildCriteria(lead, category, overrideCriteria) {
+  const override = overrideCriteria && typeof overrideCriteria === 'object' ? overrideCriteria : {};
+  const requestedLocation = clean(override.city || override.location || override.area);
+  const leadLocation = clean(lead.preferred_city || lead.city);
+  const parsedLocation = normalizeCityState(requestedLocation || leadLocation);
   const rentBudget = Number(lead.rent_budget) || null;
   const bedrooms = normalizeBedrooms(lead.beds_needed);
+  const overrideBedrooms = normalizeBedrooms(override.bedrooms);
   return {
     category,
-    city,
-    rentBudget,
-    bedrooms,
-    bedroomsLabel: bedroomLabel(bedrooms),
+    city: parsedLocation,
+    searchArea: clean(override.searchArea || override.area) || parsedLocation,
+    rentBudget: Number(override.rentBudget || override.budgetMax) || rentBudget,
+    bedrooms: overrideBedrooms === null ? bedrooms : overrideBedrooms,
+    bedroomsLabel: bedroomLabel(overrideBedrooms === null ? bedrooms : overrideBedrooms),
     moveTimeline: clean(lead.move_timeline),
     moveReason: clean(lead.move_reason),
   };
 }
 
-function normalizeCity(city) {
+function normalizeCityState(city) {
   const value = clean(city);
   if (!value) return '';
-  if (value.includes(',') || /\b(NC|SC|GA|TX)\b/i.test(value)) return value;
-  const northCarolinaTargets = new Set([
-    'charlotte',
-    'concord',
-    'huntersville',
-    'matthews',
-    'pineville',
-    'gastonia',
-    'uptown charlotte',
-    'south end',
-    'noda',
-    'university city',
-    'ballantyne',
-    'dilworth',
-    'plaza midwood',
-  ]);
-  return northCarolinaTargets.has(value.toLowerCase()) ? `${value}, NC` : value;
+  const commaMatch = value.match(/^(.+?),\s*([A-Za-z]{2})$/);
+  const spaceMatch = value.match(/^(.+?)\s+([A-Za-z]{2})$/);
+  const match = commaMatch || spaceMatch;
+  if (!match) return '';
+  const place = clean(match[1]).replace(/\s+/g, ' ');
+  const state = match[2].toUpperCase();
+  if (!place || !VALID_STATE_CODES.has(state)) return '';
+  return `${place}, ${state}`;
 }
 
 function normalizeBedrooms(value) {
@@ -497,6 +504,30 @@ function scoreProperty(property, criteria) {
       'This verified apartment community is a strong candidate for your saved search. Contact the property to confirm current rent, availability, move-in specials, deposits, lease terms, and screening requirements.',
     availabilityNote: 'Google Places does not publish live unit availability. Call or visit the property website to confirm current openings.',
   };
+}
+
+function addressArea(components, criteria) {
+  if (!Array.isArray(components)) return clean(criteria.searchArea || criteria.city);
+  const priority = ['neighborhood', 'sublocality', 'sublocality_level_1', 'locality'];
+  for (const type of priority) {
+    const component = components.find((c) => Array.isArray(c.types) && c.types.includes(type));
+    const name = clean(component && (component.long_name || component.short_name));
+    if (name) return name;
+  }
+  return clean(criteria.searchArea || criteria.city);
+}
+
+function nearbyAreasFromProperties(properties, criteria) {
+  const seen = new Set();
+  const out = [];
+  for (const property of properties) {
+    const area = clean(property.area);
+    if (!area || area === criteria.city || seen.has(area.toLowerCase())) continue;
+    seen.add(area.toLowerCase());
+    out.push(area);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 function enrich(property, ai) {
