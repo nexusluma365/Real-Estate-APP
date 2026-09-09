@@ -253,13 +253,26 @@ async function fetchGooglePlaces(criteria) {
 function googlePlaceQueries(criteria) {
   const category = criteria.category === 'luxury' ? 'luxury' : 'modern';
   const bedroomText = criteria.bedroomsLabel ? `${criteria.bedroomsLabel} ` : '';
-  const city = criteria.searchArea && criteria.searchArea !== criteria.city ? `${criteria.searchArea}, ${criteria.city}` : criteria.city;
-  return [
-    `${category} ${bedroomText}apartments in ${city}`,
-    `${category} apartment communities in ${city}`,
-    `${bedroomText}apartments for rent in ${city}`,
-    `apartment communities in ${city}`,
-  ];
+  const primary = criteria.searchArea && criteria.searchArea !== criteria.city ? `${criteria.searchArea}, ${criteria.city}` : criteria.city;
+  const locations = [primary];
+  if (criteria.searchArea && criteria.searchArea !== criteria.city) locations.push(criteria.city);
+
+  return unique(locations.filter(Boolean).map(usSearchLocation)).flatMap((location) => [
+    `${category} ${bedroomText}apartments in ${location}`,
+    `${category} apartment communities in ${location}`,
+    `${bedroomText}apartments for rent in ${location}`,
+    `apartment communities in ${location}`,
+  ]);
+}
+
+function usSearchLocation(location) {
+  const value = clean(location);
+  if (!value) return '';
+  return normalizeCityState(value) ? value : `${value}, United States`;
+}
+
+function unique(values) {
+  return Array.from(new Set(values));
 }
 
 function assertGooglePlacesResponse(data) {
@@ -428,22 +441,29 @@ function isUsableCachedResult(cached, criteria) {
 
 function buildCriteria(lead, category, overrideCriteria) {
   const override = overrideCriteria && typeof overrideCriteria === 'object' ? overrideCriteria : {};
-  const requestedLocation = clean(override.city || override.location || override.area);
+  const requestedCity = clean(override.city || override.location);
   const leadLocation = clean(lead.preferred_city || lead.city);
-  const parsedRequestedLocation = normalizeCityState(requestedLocation);
+  const requestedArea = clean(override.searchArea || override.area);
+  const parsedRequestedLocation = normalizeCityState(requestedCity);
   const parsedLeadLocation = normalizeCityState(leadLocation);
-  const rawLocation = requestedLocation || leadLocation;
-  const parsedLocation = parsedRequestedLocation || parsedLeadLocation || rawLocation;
+  const explicitLocation = requestedCity || requestedArea;
+  const unnormalizedLocation = explicitLocation || leadLocation;
+  const parsedLocation = parsedRequestedLocation || explicitLocation || parsedLeadLocation || leadLocation;
+  const searchArea =
+    requestedArea && parsedRequestedLocation
+      ? requestedArea
+      : requestedArea && parsedLeadLocation && !requestedCity
+      ? requestedArea
+      : parsedLocation;
   const rentBudget = Number(lead.rent_budget) || null;
   const bedrooms = normalizeBedrooms(lead.beds_needed);
   const overrideBedrooms = normalizeBedrooms(override.bedrooms);
-  const requestedArea = clean(override.searchArea || override.area);
   return {
     category,
     city: parsedLocation,
-    searchArea: parsedRequestedLocation && requestedArea ? requestedArea : parsedLocation,
+    searchArea,
     locationWarning:
-      parsedLocation && parsedLocation === rawLocation && !normalizeCityState(rawLocation)
+      parsedLocation && unnormalizedLocation && parsedLocation === unnormalizedLocation && !normalizeCityState(unnormalizedLocation)
         ? 'City/state was not normalized; Google Places will interpret the saved location text.'
         : null,
     rentBudget: Number(override.rentBudget || override.budgetMax) || rentBudget,

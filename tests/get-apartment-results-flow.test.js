@@ -518,11 +518,147 @@ async function run() {
     });
     const bridgeFallbackBody = JSON.parse(bridgeFallbackRes.body);
     assert.equal(bridgeFallbackRes.statusCode, 200);
-    assert.equal(bridgeFallbackBody.criteria.city, 'Austin, TX');
-    assert(variedQueries.some((query) => query.includes('Austin, TX')));
+    assert.equal(bridgeFallbackBody.criteria.city, 'Downtown Austin');
+    assert.match(bridgeFallbackBody.criteria.locationWarning, /not normalized/i);
+    assert(variedQueries.some((query) => query.includes('Downtown Austin')));
 
     urls.length = 0;
     variedQueries.length = 0;
+    const rawCitySearch = await loadHandler({
+      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
+      entitlements: { paid27: true, purchasedCategory: 'modern' },
+    });
+    const rawCitySearchRes = await rawCitySearch.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({
+        leadId: 'lead_raw_city',
+        category: 'modern',
+        requestCriteria: { city: 'Miami', area: 'Miami', rentBudget: 2100, bedrooms: 2 },
+      }),
+    });
+    const rawCitySearchBody = JSON.parse(rawCitySearchRes.body);
+    assert.equal(rawCitySearchRes.statusCode, 200);
+    assert.equal(rawCitySearchBody.criteria.city, 'Miami');
+    assert.match(rawCitySearchBody.criteria.locationWarning, /not normalized/i);
+    assert(variedQueries.some((query) => query.includes('Miami')));
+
+    urls.length = 0;
+    variedQueries.length = 0;
+    let areaFallbackCalls = 0;
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        const parsed = new URL(String(url));
+        const query = parsed.searchParams.get('query');
+        variedQueries.push(query);
+        areaFallbackCalls++;
+        const isBroadCityQuery = query.includes('Austin, TX') && !query.includes('Tiny Test District');
+        return {
+          json: async () => ({
+            status: isBroadCityQuery ? 'OK' : 'ZERO_RESULTS',
+            results: isBroadCityQuery
+              ? [
+                  {
+                    place_id: 'place_austin_broad',
+                    name: 'Austin Broad Apartments',
+                    formatted_address: '7 Congress Ave, Austin, TX',
+                    rating: 4.4,
+                    user_ratings_total: 31,
+                    business_status: 'OPERATIONAL',
+                  },
+                ]
+              : [],
+          }),
+        };
+      }
+      if (String(url).includes('/details/')) {
+        return {
+          json: async () => ({
+            result: {
+              name: 'Austin Broad Apartments',
+              formatted_address: '7 Congress Ave, Austin, TX',
+              url: 'https://maps.google.com/?cid=austinbroad',
+              rating: 4.4,
+              user_ratings_total: 31,
+              business_status: 'OPERATIONAL',
+              address_components: [
+                { long_name: 'Downtown Austin', types: ['neighborhood', 'political'] },
+              ],
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
+    const areaFallback = await loadHandler({
+      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
+      entitlements: { paid27: true, purchasedCategory: 'modern' },
+    });
+    const areaFallbackRes = await areaFallback.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({
+        leadId: 'lead_area_fallback',
+        category: 'modern',
+        requestCriteria: { city: 'Austin, TX', area: 'Tiny Test District', rentBudget: 2100, bedrooms: 2 },
+      }),
+    });
+    const areaFallbackBody = JSON.parse(areaFallbackRes.body);
+    assert.equal(areaFallbackRes.statusCode, 200);
+    assert.equal(areaFallbackBody.properties[0].name, 'Austin Broad Apartments');
+    assert(variedQueries.some((query) => query.includes('Tiny Test District, Austin, TX')));
+    assert(variedQueries.some((query) => query.includes('Austin, TX') && !query.includes('Tiny Test District')));
+    assert(areaFallbackCalls > 4);
+
+    urls.length = 0;
+    variedQueries.length = 0;
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/textsearch/')) {
+        const parsed = new URL(String(url));
+        const query = parsed.searchParams.get('query');
+        variedQueries.push(query);
+        const cityMatch = query.match(/in (.+)$/);
+        const searched = cityMatch ? cityMatch[1] : 'Unknown, US';
+        const cityName = searched.split(',')[0];
+        return {
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                place_id: `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`,
+                name: `${cityName} Apartments`,
+                formatted_address: `1 Main St, ${searched}`,
+                rating: 4.3,
+                user_ratings_total: 25,
+                business_status: 'OPERATIONAL',
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url).includes('/details/')) {
+        const placeId = new URL(String(url)).searchParams.get('place_id');
+        const cityName = placeId.replace(/^place_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return {
+          json: async () => ({
+            result: {
+              name: `${cityName} Apartments`,
+              formatted_address: `1 Main St, ${cityName}`,
+              url: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
+              rating: 4.3,
+              user_ratings_total: 25,
+              business_status: 'OPERATIONAL',
+              address_components: [
+                { long_name: `${cityName} Center`, types: ['neighborhood', 'political'] },
+              ],
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    };
     const fullState = await loadHandler({
       lead: { preferred_city: 'Concord, NC', rent_budget: 2100, beds_needed: '2' },
       entitlements: { paid27: true, purchasedCategory: 'modern' },

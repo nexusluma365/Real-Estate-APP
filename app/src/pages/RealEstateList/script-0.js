@@ -91,7 +91,6 @@ function applyAnswerCriteria(){
   const params = new URLSearchParams(window.location.search);
   const category = (params.get("category") || "luxury").toLowerCase();
   const rentBudget = Number(answers.rent_budget);
-  const beds = normalizeBedrooms(answers.beds_needed);
   const urlCity = params.get("city") || params.get("c__y") || params.get("location") || "";
   const urlArea = params.get("area") || params.get("searchArea") || "";
   const urlBudget = Number(params.get("rentBudget") || params.get("budget") || "");
@@ -103,7 +102,7 @@ function applyAnswerCriteria(){
     area: urlArea || city,
     style: category === "modern" ? "Modern" : "Luxury",
     budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : Number.isFinite(urlBudget) && urlBudget > 0 ? urlBudget : criteria.budgetMax,
-    bedrooms: answers.beds_needed ? beds : urlBeds ? normalizeBedrooms(urlBeds) : beds,
+    bedrooms: answers.beds_needed ? normalizeBedrooms(answers.beds_needed) : urlBeds ? normalizeBedrooms(urlBeds) : criteria.bedrooms,
   };
 }
 
@@ -523,8 +522,11 @@ document.getElementById("openPanelBtn").addEventListener("click", openPanel);
 document.getElementById("closePanelBtn").addEventListener("click", closePanel);
 panelOverlay.addEventListener("click", e => { if(e.target === panelOverlay) closePanel(); });
 document.getElementById("applySearchBtn").addEventListener("click", async ()=>{
-  criteria.city = document.getElementById("fCity").value.trim();
-  criteria.area = document.getElementById("fArea").value || criteria.city;
+  const nextCity = document.getElementById("fCity").value.trim();
+  const previousCity = criteria.city;
+  const selectedArea = document.getElementById("fArea").value;
+  criteria.city = nextCity;
+  criteria.area = nextCity !== previousCity ? nextCity : selectedArea || nextCity;
   criteria.style = document.getElementById("fStyle").value;
   criteria.budgetMax = parseInt(document.getElementById("fBudget").value, 10);
   criteria.bedrooms = parseInt(document.getElementById("fBeds").value, 10);
