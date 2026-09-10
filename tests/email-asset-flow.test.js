@@ -51,7 +51,7 @@ async function run() {
     };
 
     const handler = loadHandler({
-      entitlements: { paid27: true, purchasedCategory: 'modern' },
+      entitlements: { paid27: true, purchasedCategories: ['modern'] },
       lead: { email: ' USER@Example.COM ', first_name: 'Pat' },
     });
     const res = await handler({
@@ -67,7 +67,7 @@ async function run() {
     assert.match(sent[0].body.downloadUrl, /get-apartment-results\?token=/);
 
     const invalidHandler = loadHandler({
-      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
       lead: { email: 'bad-email' },
     });
     const invalidRes = await invalidHandler({
@@ -81,7 +81,7 @@ async function run() {
     assert.equal(sent.length, 1);
 
     const lockedHandler = loadHandler({
-      entitlements: { paid27: false, purchasedCategory: null },
+      entitlements: { paid27: false, purchasedCategories: [] },
       lead: { email: 'locked@example.com' },
     });
     const lockedRes = await lockedHandler({
@@ -106,7 +106,7 @@ async function run() {
     };
 
     const cloudflareHandler = loadHandler({
-      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
       lead: { email: 'buyer@example.com' },
     });
     const cloudflareRes = await cloudflareHandler({
@@ -122,6 +122,27 @@ async function run() {
     assert.equal(cloudflareSent[0].url, 'https://worker.test/send-download');
     assert.equal(cloudflareSent[0].headers.Authorization, 'Bearer secret_123');
     assert.deepEqual(cloudflareSent[0].body, { leadId: 'lead_cf', product: 'luxury' });
+
+    // Regression: owning both apartment categories must allow emailing
+    // either one's results, not just the most recently purchased category.
+    const dualCategorySent = [];
+    global.fetch = async (url, options) => {
+      dualCategorySent.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, json: async () => ({ ok: true }) };
+    };
+    delete process.env.CLOUDFLARE_DOWNLOAD_EMAIL_URL;
+    delete process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET;
+    const dualCategoryHandler = loadHandler({
+      entitlements: { paid27: true, purchasedCategories: ['modern', 'luxury'] },
+      lead: { email: 'dual@example.com' },
+    });
+    const dualCategoryRes = await dualCategoryHandler({
+      httpMethod: 'POST',
+      body: JSON.stringify({ leadId: 'lead_dual', type: 'apartment-results', category: 'modern' }),
+    });
+    assert.equal(dualCategoryRes.statusCode, 200);
+    assert.equal(JSON.parse(dualCategoryRes.body).ok, true);
+    assert.equal(dualCategorySent.length, 1);
   } finally {
     if (oldGoogleUrl === undefined) delete process.env.GOOGLE_SCRIPT_URL;
     else process.env.GOOGLE_SCRIPT_URL = oldGoogleUrl;

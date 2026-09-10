@@ -146,12 +146,25 @@ function defaultEntitlements(leadId) {
     paid97: false,
     membershipStatus: 'inactive',
     membershipPlan: null,
+    purchasedCategory: null,
+    purchasedCategories: [],
     stripeCustomerId: null,
     defaultPaymentMethodId: null,
   };
 }
 
+// A customer can buy apartment matches ($27) for more than one category
+// (modern, then later luxury, or vice versa). `purchasedCategories` is the
+// source of truth for which ones they own; `purchasedCategory` (singular)
+// is kept in sync as "most recently purchased" only so the legacy frontend
+// pages — which still compare against a single category — keep working
+// unchanged for the common single-purchase case.
+function mostRecentCategory(purchasedCategories, fallback) {
+  return purchasedCategories[purchasedCategories.length - 1] || fallback || null;
+}
+
 function entitlementRecord(leadId, entitlements = {}) {
+  const purchasedCategories = Array.isArray(entitlements.purchasedCategories) ? entitlements.purchasedCategories : [];
   return {
     lead_id: leadId,
     paid10: !!entitlements.paid10,
@@ -159,17 +172,25 @@ function entitlementRecord(leadId, entitlements = {}) {
     paid97: !!entitlements.paid97,
     membership_status: entitlements.membershipStatus || 'inactive',
     membership_plan: entitlements.membershipPlan || null,
-    purchased_category: entitlements.purchasedCategory || null,
+    purchased_category: mostRecentCategory(purchasedCategories, entitlements.purchasedCategory),
     stripe_customer_id: entitlements.stripeCustomerId || null,
     stripe_payment_intent_id: entitlements.stripePaymentIntentId || null,
     default_payment_method_id: entitlements.defaultPaymentMethodId || null,
-    raw_entitlement: { ...entitlements, leadId },
+    raw_entitlement: { ...entitlements, leadId, purchasedCategories },
     updated_at: new Date().toISOString(),
   };
 }
 
 function entitlementsFromRecord(record, leadId) {
   if (!record) return defaultEntitlements(leadId);
+  const rawCategories = record.raw_entitlement && Array.isArray(record.raw_entitlement.purchasedCategories)
+    ? record.raw_entitlement.purchasedCategories
+    : [];
+  const purchasedCategories = rawCategories.length
+    ? rawCategories
+    : record.purchased_category
+    ? [record.purchased_category]
+    : [];
   return {
     ...(record.raw_entitlement || {}),
     leadId,
@@ -178,11 +199,23 @@ function entitlementsFromRecord(record, leadId) {
     paid97: !!record.paid97,
     membershipStatus: record.membership_status || 'inactive',
     membershipPlan: record.membership_plan || null,
-    purchasedCategory: record.purchased_category || null,
+    purchasedCategory: mostRecentCategory(purchasedCategories, record.purchased_category),
+    purchasedCategories,
     stripeCustomerId: record.stripe_customer_id || null,
     stripePaymentIntentId: record.stripe_payment_intent_id || null,
     defaultPaymentMethodId: record.default_payment_method_id || null,
   };
+}
+
+function normalizeLocalEntitlements(rec, leadId) {
+  if (!rec) return defaultEntitlements(leadId);
+  const purchasedCategories =
+    Array.isArray(rec.purchasedCategories) && rec.purchasedCategories.length
+      ? rec.purchasedCategories
+      : rec.purchasedCategory
+      ? [rec.purchasedCategory]
+      : [];
+  return { ...rec, purchasedCategories, purchasedCategory: mostRecentCategory(purchasedCategories, rec.purchasedCategory) };
 }
 
 async function saveLead(leadId, answers) {
@@ -213,12 +246,22 @@ async function getEntitlements(leadId) {
     return entitlementsFromRecord(rows[0], leadId);
   }
   const rec = await entitlementsStore().get(leadId, { type: 'json' });
-  return rec || defaultEntitlements(leadId);
+  return normalizeLocalEntitlements(rec, leadId);
 }
 
 async function patchEntitlements(leadId, patch) {
   const current = await getEntitlements(leadId);
-  const next = { ...current, ...patch, leadId };
+  const { addPurchasedCategory, ...rest } = patch;
+  const purchasedCategories = addPurchasedCategory
+    ? Array.from(new Set([...(current.purchasedCategories || []), addPurchasedCategory]))
+    : current.purchasedCategories || [];
+  const next = {
+    ...current,
+    ...rest,
+    purchasedCategories,
+    purchasedCategory: mostRecentCategory(purchasedCategories, current.purchasedCategory),
+    leadId,
+  };
   if (supabaseConfig()) {
     if (!(await getLead(leadId))) await saveLead(leadId, { lead_id: leadId });
     await supabaseRequest('entitlements?on_conflict=lead_id', {

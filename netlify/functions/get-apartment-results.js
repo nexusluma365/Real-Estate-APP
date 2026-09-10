@@ -88,10 +88,11 @@ exports.handler = async (event) => {
 
   try {
     let entitlements = await getEntitlements(leadId);
-    if ((!entitlements.paid27 || entitlements.purchasedCategory !== category) && upsellPaymentIntentId) {
+    const ownsCategory = (e) => e.paid27 && (e.purchasedCategories || []).includes(category);
+    if (!ownsCategory(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
-    if (!entitlements.paid27 || entitlements.purchasedCategory !== category) {
+    if (!ownsCategory(entitlements)) {
       return json(403, { ok: false, error: 'This apartment list is not unlocked yet.' });
     }
 
@@ -201,7 +202,7 @@ async function recoverApartmentEntitlement(leadId, category, paymentIntentId, cu
     return current;
   }
 
-  const patch = { paid27: true, purchasedCategory: category };
+  const patch = { paid27: true, addPurchasedCategory: category };
   if (pi.customer) patch.stripeCustomerId = pi.customer;
   if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
 

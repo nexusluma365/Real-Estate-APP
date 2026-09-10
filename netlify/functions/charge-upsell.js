@@ -78,8 +78,10 @@ exports.handler = async (event) => {
       };
     }
 
-    // Already-purchased is a no-op success, not a second charge.
-    if (entitlements[def.field] && (!def.category || entitlements.purchasedCategory === def.category)) {
+    // Already-purchased is a no-op success, not a second charge. A customer
+    // can own more than one apartment category, so this checks membership
+    // in the full set, not equality against the single most-recent one.
+    if (entitlements[def.field] && (!def.category || (entitlements.purchasedCategories || []).includes(def.category))) {
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', alreadyOwned: true }) };
     }
 
@@ -131,7 +133,7 @@ exports.handler = async (event) => {
 
     if (pi.status === 'succeeded') {
       const patch = { [def.field]: true };
-      if (def.category) patch.purchasedCategory = def.category;
+      if (def.category) patch.addPurchasedCategory = def.category;
       let warning = null;
       try {
         await patchEntitlements(leadId, patch);

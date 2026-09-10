@@ -27,6 +27,7 @@ exports.handler = async (event) => {
         paid27: !!e.paid27,
         paid97: !!e.paid97,
         purchasedCategory: e.purchasedCategory || null,
+        purchasedCategories: Array.isArray(e.purchasedCategories) ? e.purchasedCategories : [],
         membershipStatus: e.membershipStatus || 'inactive',
         membershipPlan: e.membershipPlan || null,
       }),

@@ -71,7 +71,7 @@ exports.handler = async (event) => {
     if (type === 'apartment-results' && !['modern', 'luxury'].includes(category)) {
       return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing apartment category.' }) };
     }
-    if (type === 'apartment-results' && entitlements.purchasedCategory !== category) {
+    if (type === 'apartment-results' && !(entitlements.purchasedCategories || []).includes(category)) {
       return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'This apartment category is not unlocked yet.' }) };
     }
 

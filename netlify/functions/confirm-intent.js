@@ -53,7 +53,7 @@ exports.handler = async (event) => {
       const patch = { [field]: true };
       if (pi.customer) patch.stripeCustomerId = pi.customer;
       if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
-      if (product === 'modern' || product === 'luxury') patch.purchasedCategory = product;
+      if (product === 'modern' || product === 'luxury') patch.addPurchasedCategory = product;
       let entitlements = null;
       let entitlementWarning = null;
 

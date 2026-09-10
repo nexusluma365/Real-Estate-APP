@@ -25,8 +25,9 @@ exports.handler = async (event) => {
   let stripeEvent;
 
   try {
+    const rawBody = event.isBase64Encoded ? Buffer.from(event.body, 'base64') : event.body;
     stripeEvent = stripe.webhooks.constructEvent(
-      event.body,
+      rawBody,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
@@ -46,7 +47,7 @@ exports.handler = async (event) => {
           const patch = { [field]: true };
           if (pi.customer) patch.stripeCustomerId = pi.customer;
           if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
-          if (product === 'modern' || product === 'luxury') patch.purchasedCategory = product;
+          if (product === 'modern' || product === 'luxury') patch.addPurchasedCategory = product;
           await patchEntitlements(leadId, patch);
           if (pi.customer && pi.payment_method) {
             await stripe.customers.update(pi.customer, {

@@ -20,7 +20,15 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
       getEntitlements: async () => entitlements,
       getApartmentResults: async () => cached || null,
       saveApartmentResults: async (leadId, category, results) => savedResults.push({ leadId, category, results }),
-      patchEntitlements: patchEntitlements || (async (leadId, patch) => ({ ...entitlements, ...patch, leadId })),
+      patchEntitlements:
+        patchEntitlements ||
+        (async (leadId, patch) => {
+          const { addPurchasedCategory, ...rest } = patch;
+          const purchasedCategories = addPurchasedCategory
+            ? Array.from(new Set([...(entitlements.purchasedCategories || []), addPurchasedCategory]))
+            : entitlements.purchasedCategories || [];
+          return { ...entitlements, ...rest, purchasedCategories, leadId };
+        }),
     },
   };
   require.cache[signPath] = {
@@ -117,7 +125,7 @@ async function run() {
       },
       entitlements: {
         paid27: true,
-        purchasedCategory: 'luxury',
+        purchasedCategories: ['luxury'],
       },
       cached: {
         provider: 'google_places',
@@ -166,7 +174,7 @@ async function run() {
       },
       entitlements: {
         paid27: false,
-        purchasedCategory: null,
+        purchasedCategories: [],
       },
       upsellIntent: {
         id: 'pi_modern_upsell',
@@ -215,7 +223,7 @@ async function run() {
       },
       entitlements: {
         paid27: true,
-        purchasedCategory: 'luxury',
+        purchasedCategories: ['luxury'],
       },
     });
     const deniedRes = await denied.handler({
@@ -286,7 +294,7 @@ async function run() {
       },
       entitlements: {
         paid27: true,
-        purchasedCategory: 'luxury',
+        purchasedCategories: ['luxury'],
       },
     });
     const broadRes = await broad.handler({
@@ -309,7 +317,7 @@ async function run() {
       },
       entitlements: {
         paid27: true,
-        purchasedCategory: 'luxury',
+        purchasedCategories: ['luxury'],
       },
       cached: {
         provider: 'google_places',
@@ -376,7 +384,7 @@ async function run() {
 
     const postFlow = await loadHandler({
       lead: null,
-      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
     });
     const postAnswers = { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' };
     const postRes = await postFlow.handler({
@@ -397,7 +405,7 @@ async function run() {
 
     const fallbackCriteriaFlow = await loadHandler({
       lead: null,
-      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
     });
     const fallbackCriteriaRes = await fallbackCriteriaFlow.handler({
       httpMethod: 'POST',
@@ -473,7 +481,7 @@ async function run() {
     for (const city of ['Austin, TX', 'New York, NY', 'Mount Vernon, WA']) {
       const varied = await loadHandler({
         lead: { preferred_city: 'Concord, NC', rent_budget: 2100, beds_needed: '2' },
-        entitlements: { paid27: true, purchasedCategory: 'modern' },
+        entitlements: { paid27: true, purchasedCategories: ['modern'] },
         cached: {
           provider: 'google_places',
           criteria: { category: 'modern', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 2100, bedrooms: 2 },
@@ -505,7 +513,7 @@ async function run() {
     variedQueries.length = 0;
     const bridgeFallback = await loadHandler({
       lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategory: 'modern' },
+      entitlements: { paid27: true, purchasedCategories: ['modern'] },
     });
     const bridgeFallbackRes = await bridgeFallback.handler({
       httpMethod: 'POST',
@@ -526,7 +534,7 @@ async function run() {
     variedQueries.length = 0;
     const rawCitySearch = await loadHandler({
       lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategory: 'modern' },
+      entitlements: { paid27: true, purchasedCategories: ['modern'] },
     });
     const rawCitySearchRes = await rawCitySearch.handler({
       httpMethod: 'POST',
@@ -593,7 +601,7 @@ async function run() {
     };
     const areaFallback = await loadHandler({
       lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategory: 'modern' },
+      entitlements: { paid27: true, purchasedCategories: ['modern'] },
     });
     const areaFallbackRes = await areaFallback.handler({
       httpMethod: 'POST',
@@ -656,7 +664,7 @@ async function run() {
     };
     const specificArea = await loadHandler({
       lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategory: 'modern' },
+      entitlements: { paid27: true, purchasedCategories: ['modern'] },
     });
     const specificAreaRes = await specificArea.handler({
       httpMethod: 'POST',
@@ -723,7 +731,7 @@ async function run() {
     };
     const fullState = await loadHandler({
       lead: { preferred_city: 'Concord, NC', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategory: 'modern' },
+      entitlements: { paid27: true, purchasedCategories: ['modern'] },
     });
     const fullStateRes = await fullState.handler({
       httpMethod: 'GET',
@@ -738,7 +746,7 @@ async function run() {
     variedQueries.length = 0;
     const ambiguousLocation = await loadHandler({
       lead: { preferred_city: 'Springfield', rent_budget: 1500, beds_needed: '1' },
-      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
     });
     const ambiguousLocationRes = await ambiguousLocation.handler({
       httpMethod: 'GET',
@@ -752,7 +760,7 @@ async function run() {
 
     const postNoAnswers = await loadHandler({
       lead: null,
-      entitlements: { paid27: true, purchasedCategory: 'luxury' },
+      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
     });
     const postNoAnswersRes = await postNoAnswers.handler({
       httpMethod: 'POST',

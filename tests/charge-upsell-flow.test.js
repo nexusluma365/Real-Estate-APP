@@ -105,7 +105,7 @@ async function run() {
   });
   assert.deepEqual(patchCalls[1].patch, {
     paid27: true,
-    purchasedCategory: 'modern',
+    addPurchasedCategory: 'modern',
   });
 
   const mismatch = await loadHandler({
@@ -138,6 +138,59 @@ async function run() {
   });
   assert.equal(mismatchRes.statusCode, 403);
   assert.equal(mismatch.createCalls.length, 0);
+
+  // Regression: owning one apartment category must not block buying (or
+  // charge twice for) the other one, and must not be treated as already
+  // owning it.
+  const secondCategoryPatchCalls = [];
+  const secondCategory = await loadHandler({
+    entitlements: {
+      leadId: 'lead_123',
+      paid10: true,
+      paid27: true,
+      paid97: false,
+      purchasedCategories: ['modern'],
+      stripeCustomerId: 'cus_test',
+      defaultPaymentMethodId: 'pm_test',
+    },
+    upsellIntent: { id: 'pi_luxury', status: 'succeeded' },
+    patchEntitlements: async (leadId, patch) => {
+      secondCategoryPatchCalls.push({ leadId, patch });
+      return { leadId, purchasedCategories: ['modern', 'luxury'], ...patch };
+    },
+  });
+  const secondCategoryRes = await secondCategory.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', product: 'luxury', idempotencyKey: 'idem_456' }),
+  });
+  const secondCategoryBody = JSON.parse(secondCategoryRes.body);
+  assert.equal(secondCategoryRes.statusCode, 200);
+  assert.equal(secondCategoryBody.status, 'succeeded');
+  assert.equal(secondCategoryBody.alreadyOwned, undefined);
+  assert.equal(secondCategory.createCalls.length, 1);
+  assert.deepEqual(secondCategoryPatchCalls[0].patch, { paid27: true, addPurchasedCategory: 'luxury' });
+
+  // Already owning a category is a no-op success, not a second charge.
+  const alreadyOwned = await loadHandler({
+    entitlements: {
+      leadId: 'lead_123',
+      paid10: true,
+      paid27: true,
+      paid97: false,
+      purchasedCategories: ['modern', 'luxury'],
+      stripeCustomerId: 'cus_test',
+      defaultPaymentMethodId: 'pm_test',
+    },
+    patchEntitlements: async () => ({}),
+  });
+  const alreadyOwnedRes = await alreadyOwned.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', product: 'modern', idempotencyKey: 'idem_789' }),
+  });
+  const alreadyOwnedBody = JSON.parse(alreadyOwnedRes.body);
+  assert.equal(alreadyOwnedRes.statusCode, 200);
+  assert.equal(alreadyOwnedBody.alreadyOwned, true);
+  assert.equal(alreadyOwned.createCalls.length, 0);
 }
 
 run()
