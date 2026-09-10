@@ -81,7 +81,24 @@ async function run() {
       httpMethod: 'POST',
       body: JSON.stringify({
         lead_id: 'lead_456',
-        email: 'second@example.com',
+        submitted_at: '2026-09-10T18:28:00.000Z',
+        first_name: 'Second',
+        last_name: 'Renter',
+        email: 'SECOND@EXAMPLE.COM',
+        date_of_birth: '1992-04-03',
+        move_timeline: '30_days',
+        preferred_city: 'Charlotte, NC',
+        move_reason: 'new_job',
+        annual_income: 78000,
+        credit_score: '700_739',
+        beds_needed: '1,2',
+        rent_budget: 2100,
+        current_rent: 1650,
+        contact_method: 'email',
+        phone: '7045550100',
+        source_page: 'https://werentreadygo.com/questionnaire',
+        referrer: 'https://werentreadygo.com/',
+        user_agent: 'submit-lead-test',
       }),
     });
     const forwardedBody = JSON.parse(forwardedRes.body);
@@ -94,6 +111,27 @@ async function run() {
     assert.equal(forwarded.savedLeads.length, 1);
     assert.equal(forwarded.savedLeads[0].leadId, 'lead_456');
     assert.equal(forwardedPayload.lead_id, 'lead_456');
+    assert.deepEqual(forwardedPayload, {
+      lead_id: 'lead_456',
+      submitted_at: '2026-09-10T18:28:00.000Z',
+      first_name: 'Second',
+      last_name: 'Renter',
+      email: 'second@example.com',
+      date_of_birth: '1992-04-03',
+      move_timeline: '30_days',
+      preferred_city: 'Charlotte, NC',
+      move_reason: 'new_job',
+      annual_income: 78000,
+      credit_score: '700_739',
+      beds_needed: '1,2',
+      rent_budget: 2100,
+      current_rent: 1650,
+      contact_method: 'email',
+      phone: '7045550100',
+      source_page: 'https://werentreadygo.com/questionnaire',
+      referrer: 'https://werentreadygo.com/',
+      user_agent: 'submit-lead-test',
+    });
 
     delete process.env.GOOGLE_SCRIPT_URL;
     const storageFailure = loadHandler({

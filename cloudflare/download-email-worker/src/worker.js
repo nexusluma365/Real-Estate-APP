@@ -135,7 +135,7 @@ function publicBaseUrl(request, env) {
 }
 
 function authorized(request, env) {
-  if (!env.TRIGGER_SECRET) return true;
+  if (!env.TRIGGER_SECRET) return false;
   const auth = request.headers.get('Authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   return bearer === env.TRIGGER_SECRET || request.headers.get('x-trigger-secret') === env.TRIGGER_SECRET;
