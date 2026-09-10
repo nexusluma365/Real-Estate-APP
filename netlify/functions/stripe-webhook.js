@@ -11,7 +11,8 @@
 // their correct value), so it's safe if Stripe retries or a synchronous
 // call already handled the same event.
 const { getStripe } = require('./_lib/stripe');
-const { patchEntitlements } = require('./_lib/store');
+const { getEntitlements, patchEntitlements } = require('./_lib/store');
+const { sendWelcomeEmail } = require('./_lib/welcome-email');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -44,6 +45,7 @@ exports.handler = async (event) => {
         const product = pi.metadata && pi.metadata.product;
         const field = FIELD_BY_PRODUCT[product];
         if (leadId && field) {
+          const isFirstPrescreenPayment = product === 'prescreen' && !(await getEntitlements(leadId)).paid10;
           const patch = { [field]: true };
           if (pi.customer) patch.stripeCustomerId = pi.customer;
           if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
@@ -53,6 +55,17 @@ exports.handler = async (event) => {
             await stripe.customers.update(pi.customer, {
               invoice_settings: { default_payment_method: pi.payment_method },
             });
+          }
+          // Backstop for the welcome email confirm-intent.js normally sends
+          // synchronously — only fires if this webhook is the first thing to
+          // ever see paid10 go true for this lead (e.g. the customer closed
+          // the tab right after paying).
+          if (isFirstPrescreenPayment) {
+            try {
+              await sendWelcomeEmail(leadId);
+            } catch (err) {
+              console.error('stripe-webhook welcome email error', err);
+            }
           }
         }
         break;

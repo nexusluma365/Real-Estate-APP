@@ -1,10 +1,13 @@
 const assert = require('assert');
 
-async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate }) {
+async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail }) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
+  const welcomeEmailPath = require.resolve('../netlify/functions/_lib/welcome-email');
   const fnPath = require.resolve('../netlify/functions/confirm-intent');
   delete require.cache[fnPath];
+
+  const welcomeEmailCalls = [];
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -25,10 +28,25 @@ async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate })
     id: storePath,
     filename: storePath,
     loaded: true,
-    exports: { patchEntitlements },
+    exports: {
+      getEntitlements: async () => entitlements || { paid10: false },
+      patchEntitlements,
+    },
+  };
+  require.cache[welcomeEmailPath] = {
+    id: welcomeEmailPath,
+    filename: welcomeEmailPath,
+    loaded: true,
+    exports: {
+      sendWelcomeEmail:
+        sendWelcomeEmail ||
+        (async (leadId) => {
+          welcomeEmailCalls.push(leadId);
+        }),
+    },
   };
 
-  return require('../netlify/functions/confirm-intent').handler;
+  return { handler: require('../netlify/functions/confirm-intent').handler, welcomeEmailCalls };
 }
 
 async function run() {
@@ -40,8 +58,9 @@ async function run() {
     payment_method: 'pm_test',
   };
 
-  const handler = await loadHandler({
+  const { handler } = await loadHandler({
     paymentIntent: succeededIntent,
+    entitlements: { paid10: false },
     patchEntitlements: async () => {
       throw new Error('temporary entitlement write failure');
     },
@@ -69,7 +88,7 @@ async function run() {
     paymentIntent: { ...succeededIntent, metadata: { leadId: 'other_lead' } },
     patchEntitlements: async () => ({}),
   });
-  const mismatchRes = await mismatchHandler({
+  const mismatchRes = await mismatchHandler.handler({
     httpMethod: 'POST',
     body: JSON.stringify({
       leadId: 'lead_123',
@@ -78,6 +97,60 @@ async function run() {
     }),
   });
   assert.equal(mismatchRes.statusCode, 403);
+
+  // Regression: the welcome email must go out the first time a lead's $10
+  // pre-screen succeeds...
+  const firstTime = await loadHandler({
+    paymentIntent: succeededIntent,
+    entitlements: { paid10: false },
+    patchEntitlements: async () => ({ paid10: true }),
+  });
+  await firstTime.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'prescreen' }),
+  });
+  assert.deepEqual(firstTime.welcomeEmailCalls, ['lead_123']);
+
+  // ...but never again on a later confirm-intent call for a lead who
+  // already has paid10 (e.g. a page refresh re-confirming the same intent).
+  const repeat = await loadHandler({
+    paymentIntent: succeededIntent,
+    entitlements: { paid10: true },
+    patchEntitlements: async () => ({ paid10: true }),
+  });
+  await repeat.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'prescreen' }),
+  });
+  assert.deepEqual(repeat.welcomeEmailCalls, []);
+
+  // ...and never for a non-prescreen product succeeding.
+  const upsell = await loadHandler({
+    paymentIntent: { ...succeededIntent, metadata: { leadId: 'lead_123' } },
+    entitlements: { paid10: true },
+    patchEntitlements: async () => ({ paid27: true }),
+  });
+  await upsell.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'gameplan' }),
+  });
+  assert.deepEqual(upsell.welcomeEmailCalls, []);
+
+  // A welcome-email failure must not fail the payment confirmation itself.
+  const emailFails = await loadHandler({
+    paymentIntent: succeededIntent,
+    entitlements: { paid10: false },
+    patchEntitlements: async () => ({ paid10: true }),
+    sendWelcomeEmail: async () => {
+      throw new Error('GAS unreachable');
+    },
+  });
+  const emailFailsRes = await emailFails.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'prescreen' }),
+  });
+  assert.equal(emailFailsRes.statusCode, 200);
+  assert.equal(JSON.parse(emailFailsRes.body).ok, true);
 }
 
 run()

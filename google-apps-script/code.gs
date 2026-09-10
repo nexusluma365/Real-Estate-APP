@@ -60,6 +60,10 @@ function doPost(e) {
       return jsonResponse_(sendAssetEmail_(payload));
     }
 
+    if (payload.action === "sendWelcomeEmail") {
+      return jsonResponse_(sendWelcomeEmail_(payload));
+    }
+
     return jsonResponse_(writeLead_(payload));
   } catch (err) {
     return jsonResponse_( {
@@ -92,6 +96,32 @@ function sendAssetEmail_(payload) {
     "This link is unique to your account and will expire after a few days " +
     "for security. If it expires, just log back in to the RentReady site " +
     "and request it again.\n\n" +
+    "— RentReady Network";
+
+  MailApp.sendEmail(to, subject, body);
+
+  return { ok: true };
+}
+
+// Called by the Netlify confirm-intent / stripe-webhook functions once,
+// right after a lead's first ($10 pre-screen) payment succeeds. Same
+// caller-trust model as sendAssetEmail_ — this only sends, it does not
+// re-verify the payment.
+function sendWelcomeEmail_(payload) {
+  const to = String(payload.to || "").trim();
+  if (!to || to.indexOf("@") === -1) {
+    return { ok: false, error: "Missing or invalid recipient email." };
+  }
+
+  const firstName = payload.firstName || "there";
+  const subject = payload.subject || "Welcome to RentReady — You’re All Set";
+  const resultsUrl = payload.resultsUrl || "";
+
+  const body =
+    "Hi " + firstName + ",\n\n" +
+    "Thanks for joining RentReady! Your pre-screen is complete, and we're already putting together what's next for you.\n\n" +
+    (resultsUrl ? "You can pick up right where you left off any time:\n" + resultsUrl + "\n\n" : "") +
+    "If you have any questions along the way, just reply to this email.\n\n" +
     "— RentReady Network";
 
   MailApp.sendEmail(to, subject, body);

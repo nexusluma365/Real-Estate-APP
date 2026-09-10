@@ -7,7 +7,8 @@
 // Payment Element confirms client-side, and again after a customer
 // completes a 3D Secure challenge on a later step.
 const { getStripe } = require('./_lib/stripe');
-const { patchEntitlements } = require('./_lib/store');
+const { getEntitlements, patchEntitlements } = require('./_lib/store');
+const { sendWelcomeEmail } = require('./_lib/welcome-email');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -50,6 +51,8 @@ exports.handler = async (event) => {
     }
 
     if (pi.status === 'succeeded') {
+      const isFirstPrescreenPayment = product === 'prescreen' && !(await getEntitlements(leadId)).paid10;
+
       const patch = { [field]: true };
       if (pi.customer) patch.stripeCustomerId = pi.customer;
       if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
@@ -73,6 +76,17 @@ exports.handler = async (event) => {
           });
         } catch (err) {
           console.error('confirm-intent customer update error', err);
+        }
+      }
+
+      // "Thanks for joining" only goes out once, the first time the $10
+      // pre-screen succeeds — never on a retry/refresh that re-confirms an
+      // already-paid lead.
+      if (isFirstPrescreenPayment) {
+        try {
+          await sendWelcomeEmail(leadId);
+        } catch (err) {
+          console.error('confirm-intent welcome email error', err);
         }
       }
 
