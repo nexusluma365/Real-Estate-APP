@@ -1,4 +1,5 @@
 const { saveLead } = require('./_lib/store');
+const { normalizeEmail, isValidEmail } = require('./_lib/email');
 
 function json(statusCode, body) {
   return {
@@ -24,6 +25,11 @@ exports.handler = async function handler(event) {
   if (!leadId) {
     return json(400, { ok: false, error: 'lead_id is required.' });
   }
+  const email = normalizeEmail(payload.email);
+  if (!isValidEmail(email)) {
+    return json(400, { ok: false, error: 'A valid email address is required.' });
+  }
+  payload.email = email;
 
   let saved = false;
   try {

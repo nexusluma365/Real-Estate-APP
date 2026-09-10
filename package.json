@@ -16,6 +16,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "netlify-cli": "^26.2.0"
+    "netlify-cli": "^26.2.0",
+    "wrangler": "^4.131.0"
   }
 }

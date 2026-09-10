@@ -19,6 +19,7 @@
 const { getStore } = require('@netlify/blobs');
 const fs = require('fs/promises');
 const path = require('path');
+const { normalizeEmail, isValidEmail } = require('./email');
 
 class LocalBlobStore {
   constructor(name) {
@@ -103,9 +104,10 @@ async function supabaseRequest(path, options = {}) {
 }
 
 function leadRecord(leadId, answers = {}) {
+  const email = normalizeEmail(answers.email);
   return {
     id: leadId,
-    email: answers.email || null,
+    email: isValidEmail(email) ? email : null,
     first_name: answers.first_name || answers.firstName || null,
     last_name: answers.last_name || answers.lastName || null,
     phone: answers.phone || null,
@@ -124,7 +126,7 @@ function leadFromRecord(record) {
   return {
     ...(record.raw_answers || {}),
     lead_id: record.id,
-    email: record.email || (record.raw_answers || {}).email || '',
+    email: isValidEmail(record.email) ? record.email : '',
     first_name: record.first_name || (record.raw_answers || {}).first_name || '',
     last_name: record.last_name || (record.raw_answers || {}).last_name || '',
     phone: record.phone || (record.raw_answers || {}).phone || '',

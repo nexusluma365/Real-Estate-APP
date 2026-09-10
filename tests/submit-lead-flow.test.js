@@ -47,6 +47,22 @@ async function run() {
     assert.equal(missingSheets.savedLeads.length, 1);
     assert.equal(missingSheets.savedLeads[0].leadId, 'lead_123');
     assert.equal(missingSheets.savedLeads[0].answers.preferred_city, 'High Point, NC');
+    assert.equal(missingSheets.savedLeads[0].answers.email, 'renter@example.com');
+
+    const invalidEmail = loadHandler();
+    const invalidEmailRes = await invalidEmail.handler({
+      httpMethod: 'POST',
+      body: JSON.stringify({
+        lead_id: 'lead_invalid',
+        email: 'not-an-email',
+      }),
+    });
+    const invalidEmailBody = JSON.parse(invalidEmailRes.body);
+
+    assert.equal(invalidEmailRes.statusCode, 400);
+    assert.equal(invalidEmailBody.ok, false);
+    assert.match(invalidEmailBody.error, /valid email/i);
+    assert.equal(invalidEmail.savedLeads.length, 0);
 
     process.env.GOOGLE_SCRIPT_URL = 'https://script.google.test/exec';
     const forwarded = loadHandler();

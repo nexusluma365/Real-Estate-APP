@@ -8,6 +8,7 @@
 // it again.
 const { getStripe } = require('./_lib/stripe');
 const { saveLead, patchEntitlements } = require('./_lib/store');
+const { normalizeEmail, isValidEmail } = require('./_lib/email');
 
 const PRESCREEN_AMOUNT_CENTS = 1000;
 
@@ -43,6 +44,10 @@ exports.handler = async (event) => {
   if (!normalizedLeadId) {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'leadId is required' }) };
   }
+  const normalizedEmail = normalizeEmail(email || (answers && answers.email));
+  if (!isValidEmail(normalizedEmail)) {
+    return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'A valid email address is required.' }) };
+  }
 
   try {
     const stripe = getStripe();
@@ -54,7 +59,7 @@ exports.handler = async (event) => {
     const customer =
       existing ||
       (await stripe.customers.create({
-        email: email || undefined,
+        email: normalizedEmail,
         metadata: { leadId: normalizedLeadId },
       }));
 
@@ -72,7 +77,7 @@ exports.handler = async (event) => {
     // authoritative copy instead of trusting whatever the browser sends.
     try {
       if (answers) {
-        await saveLead(normalizedLeadId, answers);
+        await saveLead(normalizedLeadId, { ...answers, email: normalizedEmail });
       }
       await patchEntitlements(normalizedLeadId, { stripeCustomerId: customer.id });
     } catch (err) {

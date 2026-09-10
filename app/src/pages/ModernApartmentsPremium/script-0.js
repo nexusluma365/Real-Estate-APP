@@ -124,16 +124,17 @@
 
     function showDeclinedPopup() {
       const city = selectedCity();
+      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', category: APARTMENT_CATEGORY, city }); } catch (_e) {}
       sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
-      showSheetMessage(`Returning you to your RentReady results. You can retry Modern Apartment Listings for ${city} when you’re ready.`);
+      showSheetMessage(`Returning you to your RentReady listings. You can retry Modern Apartment Listings for ${city} when you’re ready.`);
       sheetConfirm.textContent = originalConfirmText;
       sheetConfirm.disabled = false;
       sheetConfirm.dataset.busy = '0';
-      sheetConfirm.dataset.target = resultsUrl();
+      sheetConfirm.dataset.target = realEstateListUrl();
       sheetScrim.classList.add('auto-redirect');
       sheetScrim.classList.add('open');
       setTimeout(() => {
-        window.location.href = resultsUrl();
+        window.location.href = realEstateListUrl();
       }, 1800);
     }
 
@@ -145,7 +146,7 @@
       if (sheetConfirm.dataset.busy === '1') return;
       sheetScrim.classList.remove('auto-redirect');
       sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
-      sheetSub.textContent = `Returning you to your RentReady results. You can retry Modern Apartment Listings in ${selectedCity()} when you’re ready.`;
+      sheetSub.textContent = `Returning you to your RentReady listings. You can retry Modern Apartment Listings in ${selectedCity()} when you’re ready.`;
       sheetConfirm.textContent = originalConfirmText;
       delete sheetConfirm.dataset.target;
     }
@@ -164,8 +165,4 @@
       const leadId = window.rrnLeadId ? rrnLeadId() : '';
       if (leadId) params.set('leadId', leadId);
       return '/real-estate-list.html?' + params.toString();
-    }
-
-    function resultsUrl() {
-      return '/after-payment-results/';
     }

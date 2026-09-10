@@ -34,6 +34,8 @@ in `/netlify/functions`.
 | `GOOGLE_PLACES_API_KEY` | Google Maps Platform API key with Places API enabled. Required for verified Modern/Luxury apartment recommendations. Without it, the app will not invent apartment communities. |
 | `OPENAI_API_KEY` | Optional. Used server-side only to rank/summarize verified Google Places properties. |
 | `OPENAI_MODEL` | Optional. Defaults to `gpt-4.1-mini` for apartment ranking. |
+| `CLOUDFLARE_DOWNLOAD_EMAIL_URL` | Optional. Cloudflare Worker `/send-download` URL for R2-backed paid download emails. If omitted, the current Apps Script email path is used. |
+| `CLOUDFLARE_DOWNLOAD_EMAIL_SECRET` | Optional but recommended. Must match the Worker's `TRIGGER_SECRET`. |
 
 Netlify Blobs (used for entitlements, saved answers, and the two protected
 PDFs) needs no separate setup or account — it's provisioned automatically
@@ -84,6 +86,39 @@ netlify blobs:set rrn-files creditkit --input ./RentReady-Credit-Action-Kit.pdf 
 Until these are uploaded, a successful $27/$97 purchase still grants
 entitlement correctly — the download link will just return a clear
 "hasn't been uploaded yet" message instead of a file.
+
+## 6b) Optional Cloudflare R2 email/download flow
+
+The Cloudflare Worker scaffold lives in `cloudflare/download-email-worker`.
+It verifies the lead's Supabase entitlement, checks the paid file exists in
+R2, emails a signed `/download?token=...` link through Resend, then serves the
+R2 object only if the token and entitlement are still valid.
+
+Deploy it with Wrangler after creating an R2 bucket:
+
+```
+cd cloudflare/download-email-worker
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_SECRET_KEY
+wrangler secret put EMAIL_LINK_SECRET
+wrangler secret put RESEND_API_KEY
+wrangler secret put FROM_EMAIL
+wrangler secret put TRIGGER_SECRET
+wrangler deploy
+```
+
+Then set these in Netlify:
+
+```
+CLOUDFLARE_DOWNLOAD_EMAIL_URL=https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/send-download
+CLOUDFLARE_DOWNLOAD_EMAIL_SECRET=same_value_as_TRIGGER_SECRET
+```
+
+The Worker is configured for the R2 bucket `realestateproject`. Modern and
+Luxury default to the object key `RentReady Guide.zip`; `gameplan` and
+`creditkit` default to `gameplan.pdf` and `creditkit.pdf`. Override them with
+Worker secrets like `MODERN_DOWNLOAD_KEY` or `LUXURY_DOWNLOAD_KEY` if your
+bucket uses different paths.
 
 ## 7) Test with Stripe test mode
 

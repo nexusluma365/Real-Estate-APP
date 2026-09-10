@@ -13,7 +13,7 @@ async function confirmListingAccess(){
   }
 
   return !!(window.rrnHasRecentFlowAccess && rrnHasRecentFlowAccess("apartment-list", {
-    statuses: ["upsell-success"],
+    statuses: ["upsell-success", "upsell-declined"],
     category,
   }));
 }

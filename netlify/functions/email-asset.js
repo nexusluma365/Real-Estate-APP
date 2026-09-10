@@ -7,6 +7,7 @@
 // emailing a permanently public URL, then asks Apps Script to send it.
 const { getEntitlements, getLead } = require('./_lib/store');
 const { sign } = require('./_lib/sign');
+const { normalizeEmail, isValidEmail } = require('./_lib/email');
 
 const FIELD_BY_TYPE = { result: 'paid10', gameplan: 'paid27', creditkit: 'paid97', 'apartment-results': 'paid27' };
 const SUBJECT_BY_TYPE = {
@@ -15,6 +16,33 @@ const SUBJECT_BY_TYPE = {
   creditkit: 'Your RentReady Credit Action Kit',
   'apartment-results': 'Your RentReady Apartment Results',
 };
+
+function cloudflareProduct(type, category) {
+  if (type === 'apartment-results') return category;
+  return type;
+}
+
+async function sendViaCloudflare({ leadId, type, category }) {
+  const url = process.env.CLOUDFLARE_DOWNLOAD_EMAIL_URL || '';
+  if (!url) return null;
+  const product = cloudflareProduct(type, category);
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET
+        ? { Authorization: `Bearer ${process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET}` }
+        : {}),
+    },
+    body: JSON.stringify({ leadId, product }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || !data || data.ok !== true) {
+    console.error('Cloudflare download email failed', data);
+    return { statusCode: 502, body: JSON.stringify({ ok: false, error: 'Could not send the email right now.' }) };
+  }
+  return { statusCode: 200, body: JSON.stringify({ ok: true, provider: 'cloudflare-r2' }) };
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -48,9 +76,13 @@ exports.handler = async (event) => {
     }
 
     const lead = await getLead(leadId);
-    if (!lead || !lead.email) {
+    const recipientEmail = normalizeEmail(lead && lead.email);
+    if (!isValidEmail(recipientEmail)) {
       return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'No email on file for this account.' }) };
     }
+
+    const cloudflareResult = await sendViaCloudflare({ leadId, type, category });
+    if (cloudflareResult) return cloudflareResult;
 
     const siteUrl = process.env.URL || process.env.DEPLOY_URL || '';
     const token = sign({ leadId, product: type === 'apartment-results' ? 'apartment-results' : type === 'result' ? 'result' : type, category });
@@ -71,7 +103,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'sendEmail',
-        to: lead.email,
+        to: recipientEmail,
         firstName: lead.first_name || '',
         subject: SUBJECT_BY_TYPE[type],
         downloadUrl,

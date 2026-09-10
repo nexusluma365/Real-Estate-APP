@@ -545,7 +545,8 @@ function validateAndNext(toSlide, fields) {
   let ok = true;
   fields.forEach(id=>{
     const el = document.getElementById(id);
-    if (!el||!el.value.trim()) { el&&el.classList.add('invalid'); el&&el.addEventListener('input',()=>el.classList.remove('invalid'),{once:true}); ok=false; }
+    const invalid = !el || !el.value.trim() || (el.type === 'email' && !el.checkValidity());
+    if (invalid) { el&&el.classList.add('invalid'); el&&el.addEventListener('input',()=>el.classList.remove('invalid'),{once:true}); ok=false; }
   });
   if (ok) goTo(toSlide,'right');
 }

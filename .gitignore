@@ -8,6 +8,7 @@ app/dist/
 .netlify/
 .netlify-local-blobs/
 supabase/.temp/
+cloudflare/**/.wrangler/
 
 # Local environment files
 .env

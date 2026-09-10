@@ -1,0 +1,13 @@
+name = "rentready-download-email"
+main = "src/worker.js"
+compatibility_date = "2026-09-10"
+workers_dev = true
+preview_urls = false
+
+[[r2_buckets]]
+binding = "DOWNLOADS"
+bucket_name = "realestateproject"
+
+[vars]
+DOWNLOAD_LINK_TTL_SECONDS = "604800"
+PUBLIC_WORKER_URL = "https://rentready-download-email.rentready-network.workers.dev"
