@@ -47,6 +47,95 @@
 <section class="report" id="report" aria-live="polite">
   <div class="report-shell">
     <section class="brief-hero">
+      <div class="analysis-overlay" id="analysisOverlay" aria-hidden="true">
+        <article class="analysis-modal" id="analysisModal" role="dialog" aria-modal="true" aria-labelledby="analysisTitle">
+          <button class="analysis-close" id="analysisClose" type="button" aria-label="Minimize full RentReady analysis">×</button>
+
+          <div class="analysis-loading" id="analysisLoading">
+            <p class="analysis-eyebrow">Personalized review</p>
+            <h2 id="analysisTitle">Preparing your RentReady outlook</h2>
+            <div class="analysis-checklist" id="analysisChecklist" aria-label="RentReady analysis progress">
+              <div class="analysis-step" data-analysis-step><span></span><p>Reviewing income fit</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Reviewing rental profile</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Checking deposit factors</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Comparing your answers</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Preparing your RentReady outlook</p></div>
+            </div>
+            <div class="analysis-ready" id="analysisReady">YOUR RESULTS ARE READY</div>
+          </div>
+
+          <div class="analysis-report" id="analysisReport">
+            <div class="analysis-summary">
+              <p class="analysis-eyebrow">Your deposit outlook</p>
+              <h2 id="modalOutlookTitle">Worth Exploring</h2>
+              <p id="modalOutlookCopy">Based on the information you provided, your profile shows enough positive signals to keep low-deposit and no-deposit options in consideration. Property-specific screening rules still apply.</p>
+            </div>
+
+            <div class="analysis-score-panel">
+              <div class="analysis-score-ring" id="modalScoreRing" style="--score:68"><span><strong id="modalScoreValue">68</strong><small>/ 100</small></span></div>
+              <div>
+                <p class="analysis-score-label" id="modalReadinessLabel">Good Rental Readiness</p>
+                <p class="analysis-score-meta" id="modalSignalCount">2 strong signals · 1 area to verify</p>
+              </div>
+            </div>
+
+            <section class="analysis-section">
+              <div class="analysis-section-head">
+                <p class="analysis-eyebrow">Estimated deposit outlook</p>
+                <strong id="depositMeterLabel">Lower Deposit Potential</strong>
+              </div>
+              <div class="deposit-meter" aria-hidden="true"><span id="depositMeterFill"></span></div>
+              <p class="analysis-muted" id="modalDepositSummary">Your current answers suggest that low-deposit or no-deposit options may be worth exploring, but property criteria should be verified before applying.</p>
+            </section>
+
+            <section class="analysis-section">
+              <div class="analysis-section-head">
+                <p class="analysis-eyebrow">Your current outlook</p>
+              </div>
+              <div class="outlook-bars" id="outlookBars"></div>
+              <p class="analysis-disclaimer">Estimated from the information you provided. Final approval and deposit requirements are determined by each property.</p>
+            </section>
+
+            <section class="analysis-section">
+              <div class="analysis-section-head">
+                <p class="analysis-eyebrow">Your rental profile breakdown</p>
+              </div>
+              <div class="factor-breakdown" id="factorBreakdown"></div>
+            </section>
+
+            <div class="analysis-columns">
+              <section class="analysis-section">
+                <div class="analysis-section-head">
+                  <p class="analysis-eyebrow">What helped your result</p>
+                </div>
+                <div class="insight-list" id="helpedList"></div>
+              </section>
+
+              <section class="analysis-section">
+                <div class="analysis-section-head">
+                  <p class="analysis-eyebrow">What could affect your deposit</p>
+                </div>
+                <div class="insight-list" id="concernList"></div>
+              </section>
+            </div>
+
+            <section class="analysis-section">
+              <div class="analysis-section-head">
+                <p class="analysis-eyebrow">Your best next move</p>
+              </div>
+              <div class="next-move-list" id="bestNextMoves"></div>
+            </section>
+
+            <section class="analysis-recommendation">
+              <p class="analysis-eyebrow">RentReady recommendation</p>
+              <h3 id="recommendationLabel">CONTINUE YOUR SEARCH</h3>
+              <p id="recommendationCopy">Your profile shows enough positive signals to keep exploring rental options. Focus on properties where screening and deposit requirements can be confirmed before you spend money on an application.</p>
+              <a class="analysis-cta" id="matchingApartmentsCta" href="/luxury-apartments-premium.html">SEE MY MATCHING APARTMENTS →</a>
+            </section>
+          </div>
+        </article>
+      </div>
+
       <div class="brief-hero-grid">
         <div>
           <div class="result-logo" aria-label="RentReady Network">
@@ -64,8 +153,8 @@
           <div class="continuity"><span class="continuity-dot" aria-hidden="true"></span><span>See Your Eligibility Below</span></div>
         </div>
 
-        <aside class="outlook" aria-label="Your deposit outlook">
-          <div class="outlook-label">Your deposit outlook</div>
+        <aside class="outlook" id="outlookMini" role="button" tabindex="0" aria-label="Open full RentReady analysis">
+          <div class="outlook-label">Your RentReady outlook</div>
           <div class="outlook-state" id="outlookState">Worth Exploring</div>
           <p class="outlook-copy" id="outlookCopy">No-deposit options can depend on the property’s screening rules. Your current answers give you a useful starting point.</p>
           <div class="result-score-row">
@@ -84,6 +173,7 @@
             <div class="next-step"><span>1</span><p>Confirm the property’s income and credit rules before applying.</p></div>
             <div class="next-step"><span>2</span><p>Prepare income documents and rental-history details before touring.</p></div>
           </div>
+          <div class="outlook-open">View Full Analysis →</div>
         </aside>
       </div>
     </section>
@@ -144,6 +234,5 @@
   </div>
 
 </section>
-
 
 

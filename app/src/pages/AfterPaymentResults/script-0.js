@@ -15,6 +15,21 @@
   var params = new URLSearchParams(window.location.search);
   var loaderPreviewComplete = params.get('loaderPreview') === 'complete';
   var reportPreview = params.get('reportPreview') === '1';
+  var analysisOverlay = document.getElementById('analysisOverlay');
+  var analysisModal = document.getElementById('analysisModal');
+  var analysisClose = document.getElementById('analysisClose');
+  var analysisLoading = document.getElementById('analysisLoading');
+  var analysisReport = document.getElementById('analysisReport');
+  var analysisReady = document.getElementById('analysisReady');
+  var outlookMini = document.getElementById('outlookMini');
+  var analysisSteps = Array.prototype.slice.call(document.querySelectorAll('[data-analysis-step]'));
+  var analysisState = {
+    analysisLoading: false,
+    analysisComplete: false,
+    reportOpen: false,
+    reportMinimized: false,
+    timers: []
+  };
 
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -79,11 +94,7 @@
     if (briefScoreValue) briefScoreValue.textContent = profile.score;
     if (briefScoreLabel) briefScoreLabel.textContent = profile.status;
     if (briefScoreCopy) {
-      briefScoreCopy.textContent = profile.score >= 80
-        ? 'Your profile has strong early signals. Keep confirming each property’s written rules before applying.'
-        : profile.score >= 62
-          ? 'Your profile has usable strengths, with a few items to verify before paying application fees.'
-          : 'Your best move is to prepare documents and confirm screening criteria before choosing where to apply.';
+      briefScoreCopy.textContent = profile.readinessLabel + '. ' + plural(profile.strongSignals, 'strong signal') + ' · ' + plural(profile.verifySignals, 'area', 'areas') + ' to verify.';
     }
     if (eligibilityNextSteps) {
       var steps = (primaryRisk && primaryRisk.steps && primaryRisk.steps.length ? primaryRisk.steps : [
@@ -133,16 +144,8 @@
       if (verifyStatus) verifyStatus.textContent = 'Confirm property rules';
     }
 
-    if (ratio >= 3 && creditGood){
-      if (outlookState) outlookState.textContent = 'Promising Starting Point';
-      if (outlookCopy) outlookCopy.textContent = 'Your income and selected credit range are positive signals. A no-deposit move-in can still depend on the property’s own screening and deposit program.';
-    } else if (ratio >= 2.5 || creditGood || creditMid){
-      if (outlookState) outlookState.textContent = 'Worth Exploring';
-      if (outlookCopy) outlookCopy.textContent = 'Your answers show enough positive signals to keep no-deposit options in the conversation, but property-specific criteria still matter.';
-    } else {
-      if (outlookState) outlookState.textContent = 'Possible — Prepare First';
-      if (outlookCopy) outlookCopy.textContent = 'A no-deposit option may still exist, but your next move should be checking the property’s criteria and strengthening the parts of your profile they are most likely to review.';
-    }
+    if (outlookState) outlookState.textContent = profile.outlookDisplayTitle;
+    if (outlookCopy) outlookCopy.textContent = profile.outlookCopy;
   }
 
   function escapeHtml(value){
@@ -192,6 +195,40 @@
 
   function statusClass(level){
     return level === 'risk' ? 'is-risk' : level === 'warn' ? 'is-warn' : '';
+  }
+
+  function clamp(num, min, max){
+    return Math.max(min, Math.min(max, Math.round(num)));
+  }
+
+  function statusLevelFromScore(score){
+    return score >= 80 ? 'good' : score >= 62 ? 'warn' : 'risk';
+  }
+
+  function plural(count, singular, pluralWord){
+    return count + ' ' + (count === 1 ? singular : (pluralWord || singular + 's'));
+  }
+
+  function titleCase(value){
+    return String(value || '').toLowerCase().replace(/\b[a-z]/g, function(letter){ return letter.toUpperCase(); });
+  }
+
+  function listingUrl(){
+    var answers = readAnswers();
+    var category = (answers.purchased_category || answers.category || '').toLowerCase();
+    if (category !== 'modern') category = 'luxury';
+    var params = new URLSearchParams({ category: category, city: answers.preferred_city || answers.city || 'your selected area' });
+    var leadId = answers.lead_id || (window.rrnLeadId ? rrnLeadId() : '');
+    if (leadId) params.set('leadId', leadId);
+    return '/real-estate-list.html?' + params.toString();
+  }
+
+  function barColor(level){
+    return level === 'risk' ? '#d56b4f' : level === 'warn' ? '#c8932c' : '#7dd7a0';
+  }
+
+  function strengthLabel(level){
+    return level === 'risk' ? 'High Concern' : level === 'warn' ? 'Needs Verification' : 'Strong';
   }
 
   function createProfile(answers){
@@ -315,7 +352,133 @@
     };
   }
 
-  var rentReadyProfile = createProfile(readAnswers());
+  function normalizeProfile(profile){
+    var score = profile.score;
+    var statusLevel = statusLevelFromScore(score);
+    var strongSignals = profile.strengths.filter(function(item){ return item.level !== 'risk'; }).length;
+    var verifySignals = profile.riskFactors.length;
+    var outlookTitle = 'MORE PREPARATION RECOMMENDED';
+    var readinessLabel = 'Preparation Needed';
+    var outlookCopy = 'Based on the information you provided, your best next move is to verify property screening criteria and prepare your documents before paying application fees.';
+    var depositSummary = 'Your answers suggest a standard or higher deposit may be more likely until the property confirms income, credit, rental history, and any conditional options.';
+    var recommendationLabel = 'PREPARE FIRST';
+    var recommendationCopy = 'Focus on strengthening or documenting the areas that may receive closer review. Confirm each property’s criteria before spending money on applications.';
+
+    if (score >= 82){
+      outlookTitle = 'STRONG OUTLOOK';
+      readinessLabel = 'Strong Rental Readiness';
+      outlookCopy = 'Based on the information you provided, your profile shows several positive signals. Low-deposit or no-deposit options may be worth asking about, while final terms remain property-specific.';
+      depositSummary = 'Your current answers suggest stronger low-deposit potential, especially at properties with flexible deposit programs. Final approval and move-in costs still depend on each property.';
+      recommendationLabel = 'CONTINUE YOUR SEARCH';
+      recommendationCopy = 'Your profile has a strong starting point. Compare matching apartments and ask each leasing office how deposit programs and screening criteria are applied.';
+    } else if (score >= 68){
+      outlookTitle = 'WORTH EXPLORING';
+      readinessLabel = 'Good Rental Readiness';
+      outlookCopy = 'Based on the information you provided, your profile shows enough positive signals to keep low-deposit and no-deposit options in consideration. Property-specific screening rules still apply.';
+      depositSummary = 'Your current answers suggest low-deposit or no-deposit options may be worth exploring, but any weaker or unverified factor should be confirmed before applying.';
+      recommendationLabel = 'CONTINUE YOUR SEARCH';
+      recommendationCopy = 'Your profile shows enough positive signals to keep exploring rental options. Focus on properties where screening and deposit requirements can be confirmed before you spend money on an application.';
+    } else if (score >= 56){
+      outlookTitle = 'MIXED OUTLOOK';
+      readinessLabel = 'Mixed Rental Readiness';
+      outlookCopy = 'Based on the information you provided, your profile has useful strengths and a few items that may need verification before a property estimates deposit requirements.';
+      depositSummary = 'Your answers suggest reduced or standard deposit outcomes may depend heavily on property rules, credit review, and document verification.';
+      recommendationLabel = 'VERIFY BEFORE APPLYING';
+      recommendationCopy = 'Keep searching, but ask targeted questions about screening standards and deposit programs before submitting an application fee.';
+    } else if (score >= 45){
+      outlookTitle = 'DEPOSIT LIKELY';
+      readinessLabel = 'Needs Verification';
+      outlookCopy = 'Based on the information you provided, a standard deposit may be more likely unless the property offers flexible review or alternative qualification options.';
+      depositSummary = 'Your current answers suggest standard deposit requirements may be more common. Confirm the exact criteria before applying so you can avoid unnecessary fees.';
+      recommendationLabel = 'FOCUS ON FLEXIBLE PROPERTIES';
+      recommendationCopy = 'Prioritize properties that clearly explain conditional approval, co-signer, guarantor, or flexible deposit options before you apply.';
+    }
+
+    var noDepositStrength = clamp(score - 6, 8, 94);
+    var reducedStrength = clamp(score + 8, 16, 96);
+    var standardStrength = clamp(88 - Math.abs(score - 58), 28, 88);
+    var higherStrength = clamp(96 - score, 8, 78);
+    var depositOutlook = [
+      { label:'No-Deposit Options', strength:noDepositStrength, phrase:score >= 82 ? 'Strong Possibility' : score >= 68 ? 'Worth Exploring' : score >= 56 ? 'Needs Verification' : 'Lower Likelihood', level:score >= 68 ? 'good' : score >= 56 ? 'warn' : 'risk' },
+      { label:'Reduced Deposit', strength:reducedStrength, phrase:score >= 80 ? 'Strong Possibility' : score >= 58 ? 'Worth Exploring' : 'May Need Review', level:score >= 58 ? 'good' : 'warn' },
+      { label:'Standard Deposit', strength:standardStrength, phrase:score >= 78 ? 'Still Possible' : score >= 50 ? 'Possible Outcome' : 'More Likely', level:score >= 78 ? 'warn' : score >= 50 ? 'warn' : 'risk' },
+      { label:'Higher Deposit', strength:higherStrength, phrase:score >= 76 ? 'Lower Likelihood' : score >= 56 ? 'Possible If Criteria Are Strict' : 'Worth Preparing For', level:score >= 76 ? 'good' : score >= 56 ? 'warn' : 'risk' }
+    ];
+
+    var categories = profile.readinessCategories || {};
+    var factorSource = [
+      { key:'income', label:'Income-to-Rent Fit', fallback:'Income details should be compared with each property’s written income rule.' },
+      { key:'credit', label:'Credit Profile', fallback:'Credit standards vary by property and may need to be verified before applying.' },
+      { key:'rentalHistory', label:'Rental History', fallback:'Rental history was not fully verified, so have landlord or lease details ready.' },
+      { key:'timing', label:'Move-In Timeline', fallback:'A clear move timeline helps you compare availability and leasing requirements.' },
+      { key:'housingBalances', label:'Previous Housing Obligations', fallback:'Previous housing balances can affect screening at some properties.' }
+    ];
+    var factors = factorSource.map(function(item){
+      var category = categories[item.key] || {};
+      var level = category.level || 'warn';
+      var base = level === 'good' ? 82 : level === 'risk' ? 36 : 58;
+      var strength = clamp(base + (score - 62) / 4, 18, 94);
+      return {
+        label: item.label,
+        strength: strength,
+        level: level,
+        status: strengthLabel(level),
+        explanation: category.state ? category.state + '. ' + item.fallback : item.fallback
+      };
+    });
+    factors.push({
+      label:'Deposit Outlook',
+      strength:clamp(score, 12, 94),
+      level:statusLevel,
+      status:score >= 80 ? 'Strong' : score >= 62 ? 'Worth Exploring' : 'Needs Review',
+      explanation:depositSummary
+    });
+
+    var positives = profile.strengths.slice(0, 4).map(function(item){
+      return { title:item.label, text:item.text };
+    });
+    if (!positives.length){
+      positives.push({ title:'Questionnaire Complete', text:'Your answers gave RentReady enough context to create a practical preparation plan.' });
+    }
+
+    var concerns = profile.riskFactors.slice(0, 4).map(function(item){
+      return { title:item.label, text:item.text };
+    });
+    if (!concerns.some(function(item){ return /Property/i.test(item.title); })){
+      concerns.push({
+        title:'Property-Specific Screening',
+        text:'A strong overall profile does not guarantee a no-deposit lease. Individual properties may use different screening and deposit rules.'
+      });
+    }
+    concerns = concerns.slice(0, 4);
+
+    var nextSteps = (profile.recommendedActions && profile.recommendedActions.length ? profile.recommendedActions : [
+      'Ask the leasing office what determines whether a security deposit is required.',
+      'Confirm the property’s minimum screening criteria before paying an application fee.',
+      'Ask whether manual review, additional documentation, or alternative qualification options are available.'
+    ]).slice(0, 3);
+
+    profile.statusLevel = statusLevel;
+    profile.outlookTitle = outlookTitle;
+    profile.outlookDisplayTitle = titleCase(outlookTitle);
+    profile.readinessLabel = readinessLabel;
+    profile.strongSignals = strongSignals;
+    profile.verifySignals = verifySignals;
+    profile.outlookCopy = outlookCopy;
+    profile.depositSummary = depositSummary;
+    profile.depositLabel = score >= 76 ? 'Lower Deposit Potential' : score >= 58 ? 'Deposit Flexibility Potential' : 'Deposit Preparation Outlook';
+    profile.depositStrength = clamp(score, 12, 94);
+    profile.depositOutlook = depositOutlook;
+    profile.factors = factors;
+    profile.positives = positives;
+    profile.concerns = concerns;
+    profile.nextSteps = nextSteps;
+    profile.recommendationLabel = recommendationLabel;
+    profile.recommendationCopy = recommendationCopy;
+    return profile;
+  }
+
+  var rentReadyProfile = normalizeProfile(createProfile(readAnswers()));
   window.rentReadyProfile = rentReadyProfile;
 
   function renderSignalList(id, items, emptyText){
@@ -336,6 +499,16 @@
     var whyCopy = document.getElementById('whyCopy');
     var positiveCount = document.getElementById('positiveCount');
     var statusLevel = rentReadyProfile.score >= 80 ? 'good' : rentReadyProfile.score >= 62 ? 'warn' : 'risk';
+    var modalOutlookTitle = document.getElementById('modalOutlookTitle');
+    var modalOutlookCopy = document.getElementById('modalOutlookCopy');
+    var modalScoreRing = document.getElementById('modalScoreRing');
+    var modalScoreValue = document.getElementById('modalScoreValue');
+    var modalReadinessLabel = document.getElementById('modalReadinessLabel');
+    var modalSignalCount = document.getElementById('modalSignalCount');
+    var depositMeterLabel = document.getElementById('depositMeterLabel');
+    var depositMeterFill = document.getElementById('depositMeterFill');
+    var modalDepositSummary = document.getElementById('modalDepositSummary');
+    var matchingApartmentsCta = document.getElementById('matchingApartmentsCta');
     if (scoreValue) scoreValue.textContent = rentReadyProfile.score;
     if (scoreStatus){
       scoreStatus.textContent = rentReadyProfile.status;
@@ -349,6 +522,29 @@
 
     renderSignalList('strengthList', rentReadyProfile.strengths, 'No confirmed positive signals yet.');
     renderSignalList('riskList', rentReadyProfile.riskFactors, 'No closer-look items found.');
+
+    if (modalOutlookTitle) modalOutlookTitle.textContent = rentReadyProfile.outlookDisplayTitle;
+    if (modalOutlookCopy) modalOutlookCopy.textContent = rentReadyProfile.outlookCopy;
+    if (modalScoreRing) {
+      modalScoreRing.style.setProperty('--score', rentReadyProfile.score);
+      modalScoreRing.className = 'analysis-score-ring ' + statusClass(statusLevel);
+    }
+    if (modalScoreValue) modalScoreValue.textContent = rentReadyProfile.score;
+    if (modalReadinessLabel) modalReadinessLabel.textContent = rentReadyProfile.readinessLabel;
+    if (modalSignalCount) {
+      modalSignalCount.textContent = plural(rentReadyProfile.strongSignals, 'strong signal') + ' · ' + plural(rentReadyProfile.verifySignals, 'area', 'areas') + ' to verify';
+    }
+    if (depositMeterLabel) depositMeterLabel.textContent = rentReadyProfile.depositLabel + ' · ' + rentReadyProfile.depositStrength + '/100 estimate';
+    if (depositMeterFill) depositMeterFill.style.setProperty('--deposit-score', rentReadyProfile.depositStrength + '%');
+    if (modalDepositSummary) modalDepositSummary.textContent = rentReadyProfile.depositSummary;
+    if (matchingApartmentsCta) matchingApartmentsCta.href = listingUrl();
+
+    renderOutlookBars();
+    renderFactorBreakdown();
+    renderInsightList('helpedList', rentReadyProfile.positives, '✓');
+    renderInsightList('concernList', rentReadyProfile.concerns, '!');
+    renderNextMoves();
+    renderRecommendation();
 
     var achievementGrid = document.getElementById('achievementGrid');
     if (achievementGrid){
@@ -368,15 +564,58 @@
     }
 
     if (rentReadyProfile.primaryRisk){
-      document.getElementById('primaryRiskName').textContent = rentReadyProfile.primaryRisk.label;
-      document.getElementById('primaryRiskWhy').textContent = rentReadyProfile.primaryRisk.text;
-      document.getElementById('primaryRiskSteps').innerHTML = rentReadyProfile.primaryRisk.steps.map(function(step){ return '<li>' + escapeHtml(step) + '</li>'; }).join('');
-      document.getElementById('verifyCopy').textContent = rentReadyProfile.primaryRisk.text;
+      var primaryRiskName = document.getElementById('primaryRiskName');
+      var primaryRiskWhy = document.getElementById('primaryRiskWhy');
+      var primaryRiskSteps = document.getElementById('primaryRiskSteps');
+      var verifyCopy = document.getElementById('verifyCopy');
+      if (primaryRiskName) primaryRiskName.textContent = rentReadyProfile.primaryRisk.label;
+      if (primaryRiskWhy) primaryRiskWhy.textContent = rentReadyProfile.primaryRisk.text;
+      if (primaryRiskSteps) primaryRiskSteps.innerHTML = rentReadyProfile.primaryRisk.steps.map(function(step){ return '<li>' + escapeHtml(step) + '</li>'; }).join('');
+      if (verifyCopy) verifyCopy.textContent = rentReadyProfile.primaryRisk.text;
     }
 
     renderFolder();
     renderQuestions();
     updateComparison();
+  }
+
+  function renderOutlookBars(){
+    var el = document.getElementById('outlookBars');
+    if (!el) return;
+    el.innerHTML = rentReadyProfile.depositOutlook.map(function(item){
+      return '<div class="outlook-bar-row"><strong>' + escapeHtml(item.label) + '</strong><div class="outlook-bar-track"><span class="outlook-bar-fill" style="--strength:' + item.strength + '%;--bar-color:' + barColor(item.level) + '"></span></div><span class="analysis-pill ' + statusClass(item.level) + '">' + escapeHtml(item.phrase) + '</span></div>';
+    }).join('');
+  }
+
+  function renderFactorBreakdown(){
+    var el = document.getElementById('factorBreakdown');
+    if (!el) return;
+    el.innerHTML = rentReadyProfile.factors.map(function(item){
+      return '<article class="factor-card"><strong>' + escapeHtml(item.label) + '</strong><div class="factor-track"><span class="factor-fill" style="--strength:' + item.strength + '%;--bar-color:' + barColor(item.level) + '"></span></div><span class="analysis-pill ' + statusClass(item.level) + '">' + escapeHtml(item.status) + '</span><p>' + escapeHtml(item.explanation) + '</p></article>';
+    }).join('');
+  }
+
+  function renderInsightList(id, items, marker){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = items.map(function(item){
+      return '<article class="insight-item"><span>' + escapeHtml(marker) + '</span><div><h4>' + escapeHtml(item.title) + '</h4><p>' + escapeHtml(item.text) + '</p></div></article>';
+    }).join('');
+  }
+
+  function renderNextMoves(){
+    var el = document.getElementById('bestNextMoves');
+    if (!el) return;
+    el.innerHTML = rentReadyProfile.nextSteps.map(function(step, index){
+      return '<article class="next-move-item"><span>' + String(index + 1).padStart(2, '0') + '</span><div><h4>Next move ' + (index + 1) + '</h4><p>' + escapeHtml(step) + '</p></div></article>';
+    }).join('');
+  }
+
+  function renderRecommendation(){
+    var label = document.getElementById('recommendationLabel');
+    var copy = document.getElementById('recommendationCopy');
+    if (label) label.textContent = rentReadyProfile.recommendationLabel;
+    if (copy) copy.textContent = rentReadyProfile.recommendationCopy;
   }
 
   function folderState(){
@@ -503,6 +742,125 @@
 
   function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 
+  function clearAnalysisTimers(){
+    analysisState.timers.forEach(function(timer){ clearTimeout(timer); });
+    analysisState.timers = [];
+  }
+
+  function setAnalysisTimer(fn, delay){
+    var timer = setTimeout(fn, delay);
+    analysisState.timers.push(timer);
+  }
+
+  function showAnalysisReport(){
+    analysisState.analysisLoading = false;
+    analysisState.analysisComplete = true;
+    if (analysisLoading) analysisLoading.classList.add('is-hidden');
+    if (analysisReport) analysisReport.classList.add('is-visible');
+  }
+
+  function runAnalysisSequence(){
+    if (analysisState.analysisComplete) {
+      showAnalysisReport();
+      return;
+    }
+    clearAnalysisTimers();
+    analysisState.analysisLoading = true;
+    if (analysisLoading) analysisLoading.classList.remove('is-hidden');
+    if (analysisReport) analysisReport.classList.remove('is-visible');
+    if (analysisReady) analysisReady.classList.remove('is-visible');
+    analysisSteps.forEach(function(step){
+      step.classList.remove('is-active');
+      step.classList.remove('is-complete');
+    });
+
+    if (reduced){
+      analysisSteps.forEach(function(step){ step.classList.add('is-complete'); });
+      if (analysisReady) analysisReady.classList.add('is-visible');
+      showAnalysisReport();
+      return;
+    }
+
+    var stepDelay = 430;
+    analysisSteps.forEach(function(step, index){
+      setAnalysisTimer(function(){
+        step.classList.add('is-active');
+      }, index * stepDelay);
+      setAnalysisTimer(function(){
+        step.classList.remove('is-active');
+        step.classList.add('is-complete');
+      }, index * stepDelay + 300);
+    });
+    setAnalysisTimer(function(){
+      if (analysisReady) analysisReady.classList.add('is-visible');
+    }, analysisSteps.length * stepDelay + 170);
+    setAnalysisTimer(showAnalysisReport, analysisSteps.length * stepDelay + 720);
+  }
+
+  function setModalTransformVars(){
+    if (!analysisModal || !outlookMini) return;
+    var modalRect = analysisModal.getBoundingClientRect();
+    var miniRect = outlookMini.getBoundingClientRect();
+    var dx = miniRect.left + miniRect.width / 2 - (modalRect.left + modalRect.width / 2);
+    var dy = miniRect.top + miniRect.height / 2 - (modalRect.top + modalRect.height / 2);
+    var sx = miniRect.width / modalRect.width;
+    var sy = miniRect.height / modalRect.height;
+    analysisModal.style.setProperty('--modal-dx', dx + 'px');
+    analysisModal.style.setProperty('--modal-dy', dy + 'px');
+    analysisModal.style.setProperty('--modal-sx', Math.max(.18, sx));
+    analysisModal.style.setProperty('--modal-sy', Math.max(.18, sy));
+  }
+
+  function openAnalysisModal(options){
+    if (!analysisOverlay || !analysisModal) return;
+    var shouldRunAnalysis = options && options.runAnalysis;
+    analysisState.reportOpen = true;
+    analysisState.reportMinimized = false;
+    setModalTransformVars();
+    analysisOverlay.setAttribute('aria-hidden', 'false');
+    analysisOverlay.classList.remove('is-closing');
+    analysisOverlay.classList.add('is-visible');
+    document.body.classList.add('analysis-open');
+
+    if (analysisState.analysisComplete || !shouldRunAnalysis) {
+      showAnalysisReport();
+      if (!reduced) {
+        analysisOverlay.classList.add('is-opening');
+        requestAnimationFrame(function(){
+          analysisOverlay.classList.remove('is-opening');
+        });
+      }
+    } else {
+      runAnalysisSequence();
+    }
+
+    setTimeout(function(){
+      if (analysisClose) analysisClose.focus({ preventScroll:true });
+    }, reduced ? 0 : 180);
+  }
+
+  function closeAnalysisModal(){
+    if (!analysisOverlay || !analysisModal) return;
+    clearAnalysisTimers();
+    if (!analysisState.analysisComplete) showAnalysisReport();
+    setModalTransformVars();
+    analysisState.reportOpen = false;
+    analysisState.reportMinimized = true;
+    document.body.classList.remove('analysis-open');
+    analysisOverlay.classList.add('is-closing');
+    var delay = reduced ? 0 : 460;
+    setTimeout(function(){
+      analysisOverlay.classList.remove('is-visible');
+      analysisOverlay.classList.remove('is-closing');
+      analysisOverlay.setAttribute('aria-hidden', 'true');
+      if (outlookMini) outlookMini.focus({ preventScroll:true });
+    }, delay);
+  }
+
+  function revealReportModal(){
+    openAnalysisModal({ runAnalysis: !analysisState.analysisComplete });
+  }
+
   function setPercent(p){
     var shown = Math.round(p);
     percentText.innerHTML = shown + '<span>%</span>';
@@ -536,6 +894,7 @@
       report.removeAttribute('aria-hidden');
       document.body.classList.add('report-mode');
       if (needle) needle.style.transform = 'rotate(' + Math.round((rentReadyProfile.score / 100) * 180 - 90) + 'deg)';
+      revealReportModal();
       return;
     }
 
@@ -551,6 +910,7 @@
     setTimeout(function(){
       if (needle) needle.style.transform = 'rotate(' + Math.round((rentReadyProfile.score / 100) * 180 - 90) + 'deg)';
     }, 1020);
+    setTimeout(revealReportModal, 1080);
   }
 
   function tick(ts){
@@ -581,6 +941,10 @@
       report.removeAttribute('aria-hidden');
       document.body.classList.add('report-mode');
       if (needle) needle.style.transform = 'rotate(' + Math.round((rentReadyProfile.score / 100) * 180 - 90) + 'deg)';
+      buildBriefResult();
+      renderReport();
+      analysisState.analysisComplete = true;
+      revealReportModal();
     } else if (loaderPreviewComplete){
       document.documentElement.classList.add('loader-preview-complete');
       loaderEl.classList.add('is-complete');
@@ -600,6 +964,23 @@
     });
 
     buildBriefResult();
+    renderReport();
+
+    if (analysisClose) analysisClose.addEventListener('click', closeAnalysisModal);
+    if (outlookMini) {
+      outlookMini.addEventListener('click', function(){
+        openAnalysisModal({ runAnalysis: false });
+      });
+      outlookMini.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openAnalysisModal({ runAnalysis: false });
+        }
+      });
+    }
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && analysisState.reportOpen) closeAnalysisModal();
+    });
 
     var scrollCue = document.querySelector('.scroll-cue');
     function updateScrollCue(){
