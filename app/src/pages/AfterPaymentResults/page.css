@@ -1919,6 +1919,15 @@
     transform:translateY(8px);
     transition:opacity .32s var(--ease), transform .32s var(--ease);
   }
+  .analysis-ready span{
+    display:block;
+    margin-top:8px;
+    color:rgba(255,255,255,.62);
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:0;
+    text-transform:none;
+  }
   .analysis-ready.is-visible{
     opacity:1;
     transform:translateY(0);
@@ -1951,6 +1960,10 @@
     color:rgba(255,255,255,.72);
     font-size:16px;
     line-height:1.6;
+  }
+  .analysis-summary .analysis-intro{
+    color:rgba(255,255,255,.86);
+    font-weight:650;
   }
   .analysis-score-panel{
     margin:24px 0;
@@ -2050,6 +2063,39 @@
   .next-move-list{
     display:grid;
     gap:12px;
+  }
+  .rating-legend{
+    display:grid;
+    gap:10px;
+    margin-top:14px;
+  }
+  .rating-row{
+    display:grid;
+    grid-template-columns:minmax(150px,.4fr) 1fr auto;
+    gap:12px;
+    align-items:start;
+    padding:12px 14px;
+    border-radius:8px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04);
+  }
+  .rating-row strong{
+    color:#fff;
+    font-size:13px;
+    letter-spacing:.04em;
+  }
+  .rating-row p{
+    margin:0;
+    color:rgba(255,255,255,.62);
+    font-size:12px;
+    line-height:1.45;
+  }
+  .rating-row .analysis-pill{
+    align-self:start;
+  }
+  .rating-row.is-current{
+    border-color:rgba(125,215,160,.32);
+    background:rgba(125,215,160,.08);
   }
   .outlook-bar-row,
   .factor-card{
@@ -2483,7 +2529,8 @@
         gap:8px;
       }
       .outlook-bar-row,
-      .factor-card{
+      .factor-card,
+      .rating-row{
         grid-template-columns:1fr;
         gap:10px;
       }

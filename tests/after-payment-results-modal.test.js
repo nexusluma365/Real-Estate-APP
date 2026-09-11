@@ -8,12 +8,13 @@ const css = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/p
 const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/script-0.js'), 'utf8');
 
 [
-  'Reviewing income fit',
+  'Reviewing income and rent fit',
   'Reviewing rental profile',
-  'Checking deposit factors',
-  'Comparing your answers',
-  'Preparing your RentReady outlook',
-  'YOUR RESULTS ARE READY',
+  'Reviewing credit-related factors',
+  'Reviewing previous housing information',
+  'Comparing deposit qualification factors',
+  'Preparing your pre-qualification result',
+  'PRE-QUALIFICATION COMPLETE',
 ].forEach(text => assert.match(html, new RegExp(text)));
 
 [
@@ -29,12 +30,14 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
   'helpedList',
   'concernList',
   'bestNextMoves',
+  'ratingLegend',
   'matchingApartmentsCta',
 ].forEach(id => assert.match(html, new RegExp(`id="${id}"`)));
 
-assert.match(html, /YOUR DEPOSIT OUTLOOK/i);
+assert.match(html, /RENTREADY PRE-QUALIFICATION RESULT/i);
+assert.match(html, /WHAT YOUR RATING MEANS/i);
 assert.match(html, /SEE MY MATCHING APARTMENTS/);
-assert.match(html, /Final approval and deposit requirements are determined by each property/);
+assert.match(html, /It is not a property approval/);
 
 assert.match(css, /\.analysis-overlay/);
 assert.match(css, /\.analysis-overlay\.is-closing \.analysis-modal/);
@@ -52,12 +55,14 @@ assert.match(js, /function runAnalysisSequence/);
 assert.match(js, /function openAnalysisModal/);
 assert.match(js, /function closeAnalysisModal/);
 assert.match(js, /function setModalTransformVars/);
+assert.match(js, /function renderRatingLegend/);
 assert.match(js, /\/real-estate-list\.html\?/);
-assert.match(js, /STRONG OUTLOOK/);
-assert.match(js, /WORTH EXPLORING/);
-assert.match(js, /MIXED OUTLOOK/);
-assert.match(js, /DEPOSIT LIKELY/);
-assert.match(js, /MORE PREPARATION RECOMMENDED/);
+assert.match(js, /HIGHLY FAVORABLE/);
+assert.match(js, /FAVORABLE/);
+assert.match(js, /PROMISING/);
+assert.match(js, /CONDITIONAL/);
+assert.match(js, /HIGHER DEPOSIT LIKELY/);
+assert.doesNotMatch(html + js, /Worth Exploring|Strong Outlook|Good Chance|Good Outlook|YOUR RESULTS ARE READY/);
 assert.doesNotMatch(js, /Guaranteed approval|Guaranteed no deposit|You qualify|You are approved/);
 
 console.log('after-payment results modal test passed');

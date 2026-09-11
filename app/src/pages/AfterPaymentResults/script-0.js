@@ -92,9 +92,9 @@
       briefScoreMeter.className = 'result-score ' + statusClass(statusLevel);
     }
     if (briefScoreValue) briefScoreValue.textContent = profile.score;
-    if (briefScoreLabel) briefScoreLabel.textContent = profile.status;
+    if (briefScoreLabel) briefScoreLabel.textContent = profile.readinessLabel;
     if (briefScoreCopy) {
-      briefScoreCopy.textContent = profile.readinessLabel + '. ' + plural(profile.strongSignals, 'strong signal') + ' · ' + plural(profile.verifySignals, 'area', 'areas') + ' to verify.';
+      briefScoreCopy.textContent = plural(profile.strongSignals, 'Positive Signal') + ' · ' + plural(profile.verifySignals, 'Area', 'Areas') + ' To Verify.';
     }
     if (eligibilityNextSteps) {
       var steps = (primaryRisk && primaryRisk.steps && primaryRisk.steps.length ? primaryRisk.steps : [
@@ -228,7 +228,7 @@
   }
 
   function strengthLabel(level){
-    return level === 'risk' ? 'High Concern' : level === 'warn' ? 'Needs Verification' : 'Strong';
+    return level === 'risk' ? 'POTENTIAL CONCERN' : level === 'warn' ? 'VERIFICATION NEEDED' : 'STRONG';
   }
 
   function createProfile(answers){
@@ -357,41 +357,39 @@
     var statusLevel = statusLevelFromScore(score);
     var strongSignals = profile.strengths.filter(function(item){ return item.level !== 'risk'; }).length;
     var verifySignals = profile.riskFactors.length;
-    var outlookTitle = 'MORE PREPARATION RECOMMENDED';
-    var readinessLabel = 'Preparation Needed';
-    var outlookCopy = 'Based on the information you provided, your best next move is to verify property screening criteria and prepare your documents before paying application fees.';
-    var depositSummary = 'Your answers suggest a standard or higher deposit may be more likely until the property confirms income, credit, rental history, and any conditional options.';
-    var recommendationLabel = 'PREPARE FIRST';
-    var recommendationCopy = 'Focus on strengthening or documenting the areas that may receive closer review. Confirm each property’s criteria before spending money on applications.';
+    var outlookTitle = 'CONDITIONAL';
+    var readinessLabel = 'Conditional Pre-Qualification';
+    var outlookCopy = 'Your current profile may still be considered for flexible move-in options, but the result is more dependent on the property’s screening criteria and verification of the items identified in your report.';
+    var scoreCopy = 'Your RentReady assessment shows a mix of qualification factors, with items that should be confirmed before applying.';
+    var depositSummary = 'Your answers suggest standard deposit requirements may be more common unless the property confirms flexible move-in options or alternative qualification paths.';
+    var recommendationLabel = 'VERIFY BEFORE APPLYING';
+    var recommendationCopy = 'Review the verification items identified in your report and confirm the property’s specific screening and deposit requirements before applying.';
 
+    // Existing scoring behavior has three result tiers; this maps those tiers to the closest RentReady rating labels.
     if (score >= 82){
-      outlookTitle = 'STRONG OUTLOOK';
-      readinessLabel = 'Strong Rental Readiness';
-      outlookCopy = 'Based on the information you provided, your profile shows several positive signals. Low-deposit or no-deposit options may be worth asking about, while final terms remain property-specific.';
-      depositSummary = 'Your current answers suggest stronger low-deposit potential, especially at properties with flexible deposit programs. Final approval and move-in costs still depend on each property.';
-      recommendationLabel = 'CONTINUE YOUR SEARCH';
-      recommendationCopy = 'Your profile has a strong starting point. Compare matching apartments and ask each leasing office how deposit programs and screening criteria are applied.';
-    } else if (score >= 68){
-      outlookTitle = 'WORTH EXPLORING';
-      readinessLabel = 'Good Rental Readiness';
-      outlookCopy = 'Based on the information you provided, your profile shows enough positive signals to keep low-deposit and no-deposit options in consideration. Property-specific screening rules still apply.';
-      depositSummary = 'Your current answers suggest low-deposit or no-deposit options may be worth exploring, but any weaker or unverified factor should be confirmed before applying.';
-      recommendationLabel = 'CONTINUE YOUR SEARCH';
-      recommendationCopy = 'Your profile shows enough positive signals to keep exploring rental options. Focus on properties where screening and deposit requirements can be confirmed before you spend money on an application.';
-    } else if (score >= 56){
-      outlookTitle = 'MIXED OUTLOOK';
-      readinessLabel = 'Mixed Rental Readiness';
-      outlookCopy = 'Based on the information you provided, your profile has useful strengths and a few items that may need verification before a property estimates deposit requirements.';
-      depositSummary = 'Your answers suggest reduced or standard deposit outcomes may depend heavily on property rules, credit review, and document verification.';
-      recommendationLabel = 'VERIFY BEFORE APPLYING';
-      recommendationCopy = 'Keep searching, but ask targeted questions about screening standards and deposit programs before submitting an application fee.';
-    } else if (score >= 45){
-      outlookTitle = 'DEPOSIT LIKELY';
-      readinessLabel = 'Needs Verification';
-      outlookCopy = 'Based on the information you provided, a standard deposit may be more likely unless the property offers flexible review or alternative qualification options.';
-      depositSummary = 'Your current answers suggest standard deposit requirements may be more common. Confirm the exact criteria before applying so you can avoid unnecessary fees.';
-      recommendationLabel = 'FOCUS ON FLEXIBLE PROPERTIES';
-      recommendationCopy = 'Prioritize properties that clearly explain conditional approval, co-signer, guarantor, or flexible deposit options before you apply.';
+      outlookTitle = 'HIGHLY FAVORABLE';
+      readinessLabel = 'Highly Favorable Pre-Qualification';
+      outlookCopy = 'Your questionnaire shows several positive rental indicators. Based on your RentReady assessment, your profile currently appears well-positioned to explore properties offering flexible move-in costs, including no-deposit or reduced-deposit options.';
+      scoreCopy = 'Your RentReady assessment shows multiple positive qualification factors, with few identified concerns to verify before applying.';
+      depositSummary = 'Your current answers appear well-positioned for exploring flexible move-in costs, including properties that may offer no-security-deposit or reduced-deposit options.';
+      recommendationLabel = 'CONTINUE TO MATCHING PROPERTIES';
+      recommendationCopy = 'Your RentReady assessment shows multiple positive rental indicators. You can continue exploring properties that match your search, including apartments offering flexible move-in or deposit options. Before applying, confirm the property’s specific screening and deposit requirements.';
+    } else if (score >= 62){
+      outlookTitle = 'FAVORABLE';
+      readinessLabel = 'Favorable Pre-Qualification';
+      outlookCopy = 'Your questionnaire shows more positive rental indicators than concerns. Based on your RentReady assessment, flexible move-in options — including no-deposit or reduced-deposit options — may be available depending on the property and any remaining verification.';
+      scoreCopy = 'Your RentReady assessment shows several positive qualification factors, with a few items that should be confirmed before applying.';
+      depositSummary = 'Your current answers suggest flexible move-in options may be available, although individual property requirements and any unverified factors can still affect your final deposit.';
+      recommendationLabel = 'CONTINUE TO MATCHING PROPERTIES';
+      recommendationCopy = 'Your RentReady assessment shows more positive rental indicators than concerns. You can continue exploring properties that match your search, including apartments offering flexible move-in or deposit options. Before applying, review the verification items identified in your report and confirm the property’s specific screening and deposit requirements.';
+    } else if (score < 45){
+      outlookTitle = 'HIGHER DEPOSIT LIKELY';
+      readinessLabel = 'Higher Deposit Likely Pre-Qualification';
+      outlookCopy = 'Based on your questionnaire, some screening factors may make a standard or higher upfront deposit more likely. Reviewing the areas identified below may help you better prepare before applying.';
+      scoreCopy = 'Your RentReady assessment identified factors that may need preparation or verification before you apply.';
+      depositSummary = 'Your questionnaire currently contains factors that may make a standard or higher deposit more likely. Reviewing the items below can help you prepare for property-specific screening.';
+      recommendationLabel = 'PREPARE BEFORE APPLYING';
+      recommendationCopy = 'Your RentReady assessment identified screening factors that may require more preparation. Review the verification items in your report and focus on properties that clearly explain deposit, documentation, and flexible move-in requirements.';
     }
 
     var noDepositStrength = clamp(score - 6, 8, 94);
@@ -399,10 +397,11 @@
     var standardStrength = clamp(88 - Math.abs(score - 58), 28, 88);
     var higherStrength = clamp(96 - score, 8, 78);
     var depositOutlook = [
-      { label:'No-Deposit Options', strength:noDepositStrength, phrase:score >= 82 ? 'Strong Possibility' : score >= 68 ? 'Worth Exploring' : score >= 56 ? 'Needs Verification' : 'Lower Likelihood', level:score >= 68 ? 'good' : score >= 56 ? 'warn' : 'risk' },
-      { label:'Reduced Deposit', strength:reducedStrength, phrase:score >= 80 ? 'Strong Possibility' : score >= 58 ? 'Worth Exploring' : 'May Need Review', level:score >= 58 ? 'good' : 'warn' },
-      { label:'Standard Deposit', strength:standardStrength, phrase:score >= 78 ? 'Still Possible' : score >= 50 ? 'Possible Outcome' : 'More Likely', level:score >= 78 ? 'warn' : score >= 50 ? 'warn' : 'risk' },
-      { label:'Higher Deposit', strength:higherStrength, phrase:score >= 76 ? 'Lower Likelihood' : score >= 56 ? 'Possible If Criteria Are Strict' : 'Worth Preparing For', level:score >= 76 ? 'good' : score >= 56 ? 'warn' : 'risk' }
+      { label:'NO SECURITY DEPOSIT', strength:noDepositStrength, phrase:score >= 82 ? 'HIGHLY FAVORABLE' : score >= 62 ? 'FAVORABLE' : score >= 45 ? 'CONDITIONAL' : 'LESS LIKELY', level:score >= 62 ? 'good' : score >= 45 ? 'warn' : 'risk' },
+      { label:'REDUCED DEPOSIT', strength:reducedStrength, phrase:score >= 80 ? 'HIGHLY FAVORABLE' : score >= 62 ? 'FAVORABLE' : score >= 45 ? 'POSSIBLE OUTCOME' : 'NEEDS REVIEW', level:score >= 62 ? 'good' : score >= 45 ? 'warn' : 'risk' },
+      { label:'FIRST-MONTH MOVE-IN OPTIONS', strength:clamp(score + 3, 12, 94), phrase:score >= 62 ? 'FAVORABLE' : score >= 45 ? 'POSSIBLE OUTCOME' : 'NEEDS REVIEW', level:score >= 62 ? 'good' : score >= 45 ? 'warn' : 'risk' },
+      { label:'STANDARD DEPOSIT', strength:standardStrength, phrase:score >= 62 ? 'POSSIBLE OUTCOME' : 'MORE LIKELY', level:score >= 62 ? 'warn' : 'risk' },
+      { label:'HIGHER DEPOSIT', strength:higherStrength, phrase:score >= 62 ? 'LESS LIKELY' : score >= 45 ? 'POSSIBLE IF CRITERIA ARE STRICT' : 'HIGHER DEPOSIT LIKELY', level:score >= 62 ? 'good' : score >= 45 ? 'warn' : 'risk' }
     ];
 
     var categories = profile.readinessCategories || {};
@@ -430,7 +429,7 @@
       label:'Deposit Outlook',
       strength:clamp(score, 12, 94),
       level:statusLevel,
-      status:score >= 80 ? 'Strong' : score >= 62 ? 'Worth Exploring' : 'Needs Review',
+      status:score >= 80 ? 'STRONG' : score >= 62 ? 'POSITIVE' : 'NEEDS REVIEW',
       explanation:depositSummary
     });
 
@@ -465,8 +464,9 @@
     profile.strongSignals = strongSignals;
     profile.verifySignals = verifySignals;
     profile.outlookCopy = outlookCopy;
+    profile.scoreCopy = scoreCopy;
     profile.depositSummary = depositSummary;
-    profile.depositLabel = score >= 76 ? 'Lower Deposit Potential' : score >= 58 ? 'Deposit Flexibility Potential' : 'Deposit Preparation Outlook';
+    profile.depositLabel = 'Deposit Flexibility Score';
     profile.depositStrength = clamp(score, 12, 94);
     profile.depositOutlook = depositOutlook;
     profile.factors = factors;
@@ -505,6 +505,7 @@
     var modalScoreValue = document.getElementById('modalScoreValue');
     var modalReadinessLabel = document.getElementById('modalReadinessLabel');
     var modalSignalCount = document.getElementById('modalSignalCount');
+    var modalScoreCopy = document.getElementById('modalScoreCopy');
     var depositMeterLabel = document.getElementById('depositMeterLabel');
     var depositMeterFill = document.getElementById('depositMeterFill');
     var modalDepositSummary = document.getElementById('modalDepositSummary');
@@ -532,9 +533,10 @@
     if (modalScoreValue) modalScoreValue.textContent = rentReadyProfile.score;
     if (modalReadinessLabel) modalReadinessLabel.textContent = rentReadyProfile.readinessLabel;
     if (modalSignalCount) {
-      modalSignalCount.textContent = plural(rentReadyProfile.strongSignals, 'strong signal') + ' · ' + plural(rentReadyProfile.verifySignals, 'area', 'areas') + ' to verify';
+      modalSignalCount.textContent = plural(rentReadyProfile.strongSignals, 'positive signal') + ' · ' + plural(rentReadyProfile.verifySignals, 'area', 'areas') + ' to verify';
     }
-    if (depositMeterLabel) depositMeterLabel.textContent = rentReadyProfile.depositLabel + ' · ' + rentReadyProfile.depositStrength + '/100 estimate';
+    if (modalScoreCopy) modalScoreCopy.textContent = rentReadyProfile.scoreCopy;
+    if (depositMeterLabel) depositMeterLabel.textContent = rentReadyProfile.depositLabel + ' · ' + rentReadyProfile.depositStrength + ' / 100';
     if (depositMeterFill) depositMeterFill.style.setProperty('--deposit-score', rentReadyProfile.depositStrength + '%');
     if (modalDepositSummary) modalDepositSummary.textContent = rentReadyProfile.depositSummary;
     if (matchingApartmentsCta) matchingApartmentsCta.href = listingUrl();
@@ -545,6 +547,7 @@
     renderInsightList('concernList', rentReadyProfile.concerns, '!');
     renderNextMoves();
     renderRecommendation();
+    renderRatingLegend();
 
     var achievementGrid = document.getElementById('achievementGrid');
     if (achievementGrid){
@@ -616,6 +619,22 @@
     var copy = document.getElementById('recommendationCopy');
     if (label) label.textContent = rentReadyProfile.recommendationLabel;
     if (copy) copy.textContent = rentReadyProfile.recommendationCopy;
+  }
+
+  function renderRatingLegend(){
+    var el = document.getElementById('ratingLegend');
+    if (!el) return;
+    var ratings = [
+      { label:'HIGHLY FAVORABLE', text:'Multiple positive rental indicators with few identified concerns. Your profile appears well-positioned to explore flexible move-in options.' },
+      { label:'FAVORABLE', text:'More positive indicators than concerns. Flexible move-in options may be available, with some property requirements still to confirm.' },
+      { label:'PROMISING', text:'Positive potential is present, but important factors should be verified before applying.' },
+      { label:'CONDITIONAL', text:'Your result depends more heavily on property-specific requirements and verification of the items identified in your report.' },
+      { label:'HIGHER DEPOSIT LIKELY', text:'Your current questionnaire contains factors that may make a standard or higher deposit more likely.' }
+    ];
+    el.innerHTML = ratings.map(function(rating){
+      var current = rating.label === rentReadyProfile.outlookTitle;
+      return '<article class="rating-row' + (current ? ' is-current' : '') + '"><strong>' + escapeHtml(rating.label) + '</strong><p>' + escapeHtml(rating.text) + '</p>' + (current ? '<span class="analysis-pill">YOUR RATING</span>' : '') + '</article>';
+    }).join('');
   }
 
   function folderState(){

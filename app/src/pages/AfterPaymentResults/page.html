@@ -53,47 +53,50 @@
 
           <div class="analysis-loading" id="analysisLoading">
             <p class="analysis-eyebrow">Personalized review</p>
-            <h2 id="analysisTitle">Preparing your RentReady outlook</h2>
+            <h2 id="analysisTitle">Analyzing your RentReady pre-qualification</h2>
             <div class="analysis-checklist" id="analysisChecklist" aria-label="RentReady analysis progress">
-              <div class="analysis-step" data-analysis-step><span></span><p>Reviewing income fit</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Reviewing income and rent fit</p></div>
               <div class="analysis-step" data-analysis-step><span></span><p>Reviewing rental profile</p></div>
-              <div class="analysis-step" data-analysis-step><span></span><p>Checking deposit factors</p></div>
-              <div class="analysis-step" data-analysis-step><span></span><p>Comparing your answers</p></div>
-              <div class="analysis-step" data-analysis-step><span></span><p>Preparing your RentReady outlook</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Reviewing credit-related factors</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Reviewing previous housing information</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Comparing deposit qualification factors</p></div>
+              <div class="analysis-step" data-analysis-step><span></span><p>Preparing your pre-qualification result</p></div>
             </div>
-            <div class="analysis-ready" id="analysisReady">YOUR RESULTS ARE READY</div>
+            <div class="analysis-ready" id="analysisReady">PRE-QUALIFICATION COMPLETE<span>We've analyzed your questionnaire.</span></div>
           </div>
 
           <div class="analysis-report" id="analysisReport">
             <div class="analysis-summary">
-              <p class="analysis-eyebrow">Your deposit outlook</p>
-              <h2 id="modalOutlookTitle">Worth Exploring</h2>
-              <p id="modalOutlookCopy">Based on the information you provided, your profile shows enough positive signals to keep low-deposit and no-deposit options in consideration. Property-specific screening rules still apply.</p>
+              <p class="analysis-eyebrow">RentReady pre-qualification result</p>
+              <h2 id="modalOutlookTitle">Favorable</h2>
+              <p class="analysis-intro">We analyzed your questionnaire. Here's where your profile currently stands.</p>
+              <p id="modalOutlookCopy">Your questionnaire shows more positive rental indicators than concerns. Based on your RentReady assessment, flexible move-in options — including no-deposit or reduced-deposit options — may be available depending on the property and any remaining verification.</p>
             </div>
 
             <div class="analysis-score-panel">
               <div class="analysis-score-ring" id="modalScoreRing" style="--score:68"><span><strong id="modalScoreValue">68</strong><small>/ 100</small></span></div>
               <div>
-                <p class="analysis-score-label" id="modalReadinessLabel">Good Rental Readiness</p>
-                <p class="analysis-score-meta" id="modalSignalCount">2 strong signals · 1 area to verify</p>
+                <p class="analysis-score-label" id="modalReadinessLabel">Favorable Pre-Qualification</p>
+                <p class="analysis-score-meta" id="modalSignalCount">2 positive signals · 1 area to verify</p>
+                <p class="analysis-muted" id="modalScoreCopy">Your RentReady assessment shows several positive qualification factors, with a few items that should be confirmed before applying.</p>
               </div>
             </div>
 
             <section class="analysis-section">
               <div class="analysis-section-head">
-                <p class="analysis-eyebrow">Estimated deposit outlook</p>
-                <strong id="depositMeterLabel">Lower Deposit Potential</strong>
+                <p class="analysis-eyebrow">Deposit flexibility score</p>
+                <strong id="depositMeterLabel">Deposit Flexibility Score</strong>
               </div>
               <div class="deposit-meter" aria-hidden="true"><span id="depositMeterFill"></span></div>
-              <p class="analysis-muted" id="modalDepositSummary">Your current answers suggest that low-deposit or no-deposit options may be worth exploring, but property criteria should be verified before applying.</p>
+              <p class="analysis-muted" id="modalDepositSummary">Your current answers suggest flexible move-in options may be available, but property criteria should be verified before applying.</p>
             </section>
 
             <section class="analysis-section">
               <div class="analysis-section-head">
-                <p class="analysis-eyebrow">Your current outlook</p>
+                <p class="analysis-eyebrow">Current pre-qualification outlook</p>
               </div>
               <div class="outlook-bars" id="outlookBars"></div>
-              <p class="analysis-disclaimer">Estimated from the information you provided. Final approval and deposit requirements are determined by each property.</p>
+              <p class="analysis-disclaimer">RentReady pre-qualification is based on the information submitted in your questionnaire and is designed to estimate your rental and deposit outlook. It is not a property approval. Final approval, deposit amounts, concessions, and move-in requirements are determined by each property.</p>
             </section>
 
             <section class="analysis-section">
@@ -101,6 +104,14 @@
                 <p class="analysis-eyebrow">Your rental profile breakdown</p>
               </div>
               <div class="factor-breakdown" id="factorBreakdown"></div>
+            </section>
+
+            <section class="analysis-section">
+              <div class="analysis-section-head">
+                <p class="analysis-eyebrow">What your rating means</p>
+              </div>
+              <p class="analysis-muted">Your RentReady rating summarizes the positive indicators and areas needing verification found in your questionnaire.</p>
+              <div class="rating-legend" id="ratingLegend"></div>
             </section>
 
             <div class="analysis-columns">
@@ -127,7 +138,7 @@
             </section>
 
             <section class="analysis-recommendation">
-              <p class="analysis-eyebrow">RentReady recommendation</p>
+              <p class="analysis-eyebrow">RentReady pre-qualification recommendation</p>
               <h3 id="recommendationLabel">CONTINUE YOUR SEARCH</h3>
               <p id="recommendationCopy">Your profile shows enough positive signals to keep exploring rental options. Focus on properties where screening and deposit requirements can be confirmed before you spend money on an application.</p>
               <a class="analysis-cta" id="matchingApartmentsCta" href="/luxury-apartments-premium.html">SEE MY MATCHING APARTMENTS →</a>
@@ -154,13 +165,13 @@
         </div>
 
         <aside class="outlook" id="outlookMini" role="button" tabindex="0" aria-label="Open full RentReady analysis">
-          <div class="outlook-label">Your RentReady outlook</div>
-          <div class="outlook-state" id="outlookState">Worth Exploring</div>
-          <p class="outlook-copy" id="outlookCopy">No-deposit options can depend on the property’s screening rules. Your current answers give you a useful starting point.</p>
+          <div class="outlook-label">RentReady pre-qualification</div>
+          <div class="outlook-state" id="outlookState">Favorable</div>
+          <p class="outlook-copy" id="outlookCopy">Your profile shows more positive rental indicators than concerns.</p>
           <div class="result-score-row">
             <div class="result-score" id="briefScoreMeter" style="--score:68"><span id="briefScoreValue">68</span></div>
             <div class="result-score-copy">
-              <strong id="briefScoreLabel">Readiness snapshot</strong>
+              <strong id="briefScoreLabel">Pre-qualification snapshot</strong>
               <p id="briefScoreCopy">We are comparing income, credit range, move timing, and property screening risks from your answers.</p>
             </div>
           </div>
@@ -173,7 +184,7 @@
             <div class="next-step"><span>1</span><p>Confirm the property’s income and credit rules before applying.</p></div>
             <div class="next-step"><span>2</span><p>Prepare income documents and rental-history details before touring.</p></div>
           </div>
-          <div class="outlook-open">View Full Analysis →</div>
+          <div class="outlook-open">View Full Pre-Qualification →</div>
         </aside>
       </div>
     </section>
@@ -234,5 +245,4 @@
   </div>
 
 </section>
-
 
