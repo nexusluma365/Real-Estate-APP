@@ -2,7 +2,7 @@ const PRODUCTS = {
   modern: {
     entitlementField: 'paid27',
     category: 'modern',
-    subject: 'Your RentReady Modern Apartment Download',
+    subject: 'Your RentReady Guide is Ready',
     filename: 'RentReady Guide.zip',
     envKey: 'MODERN_DOWNLOAD_KEY',
     defaultKey: 'RentReady Guide.zip',
@@ -10,7 +10,7 @@ const PRODUCTS = {
   luxury: {
     entitlementField: 'paid27',
     category: 'luxury',
-    subject: 'Your RentReady Luxury Apartment Download',
+    subject: 'Your RentReady Guide is Ready',
     filename: 'RentReady Guide.zip',
     envKey: 'LUXURY_DOWNLOAD_KEY',
     defaultKey: 'RentReady Guide.zip',
@@ -134,6 +134,10 @@ function publicBaseUrl(request, env) {
   return String(env.PUBLIC_WORKER_URL || new URL(request.url).origin).replace(/\/+$/, '');
 }
 
+function publicSiteUrl(env) {
+  return String(env.PUBLIC_SITE_URL || 'https://werentreadygo.com').replace(/\/+$/, '');
+}
+
 function authorized(request, env) {
   if (!env.TRIGGER_SECRET) return false;
   const auth = request.headers.get('Authorization') || '';
@@ -141,11 +145,40 @@ function authorized(request, env) {
   return bearer === env.TRIGGER_SECRET || request.headers.get('x-trigger-secret') === env.TRIGGER_SECRET;
 }
 
-async function sendEmailWithResend(env, { to, firstName, subject, downloadUrl }) {
+function renderTemplate(html, vars) {
+  return Object.entries(vars).reduce(
+    (out, [key, value]) => out.split(`{{${key}}}`).join(String(value || '')),
+    String(html || '')
+  );
+}
+
+async function fetchTemplate(url) {
+  const res = await fetch(url, { cf: { cacheTtl: 300, cacheEverything: true } });
+  if (!res.ok) throw new Error(`Could not load email template: ${res.status}`);
+  return res.text();
+}
+
+async function renderGuideEmail(env, { downloadUrl }) {
+  const siteUrl = publicSiteUrl(env);
+  const template = await fetchTemplate(`${siteUrl}/rentready-emails/guide-ready-email.html`);
+  return renderTemplate(template, {
+    DOWNLOAD_URL: downloadUrl,
+    BOOK_IMAGE_URL: `${siteUrl}/rentready-emails/rentready-guide-book.png`,
+    INSTAGRAM_URL: siteUrl,
+    FACEBOOK_URL: siteUrl,
+    YOUTUBE_URL: siteUrl,
+    LINKEDIN_URL: siteUrl,
+    PRIVACY_URL: `${siteUrl}/privacy`,
+    TERMS_URL: `${siteUrl}/terms`,
+    SUPPORT_URL: 'mailto:support@send.werentreadygo.com',
+    YEAR: new Date().getFullYear(),
+  });
+}
+
+async function sendRenderedEmailWithResend(env, { to, subject, text, html }) {
   if (!env.RESEND_API_KEY || !env.FROM_EMAIL) {
     throw new Error('RESEND_API_KEY and FROM_EMAIL are required for email delivery.');
   }
-  const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -156,13 +189,27 @@ async function sendEmailWithResend(env, { to, firstName, subject, downloadUrl })
       from: env.FROM_EMAIL,
       to,
       subject,
-      text: `${greeting}\n\nYour RentReady download is ready:\n${downloadUrl}\n\nThis secure link expires soon.`,
-      html: `<p>${greeting}</p><p>Your RentReady download is ready:</p><p><a href="${downloadUrl}">Download your file</a></p><p>This secure link expires soon.</p>`,
+      text,
+      html,
     }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Resend email failed: ${res.status} ${JSON.stringify(data)}`);
   return data;
+}
+
+async function sendEmailWithResend(env, { to, firstName, subject, downloadUrl }) {
+  if (!env.RESEND_API_KEY || !env.FROM_EMAIL) {
+    throw new Error('RESEND_API_KEY and FROM_EMAIL are required for email delivery.');
+  }
+  const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
+  const html = await renderGuideEmail(env, { downloadUrl });
+  return sendRenderedEmailWithResend(env, {
+      to,
+      subject,
+      text: `${greeting}\n\nYour RentReady download is ready:\n${downloadUrl}\n\nThis secure link expires soon.`,
+      html,
+  });
 }
 
 async function handleSendDownload(request, env) {

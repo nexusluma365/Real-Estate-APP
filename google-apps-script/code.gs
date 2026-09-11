@@ -89,6 +89,19 @@ function sendAssetEmail_(payload) {
   const firstName = payload.firstName || "there";
   const subject = payload.subject || "Your RentReady Download";
   const downloadUrl = payload.downloadUrl || "";
+  const templateBaseUrl = templateBaseUrl_(payload);
+  const htmlBody = renderTemplate_(fetchTemplate_(templateBaseUrl + "/rentready-emails/guide-ready-email.html"), {
+    DOWNLOAD_URL: downloadUrl,
+    BOOK_IMAGE_URL: templateBaseUrl + "/rentready-emails/rentready-guide-book.png",
+    INSTAGRAM_URL: socialUrl_("instagram"),
+    FACEBOOK_URL: socialUrl_("facebook"),
+    YOUTUBE_URL: socialUrl_("youtube"),
+    LINKEDIN_URL: socialUrl_("linkedin"),
+    PRIVACY_URL: templateBaseUrl + "/privacy",
+    TERMS_URL: templateBaseUrl + "/terms",
+    SUPPORT_URL: "mailto:support@send.werentreadygo.com",
+    YEAR: String(new Date().getFullYear())
+  });
 
   const body =
     "Hi " + firstName + ",\n\n" +
@@ -98,7 +111,10 @@ function sendAssetEmail_(payload) {
     "and request it again.\n\n" +
     "— RentReady Network";
 
-  MailApp.sendEmail(to, subject, body);
+  MailApp.sendEmail(to, subject, body, {
+    htmlBody: htmlBody,
+    name: "RentReady"
+  });
 
   return { ok: true };
 }
@@ -116,6 +132,18 @@ function sendWelcomeEmail_(payload) {
   const firstName = payload.firstName || "there";
   const subject = payload.subject || "Welcome to RentReady — You’re All Set";
   const resultsUrl = payload.resultsUrl || "";
+  const templateBaseUrl = templateBaseUrl_(payload);
+  const htmlBody = renderTemplate_(fetchTemplate_(templateBaseUrl + "/rentready-emails/welcome-email.html"), {
+    GET_STARTED_URL: resultsUrl || templateBaseUrl + "/after-payment-results/",
+    HERO_IMAGE_URL: templateBaseUrl + "/hero-bg-optimized.jpg",
+    INSTAGRAM_URL: socialUrl_("instagram"),
+    LINKEDIN_URL: socialUrl_("linkedin"),
+    YOUTUBE_URL: socialUrl_("youtube"),
+    HELP_URL: templateBaseUrl + "/",
+    PRIVACY_URL: templateBaseUrl + "/privacy",
+    UNSUBSCRIBE_URL: templateBaseUrl + "/",
+    YEAR: String(new Date().getFullYear())
+  });
 
   const body =
     "Hi " + firstName + ",\n\n" +
@@ -124,9 +152,37 @@ function sendWelcomeEmail_(payload) {
     "If you have any questions along the way, just reply to this email.\n\n" +
     "— RentReady Network";
 
-  MailApp.sendEmail(to, subject, body);
+  MailApp.sendEmail(to, subject, body, {
+    htmlBody: htmlBody,
+    name: "RentReady"
+  });
 
   return { ok: true };
+}
+
+function templateBaseUrl_(payload) {
+  const raw = String(payload.templateBaseUrl || payload.siteUrl || "https://werentreadygo.com").trim();
+  return raw.replace(/\/+$/, "");
+}
+
+function fetchTemplate_(url) {
+  const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (res.getResponseCode() < 200 || res.getResponseCode() >= 300) {
+    throw new Error("Could not load email template: " + url);
+  }
+  return res.getContentText();
+}
+
+function renderTemplate_(html, vars) {
+  let out = String(html || "");
+  Object.keys(vars).forEach(function(key) {
+    out = out.split("{{" + key + "}}").join(String(vars[key] || ""));
+  });
+  return out;
+}
+
+function socialUrl_(network) {
+  return "https://werentreadygo.com";
 }
 
 function parsePayload_(e) {

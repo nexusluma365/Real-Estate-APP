@@ -84,7 +84,7 @@ exports.handler = async (event) => {
     const cloudflareResult = await sendViaCloudflare({ leadId, type, category });
     if (cloudflareResult) return cloudflareResult;
 
-    const siteUrl = process.env.URL || process.env.DEPLOY_URL || '';
+    const siteUrl = String(process.env.URL || process.env.DEPLOY_URL || '').replace(/\/+$/, '');
     const token = sign({ leadId, product: type === 'apartment-results' ? 'apartment-results' : type === 'result' ? 'result' : type, category });
     const downloadUrl =
       type === 'result'
@@ -107,6 +107,7 @@ exports.handler = async (event) => {
         firstName: lead.first_name || '',
         subject: SUBJECT_BY_TYPE[type],
         downloadUrl,
+        templateBaseUrl: siteUrl,
       }),
     });
     const gasResult = await resp.json().catch(() => ({}));

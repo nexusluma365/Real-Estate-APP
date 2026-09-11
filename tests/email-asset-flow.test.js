@@ -65,6 +65,7 @@ async function run() {
     assert.equal(sent.length, 1);
     assert.equal(sent[0].body.to, 'user@example.com');
     assert.match(sent[0].body.downloadUrl, /get-apartment-results\?token=/);
+    assert.equal(sent[0].body.templateBaseUrl, 'https://rentready.test');
 
     const invalidHandler = loadHandler({
       entitlements: { paid27: true, purchasedCategories: ['luxury'] },

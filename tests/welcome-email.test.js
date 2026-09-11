@@ -39,6 +39,7 @@ async function run() {
     assert.equal(sent[0].body.to, 'user@example.com');
     assert.equal(sent[0].body.firstName, 'Pat');
     assert.equal(sent[0].body.resultsUrl, 'https://werentreadygo.com/after-payment-results/');
+    assert.equal(sent[0].body.templateBaseUrl, 'https://werentreadygo.com');
 
     // No email on file (or invalid) must not call out at all.
     sent.length = 0;

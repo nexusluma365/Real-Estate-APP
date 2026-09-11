@@ -16,6 +16,7 @@ async function sendWelcomeEmail(leadId) {
   if (!isValidEmail(email)) return;
 
   const siteUrl = process.env.URL || process.env.DEPLOY_URL || '';
+  const baseUrl = siteUrl ? siteUrl.replace(/\/+$/, '') : '';
   const res = await fetch(gasUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -24,7 +25,8 @@ async function sendWelcomeEmail(leadId) {
       to: email,
       firstName: lead.first_name || '',
       subject: 'Welcome to RentReady — You’re All Set',
-      resultsUrl: siteUrl ? `${siteUrl}/after-payment-results/` : '',
+      resultsUrl: baseUrl ? `${baseUrl}/after-payment-results/` : '',
+      templateBaseUrl: baseUrl,
     }),
   });
   const data = await res.json().catch(() => ({}));

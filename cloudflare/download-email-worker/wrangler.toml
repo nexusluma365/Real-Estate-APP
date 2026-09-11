@@ -11,3 +11,5 @@ bucket_name = "realestateproject"
 [vars]
 DOWNLOAD_LINK_TTL_SECONDS = "604800"
 PUBLIC_WORKER_URL = "https://rentready-download-email.rentready-network.workers.dev"
+PUBLIC_SITE_URL = "https://werentreadygo.com"
+FROM_EMAIL = "RentReady <support@send.werentreadygo.com>"
