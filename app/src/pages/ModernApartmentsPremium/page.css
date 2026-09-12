@@ -431,34 +431,16 @@
     position:relative;
     justify-self:center;
     width:100%;
-    max-width:300px;
+    max-width:460px;
     animation:floatCard 5.5s ease-in-out infinite;
   }
   @keyframes floatCard{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-  .book{
-    height:300px;
-    background:#f7faf8;
-    color:var(--ink);
-    border-radius:6px;
-    border:1px solid rgba(26,71,49,.16);
-    box-shadow:14px 15px 0 rgba(255,255,255,.10),0 22px 50px rgba(0,0,0,.25);
-    padding:26px 22px;
-    display:flex;flex-direction:column;justify-content:space-between;
+  .guide-mockup-image{
+    display:block;
+    width:100%;
+    height:auto;
+    filter:drop-shadow(0 28px 44px rgba(0,0,0,.34));
   }
-  .book .small{font-size:11px;font-weight:800;letter-spacing:.13em;color:var(--ink-soft)}
-  .book .big{font-size:26px;line-height:.98;font-weight:800;color:var(--gold)}
-  .book .bottom{font-size:11.5px;color:#3e444a;font-weight:700}
-  .mockup-photo{
-    position:absolute;
-    right:-26px;bottom:-26px;
-    width:46%;
-    aspect-ratio:4/3;
-    border-radius:8px;
-    overflow:hidden;
-    border:3px solid rgba(255,255,255,.14);
-    box-shadow:0 16px 34px rgba(0,0,0,.3);
-  }
-  .mockup-photo img{width:100%;height:100%;object-fit:cover}
 
   footer{
     background:#102f22;
@@ -516,7 +498,7 @@
     .offer-card{margin-top:0}
     .checklist-two{grid-template-columns:1fr}
     .closing-grid{grid-template-columns:1fr}
-    .mockup-stack{max-width:220px;margin-top:12px}
+    .mockup-stack{max-width:300px;margin-top:12px}
     .filmstrip{grid-template-columns:repeat(3,1fr)}
   }
   @media(max-width:560px){
