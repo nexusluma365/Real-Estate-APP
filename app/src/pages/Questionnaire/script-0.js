@@ -34,6 +34,7 @@ function sel(gid, el, multi=false) {
   const g = document.getElementById(gid);
   if (!multi) { g.querySelectorAll('.pill').forEach(p=>p.classList.remove('selected')); el.classList.add('selected'); }
   else el.classList.toggle('selected');
+  g.classList.remove('invalid');
 }
 
 function getVal(gid, multi=false) {
@@ -45,7 +46,9 @@ function getVal(gid, multi=false) {
 function pickScore(bar, val) {
   document.querySelectorAll('.score-bar').forEach(b=>b.classList.remove('active'));
   bar.classList.add('active');
-  document.getElementById('credit_score_pills').querySelectorAll('.pill')
+  const scorePills = document.getElementById('credit_score_pills');
+  scorePills.classList.remove('invalid');
+  scorePills.querySelectorAll('.pill')
     .forEach(p=>p.classList.toggle('selected', p.dataset.val===val));
 }
 
@@ -57,14 +60,73 @@ function rng(id, vid, fmt) {
   el.style.background = `linear-gradient(90deg,var(--green) ${pct}%,#D5E2DA ${pct}%)`;
 }
 
-function validateAndNext(toSlide, fields) {
+function todayMinusYears(years) {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
+function isAtLeast17(dateValue) {
+  if (!dateValue) return false;
+  const selected = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(selected.getTime())) return false;
+  return selected <= new Date(`${todayMinusYears(17)}T00:00:00`);
+}
+
+function markFieldInvalid(el, message) {
+  if (!el) return;
+  if (message && typeof el.setCustomValidity === 'function') el.setCustomValidity(message);
+  el.classList.add('invalid');
+  el.addEventListener('input', () => {
+    el.classList.remove('invalid');
+    if (typeof el.setCustomValidity === 'function') el.setCustomValidity('');
+  }, { once: true });
+}
+
+function validateFields(fields = [], pillGroups = []) {
   let ok = true;
   fields.forEach(id=>{
     const el = document.getElementById(id);
-    const invalid = !el || !el.value.trim() || (el.type === 'email' && !el.checkValidity());
-    if (invalid) { el&&el.classList.add('invalid'); el&&el.addEventListener('input',()=>el.classList.remove('invalid'),{once:true}); ok=false; }
+    let invalid = !el || !String(el.value || '').trim() || (el.type === 'email' && !el.checkValidity());
+    if (id === 'date_of_birth') invalid = invalid || !isAtLeast17(el.value);
+    if (invalid) {
+      markFieldInvalid(el, id === 'date_of_birth' ? 'You must be at least 17 years old to continue.' : '');
+      ok = false;
+    }
   });
+  pillGroups.forEach(id => {
+    const group = document.getElementById(id);
+    const selected = group && group.querySelector('.pill.selected');
+    if (!selected) {
+      group && group.classList.add('invalid');
+      ok = false;
+    }
+  });
+  return ok;
+}
+
+function validateAndNext(toSlide, fields, pillGroups = []) {
+  const ok = validateFields(fields, pillGroups);
   if (ok) goTo(toSlide,'right');
+}
+
+function validateEntireQuestionnaire() {
+  const checks = [
+    { slide: 1, fields: ['first_name','last_name','date_of_birth'], groups: [] },
+    { slide: 2, fields: ['email','phone'], groups: ['contact_method_pills'] },
+    { slide: 3, fields: ['preferred_city'], groups: ['move_timeline_pills'] },
+    { slide: 4, fields: [], groups: ['move_reason_pills'] },
+    { slide: 5, fields: ['annual_income','rent_budget','current_rent'], groups: [] },
+    { slide: 6, fields: [], groups: ['credit_score_pills'] },
+    { slide: 7, fields: [], groups: ['beds_needed_pills'] },
+  ];
+  for (const check of checks) {
+    if (!validateFields(check.fields, check.groups)) {
+      if (cur !== check.slide) goTo(check.slide, check.slide > cur ? 'right' : 'left');
+      return false;
+    }
+  }
+  return true;
 }
 
 function buildSummary() {
@@ -186,6 +248,7 @@ async function flushQueue() {
 
 async function submitLead() {
   if (isSubmitting) return;
+  if (!validateEntireQuestionnaire()) return;
   isSubmitting = true;
   const btn = document.getElementById('submitBtn');
   const errEl = document.getElementById('submitErr');
@@ -219,6 +282,9 @@ async function submitLead() {
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
+  const birthdate = document.getElementById('date_of_birth');
+  if (birthdate) birthdate.max = todayMinusYears(17);
+
   flushQueue();
   window.addEventListener('online', flushQueue);
   window.addEventListener('focus', () => {

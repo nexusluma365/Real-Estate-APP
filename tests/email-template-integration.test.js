@@ -29,6 +29,9 @@ assert.match(appsScript, /\/rentready-emails\/guide-ready-email\.html/);
 assert.match(appsScript, /htmlBody/);
 
 assert.match(worker, /\/rentready-emails\/guide-ready-email\.html/);
+assert.match(worker, /\/rentready-emails\/welcome-email\.html/);
+assert.match(worker, /\/send-welcome/);
+assert.match(worker, /paid10 !== true/);
 assert.doesNotMatch(worker, /<p>\$\{greeting\}<\/p>/);
 
 console.log('email template integration test passed');

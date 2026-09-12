@@ -95,6 +95,11 @@ html, body { min-height: 100%; font-family: var(--font); background: var(--off-w
 .field-group { display: grid; gap: 18px; margin-bottom: 32px; }
 .field-group.c2 { grid-template-columns: 1fr 1fr; }
 .field { display: flex; flex-direction: column; gap: 8px; }
+.field-group.c2 .birthdate-field {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(100%, 560px);
+}
 label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number] {
   width: 100%; padding: 15px 18px;
@@ -106,6 +111,7 @@ input[type=text], input[type=email], input[type=tel], input[type=date], input[ty
 input:focus { border-color: var(--green); background: #fff; box-shadow: 0 0 0 4px rgba(26,71,49,0.09); }
 input::placeholder { color: var(--muted-lt); }
 input.invalid { border-color: #B03030 !important; }
+.centered-date { text-align: center; }
 
 /* PILLS */
 .pills { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 10px; margin-bottom: 32px; }
@@ -122,6 +128,7 @@ input.invalid { border-color: #B03030 !important; }
 .pill:hover svg { stroke: var(--green); }
 .pill.selected { border-color: var(--green); background: rgba(26,71,49,0.08); }
 .pill.selected svg { stroke: var(--green-accent); }
+.pills.invalid .pill { border-color: rgba(176,48,48,0.64); }
 
 /* RANGE */
 .range-num { font-size: 38px; font-weight: 300; letter-spacing: -1.5px; color: var(--green); margin-bottom: 13px; }

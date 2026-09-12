@@ -73,9 +73,9 @@
         <div class="title">What's your <strong>name?</strong></div>
         <div class="subtitle">Let's start with the basics so we can personalise your experience.</div>
         <div class="field-group c2">
-          <div class="field"><label>First Name</label><input type="text" id="first_name" placeholder="Jane" autocomplete="given-name"></div>
-          <div class="field"><label>Last Name</label><input type="text" id="last_name" placeholder="Smith" autocomplete="family-name"></div>
-          <div class="field"><label>Date of Birth</label><input type="date" id="date_of_birth"></div>
+          <div class="field"><label>First Name</label><input type="text" id="first_name" placeholder="Jane" autocomplete="given-name" required></div>
+          <div class="field"><label>Last Name</label><input type="text" id="last_name" placeholder="Smith" autocomplete="family-name" required></div>
+          <div class="field birthdate-field"><label>Date of Birth</label><input type="date" id="date_of_birth" class="centered-date" required></div>
         </div>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(0,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
@@ -89,8 +89,8 @@
         <div class="title">How should we <strong>reach you?</strong></div>
         <div class="subtitle">We'll only use this to send your matched results — no spam, ever.</div>
         <div class="field-group">
-          <div class="field"><label>Email Address</label><input type="email" id="email" placeholder="jane@example.com" autocomplete="email"></div>
-          <div class="field"><label>Phone Number</label><input type="tel" id="phone" placeholder="+1 (555) 000-0000" autocomplete="tel"></div>
+          <div class="field"><label>Email Address</label><input type="email" id="email" placeholder="jane@example.com" autocomplete="email" required></div>
+          <div class="field"><label>Phone Number</label><input type="tel" id="phone" placeholder="+1 (555) 000-0000" autocomplete="tel" required></div>
         </div>
         <div class="eyebrow" style="margin-top:0;margin-bottom:12px;">Preferred Contact Method</div>
         <div class="pills" id="contact_method_pills">
@@ -101,7 +101,7 @@
         </div>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(1,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="validateAndNext(3,['email','phone'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(3,['email','phone'],['contact_method_pills'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
@@ -119,11 +119,11 @@
           <div class="pill" data-val="flexible" onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-flag"/></svg> Flexible</div>
         </div>
         <div class="field-group" style="margin-top:4px;">
-          <div class="field"><label>Preferred City / Area</label><input type="text" id="preferred_city" placeholder="e.g. Austin, TX or Downtown Miami"></div>
+          <div class="field"><label>Preferred City / Area</label><input type="text" id="preferred_city" placeholder="e.g. Austin, TX or Downtown Miami" required></div>
         </div>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(2,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="validateAndNext(4,['preferred_city'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(4,['preferred_city'],['move_timeline_pills'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
@@ -144,7 +144,7 @@
         </div>
         <div class="btn-row" style="margin-top:4px;">
           <button class="btn-back" onclick="goTo(3,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="goTo(5,'right')">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(5,[],['move_reason_pills'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
@@ -155,16 +155,16 @@
         <div class="subtitle">Your financial details are encrypted and never shared without your consent.</div>
         <label style="display:block;margin-bottom:10px;">Annual Household Income</label>
         <div class="range-num"><span class="acc">$</span><span id="v-income">75,000</span></div>
-        <input type="range" id="annual_income" min="20000" max="500000" step="5000" value="75000" oninput="rng('annual_income','v-income',v=>'$'+N(v))">
+        <input type="range" id="annual_income" min="20000" max="500000" step="5000" value="75000" oninput="rng('annual_income','v-income',v=>'$'+N(v))" required>
         <label style="display:block;margin-bottom:10px;">Monthly Rent Budget</label>
         <div class="range-num"><span class="acc">$</span><span id="v-rent">2,000</span><span class="sfx">/mo</span></div>
-        <input type="range" id="rent_budget" min="500" max="15000" step="100" value="2000" oninput="rng('rent_budget','v-rent',v=>'$'+N(v))">
+        <input type="range" id="rent_budget" min="500" max="15000" step="100" value="2000" oninput="rng('rent_budget','v-rent',v=>'$'+N(v))" required>
         <label style="display:block;margin-bottom:10px;">Current Monthly Rent</label>
         <div class="range-num"><span class="acc">$</span><span id="v-cur">1,500</span><span class="sfx">/mo</span></div>
-        <input type="range" id="current_rent" min="0" max="15000" step="100" value="1500" oninput="rng('current_rent','v-cur',v=>v==0?'None':'$'+N(v))">
+        <input type="range" id="current_rent" min="0" max="15000" step="100" value="1500" oninput="rng('current_rent','v-cur',v=>v==0?'None':'$'+N(v))" required>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(4,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="goTo(6,'right')">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(6,['annual_income','rent_budget','current_rent'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
@@ -193,7 +193,7 @@
         </div>
         <div class="btn-row" style="margin-top:28px;">
           <button class="btn-back" onclick="goTo(5,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="goTo(7,'right')">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(7,[],['credit_score_pills'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
@@ -211,7 +211,7 @@
         </div>
         <div class="btn-row" style="margin-top:16px;">
           <button class="btn-back" onclick="goTo(6,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="goTo(8,'right')">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(8,[],['beds_needed_pills'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
@@ -246,5 +246,3 @@
     </div>
   </div>
 </div>
-
-

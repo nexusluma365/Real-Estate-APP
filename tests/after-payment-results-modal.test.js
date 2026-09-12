@@ -41,11 +41,23 @@ assert.match(html, /Your Pre-Qualification Results Are Ready\./);
 assert.match(html, /View Your Pre-Qualification ↓/);
 assert.match(html, /SEE MY MATCHING APARTMENTS/);
 assert.match(html, /It is not a property approval/);
+assert.match(html, /YOUR NEXT STEP/);
+assert.match(html, /Now, Let’s Find Apartments That Match Your Search\./);
+assert.match(html, /Choose the type of apartment you want to explore, and RentReady will use your preferences to show matching options in your selected area\./);
+assert.match(html, /Your RentReady pre-qualification is complete — now choose where you want to continue\./);
+assert.match(html, /Upscale communities with premium finishes, amenities, and locations\./);
+assert.match(html, /EXPLORE LUXURY APARTMENTS →/);
+assert.match(html, /Updated communities with modern features, comfort, and everyday convenience\./);
+assert.match(html, /EXPLORE MODERN APARTMENTS →/);
+assert.match(html, /Your RentReady pre-qualification stays with you as you continue your search\./);
 
 assert.match(css, /\.analysis-overlay/);
 assert.match(css, /\.analysis-overlay\.is-closing \.analysis-modal/);
 assert.match(css, /--modal-dx/);
 assert.match(css, /\.outlook:hover/);
+assert.match(css, /\.apartment-card:hover/);
+assert.match(css, /transform:translateY\(-4px\)/);
+assert.match(css, /\.apartment-card-cta/);
 assert.match(css, /@media \(max-width: 520px\)/);
 
 assert.match(js, /analysisState = \{/);

@@ -175,6 +175,22 @@ async function renderGuideEmail(env, { downloadUrl }) {
   });
 }
 
+async function renderWelcomeEmail(env, { resultsUrl }) {
+  const siteUrl = publicSiteUrl(env);
+  const template = await fetchTemplate(`${siteUrl}/rentready-emails/welcome-email.html`);
+  return renderTemplate(template, {
+    GET_STARTED_URL: resultsUrl || `${siteUrl}/after-payment-results/`,
+    HERO_IMAGE_URL: `${siteUrl}/hero-bg-optimized.jpg`,
+    INSTAGRAM_URL: siteUrl,
+    LINKEDIN_URL: siteUrl,
+    YOUTUBE_URL: siteUrl,
+    HELP_URL: siteUrl,
+    PRIVACY_URL: `${siteUrl}/privacy`,
+    UNSUBSCRIBE_URL: siteUrl,
+    YEAR: new Date().getFullYear(),
+  });
+}
+
 async function sendRenderedEmailWithResend(env, { to, subject, text, html }) {
   if (!env.RESEND_API_KEY || !env.FROM_EMAIL) {
     throw new Error('RESEND_API_KEY and FROM_EMAIL are required for email delivery.');
@@ -209,6 +225,17 @@ async function sendEmailWithResend(env, { to, firstName, subject, downloadUrl })
       subject,
       text: `${greeting}\n\nYour RentReady download is ready:\n${downloadUrl}\n\nThis secure link expires soon.`,
       html,
+  });
+}
+
+async function sendWelcomeWithResend(env, { to, firstName, resultsUrl }) {
+  const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
+  const html = await renderWelcomeEmail(env, { resultsUrl });
+  return sendRenderedEmailWithResend(env, {
+    to,
+    subject: 'Welcome to RentReady — You’re All Set',
+    text: `${greeting}\n\nWelcome to RentReady. Your pre-qualification results are ready:\n${resultsUrl}\n\nYou can return any time to continue your next step.`,
+    html,
   });
 }
 
@@ -248,6 +275,35 @@ async function handleSendDownload(request, env) {
   return json({ ok: true, emailed: true, to: email });
 }
 
+async function handleSendWelcome(request, env) {
+  if (request.method !== 'POST') return json({ ok: false, error: 'Method not allowed.' }, 405);
+  if (!authorized(request, env)) return json({ ok: false, error: 'Unauthorized.' }, 401);
+
+  const body = await request.json().catch(() => null);
+  const leadId = String((body && body.leadId) || '').trim();
+  if (!leadId) return json({ ok: false, error: 'Missing leadId.' }, 400);
+
+  const [lead, entitlements] = await Promise.all([getLead(env, leadId), getEntitlements(env, leadId)]);
+  if (!entitlements || entitlements.paid10 !== true) {
+    return json({ ok: false, error: 'Prescreen payment is not confirmed yet.' }, 403);
+  }
+
+  const email = normalizeEmail(lead && lead.email);
+  if (!isValidEmail(email)) {
+    return json({ ok: false, error: 'No valid email is on file for this lead.' }, 400);
+  }
+
+  const siteUrl = publicSiteUrl(env);
+  const resultsUrl = String((body && body.resultsUrl) || `${siteUrl}/after-payment-results/`).trim();
+  await sendWelcomeWithResend(env, {
+    to: email,
+    firstName: lead.first_name || '',
+    resultsUrl,
+  });
+
+  return json({ ok: true, emailed: true, to: email });
+}
+
 async function handleDownload(request, env) {
   if (request.method !== 'GET') return json({ ok: false, error: 'Method not allowed.' }, 405);
   const token = new URL(request.url).searchParams.get('token') || '';
@@ -280,6 +336,7 @@ export default {
     const path = new URL(request.url).pathname;
     try {
       if (path === '/send-download') return await handleSendDownload(request, env);
+      if (path === '/send-welcome') return await handleSendWelcome(request, env);
       if (path === '/download') return await handleDownload(request, env);
       return json({ ok: false, error: 'Not found.' }, 404);
     } catch (err) {
