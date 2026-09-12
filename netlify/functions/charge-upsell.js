@@ -8,6 +8,7 @@
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
 const { determineFocus } = require('./_lib/focus');
+const { sendDownloadEmail } = require('./_lib/download-email');
 
 const PRODUCTS = {
   gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
@@ -82,6 +83,13 @@ exports.handler = async (event) => {
     // can own more than one apartment category, so this checks membership
     // in the full set, not equality against the single most-recent one.
     if (entitlements[def.field] && (!def.category || (entitlements.purchasedCategories || []).includes(def.category))) {
+      if (def.category) {
+        try {
+          await sendDownloadEmail(leadId, def.category);
+        } catch (err) {
+          console.error('charge-upsell download email error', err);
+        }
+      }
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', alreadyOwned: true }) };
     }
 
@@ -140,6 +148,13 @@ exports.handler = async (event) => {
       } catch (err) {
         warning = 'Purchase succeeded, but access status could not be saved immediately.';
         console.error('charge-upsell entitlement patch error', err);
+      }
+      if (def.category) {
+        try {
+          await sendDownloadEmail(leadId, def.category);
+        } catch (err) {
+          console.error('charge-upsell download email error', err);
+        }
       }
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', paymentIntentId: pi.id, warning }) };
     }

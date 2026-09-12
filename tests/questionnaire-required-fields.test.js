@@ -39,6 +39,12 @@ assert.match(css, /\.field-group\.c2 \.birthdate-field/);
 assert.match(css, /justify-self: center/);
 assert.match(css, /\.centered-date \{ text-align: center; \}/);
 assert.match(css, /\.pills\.invalid \.pill/);
+assert.match(css, /\.slide \{[^}]*text-align: center/s);
+assert.match(css, /\.slide\.active \{ display: grid; align-content: center; \}/);
+assert.match(css, /\.field-group \{[^}]*max-width: 760px; margin: 0 auto 32px; text-align: left/s);
+assert.match(css, /\.btn-row \{[^}]*max-width: 760px; margin: 0 auto/s);
+assert.match(css, /@media \(max-width: 768px\) \{[\s\S]*\.card \{ border-radius: 0; border: none; min-height: 100dvh; box-shadow: none; \}/);
+assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.btn-row \{ flex-direction: column-reverse; \}/);
 
 assert.match(js, /function todayMinusYears\(years\)/);
 assert.match(js, /function isAtLeast17\(dateValue\)/);

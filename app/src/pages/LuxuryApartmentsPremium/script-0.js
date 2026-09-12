@@ -93,7 +93,6 @@
 
     async function continueToRealEstateList() {
       try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-success', category: APARTMENT_CATEGORY, city: selectedCity() }); } catch (_e) {}
-      try { await rrnEmailAsset('apartment-results', APARTMENT_CATEGORY); } catch (_e) {}
       window.location.href = realEstateListUrl();
     }
 

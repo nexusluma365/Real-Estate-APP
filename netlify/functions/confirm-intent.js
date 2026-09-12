@@ -9,6 +9,7 @@
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, patchEntitlements } = require('./_lib/store');
 const { sendWelcomeEmail } = require('./_lib/welcome-email');
+const { sendDownloadEmail } = require('./_lib/download-email');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -87,6 +88,13 @@ exports.handler = async (event) => {
           await sendWelcomeEmail(leadId);
         } catch (err) {
           console.error('confirm-intent welcome email error', err);
+        }
+      }
+      if (product === 'modern' || product === 'luxury') {
+        try {
+          await sendDownloadEmail(leadId, product);
+        } catch (err) {
+          console.error('confirm-intent download email error', err);
         }
       }
 

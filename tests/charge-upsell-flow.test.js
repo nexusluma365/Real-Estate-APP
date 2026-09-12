@@ -1,14 +1,16 @@
 const assert = require('assert');
 
-async function loadHandler({ entitlements, prescreenIntent, upsellIntent, patchEntitlements }) {
+async function loadHandler({ entitlements, prescreenIntent, upsellIntent, upsellError, patchEntitlements, sendDownloadEmail }) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const focusPath = require.resolve('../netlify/functions/_lib/focus');
+  const downloadEmailPath = require.resolve('../netlify/functions/_lib/download-email');
   const fnPath = require.resolve('../netlify/functions/charge-upsell');
   delete require.cache[fnPath];
 
   const retrieveCalls = [];
   const createCalls = [];
+  const downloadEmailCalls = [];
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -23,6 +25,7 @@ async function loadHandler({ entitlements, prescreenIntent, upsellIntent, patchE
           },
           create: async (payload) => {
             createCalls.push(payload);
+            if (upsellError) throw upsellError;
             return upsellIntent;
           },
         },
@@ -47,14 +50,27 @@ async function loadHandler({ entitlements, prescreenIntent, upsellIntent, patchE
     loaded: true,
     exports: { determineFocus: () => 'income' },
   };
+  require.cache[downloadEmailPath] = {
+    id: downloadEmailPath,
+    filename: downloadEmailPath,
+    loaded: true,
+    exports: {
+      sendDownloadEmail:
+        sendDownloadEmail ||
+        (async (leadId, product) => {
+          downloadEmailCalls.push({ leadId, product });
+          return true;
+        }),
+    },
+  };
 
   const handler = require('../netlify/functions/charge-upsell').handler;
-  return { handler, retrieveCalls, createCalls };
+  return { handler, retrieveCalls, createCalls, downloadEmailCalls };
 }
 
 async function run() {
   const patchCalls = [];
-  const { handler, retrieveCalls, createCalls } = await loadHandler({
+  const { handler, retrieveCalls, createCalls, downloadEmailCalls } = await loadHandler({
     entitlements: {
       leadId: 'lead_123',
       paid10: false,
@@ -107,6 +123,7 @@ async function run() {
     paid27: true,
     addPurchasedCategory: 'modern',
   });
+  assert.deepEqual(downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
 
   const mismatch = await loadHandler({
     entitlements: {
@@ -169,6 +186,7 @@ async function run() {
   assert.equal(secondCategoryBody.alreadyOwned, undefined);
   assert.equal(secondCategory.createCalls.length, 1);
   assert.deepEqual(secondCategoryPatchCalls[0].patch, { paid27: true, addPurchasedCategory: 'luxury' });
+  assert.deepEqual(secondCategory.downloadEmailCalls, [{ leadId: 'lead_123', product: 'luxury' }]);
 
   // Already owning a category is a no-op success, not a second charge.
   const alreadyOwned = await loadHandler({
@@ -191,6 +209,31 @@ async function run() {
   assert.equal(alreadyOwnedRes.statusCode, 200);
   assert.equal(alreadyOwnedBody.alreadyOwned, true);
   assert.equal(alreadyOwned.createCalls.length, 0);
+  assert.deepEqual(alreadyOwned.downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
+
+  // A declined upsell must not send the download email.
+  const declineError = new Error('card declined');
+  declineError.code = 'card_declined';
+  const declined = await loadHandler({
+    entitlements: {
+      leadId: 'lead_123',
+      paid10: true,
+      paid27: false,
+      paid97: false,
+      purchasedCategories: [],
+      stripeCustomerId: 'cus_test',
+      defaultPaymentMethodId: 'pm_test',
+    },
+    upsellError: declineError,
+    patchEntitlements: async () => ({}),
+  });
+  const declinedRes = await declined.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', product: 'modern', idempotencyKey: 'idem_decline' }),
+  });
+  assert.equal(declinedRes.statusCode, 200);
+  assert.equal(JSON.parse(declinedRes.body).status, 'failed');
+  assert.deepEqual(declined.downloadEmailCalls, []);
 }
 
 run()

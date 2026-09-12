@@ -1,13 +1,15 @@
 const assert = require('assert');
 
-async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail }) {
+async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const welcomeEmailPath = require.resolve('../netlify/functions/_lib/welcome-email');
+  const downloadEmailPath = require.resolve('../netlify/functions/_lib/download-email');
   const fnPath = require.resolve('../netlify/functions/confirm-intent');
   delete require.cache[fnPath];
 
   const welcomeEmailCalls = [];
+  const downloadEmailCalls = [];
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -45,8 +47,21 @@ async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, e
         }),
     },
   };
+  require.cache[downloadEmailPath] = {
+    id: downloadEmailPath,
+    filename: downloadEmailPath,
+    loaded: true,
+    exports: {
+      sendDownloadEmail:
+        sendDownloadEmail ||
+        (async (leadId, product) => {
+          downloadEmailCalls.push({ leadId, product });
+          return true;
+        }),
+    },
+  };
 
-  return { handler: require('../netlify/functions/confirm-intent').handler, welcomeEmailCalls };
+  return { handler: require('../netlify/functions/confirm-intent').handler, welcomeEmailCalls, downloadEmailCalls };
 }
 
 async function run() {
@@ -135,6 +150,21 @@ async function run() {
     body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'gameplan' }),
   });
   assert.deepEqual(upsell.welcomeEmailCalls, []);
+  assert.deepEqual(upsell.downloadEmailCalls, []);
+
+  // A Modern/Luxury payment confirmed after required bank authentication
+  // must still send the guide download email from the server-side success path.
+  const apartmentUpsell = await loadHandler({
+    paymentIntent: { ...succeededIntent, metadata: { leadId: 'lead_123' } },
+    entitlements: { paid10: true, purchasedCategories: [] },
+    patchEntitlements: async () => ({ paid27: true, purchasedCategories: ['luxury'] }),
+  });
+  await apartmentUpsell.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'luxury' }),
+  });
+  assert.deepEqual(apartmentUpsell.welcomeEmailCalls, []);
+  assert.deepEqual(apartmentUpsell.downloadEmailCalls, [{ leadId: 'lead_123', product: 'luxury' }]);
 
   // A welcome-email failure must not fail the payment confirmation itself.
   const emailFails = await loadHandler({
