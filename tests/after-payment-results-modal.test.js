@@ -36,6 +36,9 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
 
 assert.match(html, /RENTREADY PRE-QUALIFICATION RESULT/i);
 assert.match(html, /WHAT YOUR RATING MEANS/i);
+assert.match(html, /Your RentReady review is complete/i);
+assert.match(html, /Your Pre-Qualification Results Are Ready\./);
+assert.match(html, /View Your Pre-Qualification ↓/);
 assert.match(html, /SEE MY MATCHING APARTMENTS/);
 assert.match(html, /It is not a property approval/);
 
@@ -56,7 +59,8 @@ assert.match(js, /function openAnalysisModal/);
 assert.match(js, /function closeAnalysisModal/);
 assert.match(js, /function setModalTransformVars/);
 assert.match(js, /function renderRatingLegend/);
-assert.match(js, /\/real-estate-list\.html\?/);
+assert.match(html, /href="#briefResult" data-target="briefResult"/);
+assert.match(js, /closeAnalysisModal\(\)/);
 assert.match(js, /HIGHLY FAVORABLE/);
 assert.match(js, /FAVORABLE/);
 assert.match(js, /PROMISING/);

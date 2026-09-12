@@ -539,7 +539,7 @@
     if (depositMeterLabel) depositMeterLabel.textContent = rentReadyProfile.depositLabel + ' · ' + rentReadyProfile.depositStrength + ' / 100';
     if (depositMeterFill) depositMeterFill.style.setProperty('--deposit-score', rentReadyProfile.depositStrength + '%');
     if (modalDepositSummary) modalDepositSummary.textContent = rentReadyProfile.depositSummary;
-    if (matchingApartmentsCta) matchingApartmentsCta.href = listingUrl();
+    if (matchingApartmentsCta) matchingApartmentsCta.href = '#briefResult';
 
     renderOutlookBars();
     renderFactorBreakdown();
@@ -1013,7 +1013,13 @@
       var scrollButton = e.target.closest('[data-target]');
       if (scrollButton){
         var target = document.getElementById(scrollButton.dataset.target);
-        if (target) target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+        if (target) {
+          e.preventDefault();
+          if (analysisState.reportOpen) closeAnalysisModal();
+          setTimeout(function(){
+            target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+          }, analysisState.reportOpen && !reduced ? 470 : 0);
+        }
       }
       var copyButton = e.target.closest('[data-copy]');
       if (copyButton) copyText(copyButton.dataset.copy, copyButton);
