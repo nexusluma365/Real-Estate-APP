@@ -213,16 +213,6 @@
     return String(value || '').toLowerCase().replace(/\b[a-z]/g, function(letter){ return letter.toUpperCase(); });
   }
 
-  function listingUrl(){
-    var answers = readAnswers();
-    var category = (answers.purchased_category || answers.category || '').toLowerCase();
-    if (category !== 'modern') category = 'luxury';
-    var params = new URLSearchParams({ category: category, city: answers.preferred_city || answers.city || 'your selected area' });
-    var leadId = answers.lead_id || (window.rrnLeadId ? rrnLeadId() : '');
-    if (leadId) params.set('leadId', leadId);
-    return '/real-estate-list.html?' + params.toString();
-  }
-
   function barColor(level){
     return level === 'risk' ? '#d56b4f' : level === 'warn' ? '#c8932c' : '#7dd7a0';
   }
@@ -984,7 +974,6 @@
 
     buildBriefResult();
     renderReport();
-
     if (analysisClose) analysisClose.addEventListener('click', closeAnalysisModal);
     if (outlookMini) {
       outlookMini.addEventListener('click', function(){
