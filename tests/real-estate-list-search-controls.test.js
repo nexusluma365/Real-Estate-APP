@@ -42,5 +42,9 @@ assert.match(js, /function hideProperty\(id\)/);
 assert.match(js, /function shareProperty\(id\)/);
 assert.match(js, /onclick="shareProperty\('\$\{apt\.id\}'\)"/);
 assert.match(js, /onclick="hideProperty\('\$\{apt\.id\}'\)"/);
+assert.match(js, /Call for availability:/);
+assert.doesNotMatch(js, /<h4>Worth knowing<\/h4>/);
+assert.doesNotMatch(js, /modal-tradeoff/);
+assert.doesNotMatch(js, /Google Places does not publish live unit availability/);
 
 console.log('real estate list search controls test passed');

@@ -357,9 +357,9 @@ function photoHtml(apt){
 }
 function callLineHtml(apt){
   if(apt.phone){
-    return `<div class="call-line">${ICONS.phone}<span>Call to schedule a tour:</span><a href="tel:${apt.phone}">${apt.phoneDisplay}</a></div>`;
+    return `<div class="call-line">${ICONS.phone}<span>Call for availability:</span><a href="tel:${apt.phone}">${apt.phoneDisplay}</a></div>`;
   }
-  return `<div class="no-phone">No phone listed — visit the property website to schedule a tour</div>`;
+  return `<div class="no-phone">No phone listed — visit the property website to check availability</div>`;
 }
 function actionButtonsHtml(apt){
   const secondary = apt.phone
@@ -638,8 +638,8 @@ function openPropertyModal(id){
     ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>`
     : `<span class="btn btn-secondary" style="opacity:.5; pointer-events:none;">${ICONS.globe} No website listed</span>`;
   const callBlock = apt.phone
-    ? `<div class="modal-call">${ICONS.phone} <span>Call to schedule a tour: <a class="num" href="tel:${apt.phone}">${apt.phoneDisplay}</a></span></div>`
-    : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to schedule a tour</span></div>`;
+    ? `<div class="modal-call">${ICONS.phone} <span>Call for availability: <a class="num" href="tel:${apt.phone}">${apt.phoneDisplay}</a></span></div>`
+    : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to check availability</span></div>`;
 
   document.getElementById("modalContent").innerHTML = `
     <div class="modal-photo">
@@ -654,7 +654,6 @@ function openPropertyModal(id){
       <div class="modal-section"><h4>Location</h4><p>${rr.locationSummary}</p></div>
       <div class="modal-section"><h4>Best for</h4><p>${rr.bestFor}</p></div>
       <div class="modal-section"><h4>Amenities</h4><div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div></div>
-      <div class="modal-section"><h4>Worth knowing</h4><div class="modal-tradeoff">${ICONS.warn} ${rr.potentialTradeoff}</div></div>
 
       ${callBlock}
       <div class="modal-actions">

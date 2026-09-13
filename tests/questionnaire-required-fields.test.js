@@ -47,6 +47,8 @@ assert.match(css, /\.btn-row \{[^}]*max-width: 540px; margin: 0 auto/s);
 assert.match(css, /@media \(max-width: 768px\) \{[\s\S]*\.shell \{ display: block; padding: 18px; \}/);
 assert.match(css, /@media \(max-width: 768px\) \{[\s\S]*\.card \{ width: 100%; max-width: 100%;[^}]*border-radius: 30px/s);
 assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.btn-row \{ flex-direction: column-reverse; \}/);
+assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.card \{ width: min\(100%, calc\(100vw - 24px\)\); max-width: none; \}/);
+assert.doesNotMatch(css, /max-width: 300px/);
 assert.ok(html.includes('Start your <strong>rental readiness</strong> check.'), 'intro title should be compact');
 assert.ok(/data-val="1_month"[\s\S]*1 Month<\/div>/.test(html), 'timeline option should be brief');
 assert.ok(/data-val="phone"[\s\S]*Call<\/div>/.test(html), 'contact option should be brief');

@@ -230,8 +230,8 @@ input[type=range]:focus { box-shadow: none; }
 }
 
 @media (max-width: 620px) {
-  .shell { padding: 18px 0; }
-  .card { width: calc(100vw - 72px); max-width: 300px; }
+  .shell { padding: 14px 12px; }
+  .card { width: min(100%, calc(100vw - 24px)); max-width: none; }
   .card-header { padding-left: 22px; padding-right: 22px; }
   .viewport { padding-left: 18px; padding-right: 18px; }
   .field-group.c2 { grid-template-columns: 1fr; }
@@ -248,11 +248,11 @@ input[type=range]:focus { box-shadow: none; }
   #slide-8 .summary { padding: 14px 15px; margin-bottom: 18px; }
   #slide-8 .summary-row { font-size: 12px; gap: 10px; }
   #slide-8 .summary-row .val { max-width: 60%; }
-  #slide-0 .title { max-width: 260px; }
-  #slide-0 .subtitle { max-width: 250px; }
-  #slide-0 .trust { max-width: 300px; margin-left: auto; margin-right: auto; gap: 10px 14px; }
+  #slide-0 .title { max-width: 320px; }
+  #slide-0 .subtitle { max-width: 320px; }
+  #slide-0 .trust { max-width: 100%; margin-left: auto; margin-right: auto; gap: 10px 14px; }
   #slide-0 .trust-item { font-size: 11px; }
-  #slide-0 .btn-row { max-width: 240px; }
+  #slide-0 .btn-row { max-width: 320px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
