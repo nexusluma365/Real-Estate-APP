@@ -191,7 +191,9 @@ function currentCategory(){
   return (params.get("category") || "luxury").toLowerCase() === "modern" ? "modern" : "luxury";
 }
 
-async function fetchWithTimeout(url, options, timeoutMs = 22000){
+const APARTMENT_RESULTS_TIMEOUT_MS = 52000;
+
+async function fetchWithTimeout(url, options, timeoutMs = APARTMENT_RESULTS_TIMEOUT_MS){
   const controller = new AbortController();
   const timeout = setTimeout(()=> controller.abort(), timeoutMs);
   try {
@@ -252,7 +254,7 @@ async function loadVerifiedApartmentResults(){
     nearbyAreas = [];
     serverResults = [];
     serverLoadMessage = err.name === "AbortError"
-      ? "Apartment results are taking longer than expected. Try updating the city and state, or refresh in a moment."
+      ? "Apartment results are taking longer than expected. Refresh in a moment to reload your verified matches."
       : err.message || "Verified apartment results could not be loaded right now.";
   }
 }
@@ -355,7 +357,7 @@ function photoHtml(apt){
 }
 function callLineHtml(apt){
   if(apt.phone){
-    return `<div class="call-line">${ICONS.phone} Call to schedule a tour: <a href="tel:${apt.phone}">${apt.phoneDisplay}</a></div>`;
+    return `<div class="call-line">${ICONS.phone}<span>Call to schedule a tour:</span><a href="tel:${apt.phone}">${apt.phoneDisplay}</a></div>`;
   }
   return `<div class="no-phone">No phone listed — visit the property website to schedule a tour</div>`;
 }
@@ -377,9 +379,9 @@ function listingHtml(result, index, isTop){
     <div class="listing-photo">
       ${photoHtml(apt)}
       <div class="photo-actions">
-        <button class="icon-btn" type="button" aria-label="Share ${apt.name}">${ICONS.share}</button>
-        <button class="icon-btn" type="button" aria-label="Hide ${apt.name}">${ICONS.hide}</button>
-        <button class="icon-btn" type="button" aria-label="More options for ${apt.name}">${ICONS.more}</button>
+        <button class="icon-btn" type="button" onclick="shareProperty('${apt.id}')" aria-label="Share ${apt.name}">${ICONS.share}</button>
+        <button class="icon-btn" type="button" onclick="hideProperty('${apt.id}')" aria-label="Hide ${apt.name}">${ICONS.hide}</button>
+        <button class="icon-btn" type="button" onclick="openPropertyModal('${apt.id}')" aria-label="More options for ${apt.name}">${ICONS.more}</button>
       </div>
       <span class="status-pill"><span class="status-dot"></span> Verified community</span>
     </div>
@@ -422,7 +424,7 @@ function renderHeroAndSummary(){
       : "Enter a city and state to search verified apartment communities.";
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
     ? `Explore apartment communities near ${criteria.city}.`
-    : `Update your city and state to search another U.S. market.`;
+    : `Nearby options will appear here when verified results are available.`;
 }
 
 function levelWord(v){ return v >= 80 ? "Excellent" : v >= 60 ? "Strong" : v >= 40 ? "Good" : "Limited"; }
@@ -469,7 +471,7 @@ function renderResults(){
 function renderAreaPills(){
   const areas = nearbyAreas.length ? nearbyAreas : [];
   document.getElementById("areaPills").innerHTML = areas.map(a => `
-    <button class="area-pill ${a===criteria.area ? "active": ""}" onclick="selectArea(${jsString(a)})">${htmlEscape(a)}</button>
+    <button class="area-pill ${a===criteria.area ? "active": ""}" type="button" ${a===criteria.area ? 'disabled aria-pressed="true"' : 'aria-pressed="false"'} onclick="selectArea(${jsString(a)})">${htmlEscape(a)}</button>
   `).join("");
 }
 function renderAll(){
@@ -523,8 +525,34 @@ function runLoadingSequence(onDone, overlayMode){
   }, step || 10);
 }
 
-function selectArea(area){ criteria.area = area; runLoadingSequence(refreshResults, true); }
-document.getElementById("emptyExpandBtn").addEventListener("click", ()=>{ criteria.area = criteria.city; runLoadingSequence(refreshResults, true); });
+function selectArea(area){
+  if (area === criteria.area) return;
+  criteria.area = area;
+  document.getElementById("listSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  runLoadingSequence(refreshResults, true);
+}
+document.getElementById("emptyRefreshBtn").addEventListener("click", ()=>{ runLoadingSequence(refreshResults, true); });
+
+function hideProperty(id){
+  currentResults = currentResults.filter(r => r.verified.id !== id);
+  renderMatchStrip();
+  renderResults();
+}
+
+async function shareProperty(id){
+  const result = currentResults.find(r => r.verified.id === id);
+  if (!result) return;
+  const apt = result.verified;
+  const url = apt.website || apt.mapsUrl || window.location.href;
+  const text = `${apt.name} - ${apt.address || apt.area || criteria.city}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: apt.name, text, url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+    }
+  } catch (_e) {}
+}
 
 // The purchase pages already try to email these results automatically right
 // after checkout, but that happens during a page redirect with no visible
@@ -611,7 +639,7 @@ function openPropertyModal(id){
     : `<span class="btn btn-secondary" style="opacity:.5; pointer-events:none;">${ICONS.globe} No website listed</span>`;
   const callBlock = apt.phone
     ? `<div class="modal-call">${ICONS.phone} <span>Call to schedule a tour: <a class="num" href="tel:${apt.phone}">${apt.phoneDisplay}</a></span></div>`
-    : `<div class="modal-call" style="background:var(--bg-soft);">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to schedule a tour</span></div>`;
+    : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to schedule a tour</span></div>`;
 
   document.getElementById("modalContent").innerHTML = `
     <div class="modal-photo">

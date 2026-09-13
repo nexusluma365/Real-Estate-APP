@@ -12,10 +12,13 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/script-
   'closePanelBtn',
   'applySearchBtn',
   'emptyAdjustBtn',
+  'emptyExpandBtn',
   'fArea',
   'fStyle',
   'Update my search',
   'Adjust my search',
+  'Expand search area',
+  'Update your city and state',
 ].forEach((text) => {
   assert.doesNotMatch(html, new RegExp(text), `${text} should not be rendered on the apartment listing page`);
 });
@@ -25,6 +28,7 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/script-
   'panelOverlay',
   'applySearchBtn',
   'emptyAdjustBtn',
+  'emptyExpandBtn',
   'fArea',
   'fStyle',
 ].forEach((text) => {
@@ -32,5 +36,11 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/script-
 });
 
 assert.match(js, /statuses:\s*\["upsell-success",\s*"upsell-declined"\]/);
+assert.match(js, /APARTMENT_RESULTS_TIMEOUT_MS\s*=\s*52000/);
+assert.match(html, /Reload verified matches/);
+assert.match(js, /function hideProperty\(id\)/);
+assert.match(js, /function shareProperty\(id\)/);
+assert.match(js, /onclick="shareProperty\('\$\{apt\.id\}'\)"/);
+assert.match(js, /onclick="hideProperty\('\$\{apt\.id\}'\)"/);
 
 console.log('real estate list search controls test passed');

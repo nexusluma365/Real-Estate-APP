@@ -22,6 +22,8 @@ const VALID_STATE_CODES = new Set([
   'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
 ]);
+const GOOGLE_FETCH_TIMEOUT_MS = Number(process.env.GOOGLE_FETCH_TIMEOUT_MS || 7000);
+const OPENAI_RANK_TIMEOUT_MS = Number(process.env.OPENAI_RANK_TIMEOUT_MS || 7000);
 
 class GooglePlacesError extends Error {
   constructor(message, status) {
@@ -232,7 +234,7 @@ async function fetchGooglePlaces(criteria) {
     // the right category.
     url.searchParams.set('key', key);
 
-    const resp = await fetch(url);
+    const resp = await fetchWithTimeout(url, undefined, GOOGLE_FETCH_TIMEOUT_MS);
     const data = await resp.json().catch(() => ({}));
     assertGooglePlacesResponse(data);
     const results = Array.isArray(data.results) ? data.results : [];
@@ -306,7 +308,7 @@ async function fetchPlaceDetails(placeId, key) {
   url.searchParams.set('key', key);
 
   try {
-    const resp = await fetch(url);
+    const resp = await fetchWithTimeout(url, undefined, GOOGLE_FETCH_TIMEOUT_MS);
     const data = await resp.json().catch(() => ({}));
     return data && data.result ? data.result : null;
   } catch (err) {
@@ -359,7 +361,7 @@ async function rankWithOpenAI(properties, criteria) {
   if (!key) return defaultRank(properties, criteria);
 
   try {
-    const resp = await fetch('https://api.openai.com/v1/responses', {
+    const resp = await fetchWithTimeout('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({
@@ -414,7 +416,7 @@ async function rankWithOpenAI(properties, criteria) {
           },
         },
       }),
-    });
+    }, OPENAI_RANK_TIMEOUT_MS);
 
     const data = await resp.json();
     const text = data.output_text || (((data.output || [])[0] || {}).content || [])[0]?.text;
@@ -426,6 +428,17 @@ async function rankWithOpenAI(properties, criteria) {
   } catch (err) {
     console.error('OpenAI ranking fallback', err.message || err);
     return defaultRank(properties, criteria);
+  }
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  if (!timeoutMs || timeoutMs <= 0) return fetch(url, options);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...(options || {}), signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
