@@ -554,39 +554,6 @@ async function shareProperty(id){
   } catch (_e) {}
 }
 
-// The purchase pages already try to email these results automatically right
-// after checkout, but that happens during a page redirect with no visible
-// error if it fails (misconfigured delivery, a bounced address, etc.). This
-// button gives the customer a way to see that it happened and retry it
-// themselves instead of just never getting the email with no explanation.
-const resendEmailBtn = document.getElementById("resendEmailBtn");
-if (resendEmailBtn) {
-  resendEmailBtn.addEventListener("click", async () => {
-    if (resendEmailBtn.disabled) return;
-    const answers = readAnswers();
-    const params = new URLSearchParams(window.location.search);
-    const leadId = answers.lead_id || params.get("leadId") || (window.rrnLeadId ? rrnLeadId() : "");
-    if (!leadId || !window.rrnEmailAsset) return;
-    const original = resendEmailBtn.textContent;
-    resendEmailBtn.disabled = true;
-    resendEmailBtn.textContent = "Sending…";
-    try {
-      const ok = await rrnEmailAsset("apartment-results", currentCategory());
-      resendEmailBtn.textContent = ok ? "Sent ✓" : "Could not send — try again";
-      if (!ok) resendEmailBtn.disabled = false;
-    } catch (_e) {
-      resendEmailBtn.textContent = "Could not send — try again";
-      resendEmailBtn.disabled = false;
-    }
-    if (resendEmailBtn.disabled) {
-      setTimeout(() => {
-        resendEmailBtn.disabled = false;
-        resendEmailBtn.textContent = original;
-      }, 4000);
-    }
-  });
-}
-
 const modalOverlay = document.getElementById("modalOverlay");
 const legalModalOverlay = document.getElementById("legalModalOverlay");
 const legalModalTitle = document.getElementById("legalModalTitle");
@@ -668,8 +635,23 @@ function openPropertyModal(id){
 function closePropertyModal(){ modalOverlay.classList.remove("open"); }
 modalOverlay.addEventListener("click", e => { if(e.target === modalOverlay) closePropertyModal(); });
 
+function setupQuestionnaireBackTarget(){
+  if (!window.history || window.__rrnListingBackTargetReady) return;
+  window.__rrnListingBackTargetReady = true;
+  try {
+    window.history.replaceState({ ...(window.history.state || {}), rrnListingPage: true }, "", window.location.href);
+    window.history.pushState({ rrnListingBackGuard: true }, "", window.location.href);
+    window.addEventListener("popstate", (event) => {
+      if (event.state && event.state.rrnListingPage) {
+        window.location.replace("/");
+      }
+    });
+  } catch (_e) {}
+}
+
 window.addEventListener("load", async ()=>{
   if (!(await requireListingAccess())) return;
+  setupQuestionnaireBackTarget();
   applyAnswerCriteria();
   await loadVerifiedApartmentResults();
   runLoadingSequence(renderAll, false);
