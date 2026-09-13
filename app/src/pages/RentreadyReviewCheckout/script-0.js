@@ -6,6 +6,7 @@
   var RESULTS_URL = '/after-payment-results/';
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
+  var PAYMENT_DECLINED_MESSAGE = 'Your Payment Did not go through Please Try again';
   var stripe = null;
   var elements = null;
   var cardNumber = null;
@@ -202,7 +203,11 @@
           },
         }
       );
-      if (result.error) throw new Error(result.error.message || 'Payment was not completed.');
+      if (result.error) {
+        var declineError = new Error(PAYMENT_DECLINED_MESSAGE);
+        declineError.isPaymentDecline = true;
+        throw declineError;
+      }
 
       var stripeSucceeded = result.paymentIntent && result.paymentIntent.status === 'succeeded';
       rememberPrescreenPaymentIntent(result.paymentIntent ? result.paymentIntent.id : paymentIntentId);
@@ -227,7 +232,7 @@
     } catch (error) {
       btn.disabled = false;
       btn.innerHTML = 'GET PRE-QUALIFIED &amp; CONTINUE <span>→</span>';
-      showError(error.message);
+      showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);
     }
   }
 
