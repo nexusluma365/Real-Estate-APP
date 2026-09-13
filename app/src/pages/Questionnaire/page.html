@@ -53,13 +53,13 @@
       <!-- 0: WELCOME -->
       <div class="slide active" id="slide-0">
         <div class="hero-icon"><svg style="stroke:#fff"><use href="#i-home"/></svg></div>
-        <div class="eyebrow">Deposit-Free Leasing</div>
-        <div class="title">Looking to move soon?<br><strong>Check your eligibility</strong><br>for deposit-free leasing.</div>
-        <div class="subtitle">Answer a few quick questions and find out if you qualify for a deposit-free lease — no hard inquiry, no commitment. Takes about 2 minutes.</div>
+        <div class="eyebrow">RentReady Review</div>
+        <div class="title">Start your <strong>rental readiness</strong> check.</div>
+        <div class="subtitle">Answer a few quick questions to see where you stand before you tour or apply.</div>
         <div class="trust">
           <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-shield"/></svg> 100% Secure</div>
-          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-check"/></svg> No Hard Inquiry</div>
-          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-zap"/></svg> Instant Results</div>
+          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-check"/></svg> No Inquiry</div>
+          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-zap"/></svg> Fast Results</div>
         </div>
         <div class="btn-row">
           <span></span>
@@ -71,7 +71,7 @@
       <div class="slide" id="slide-1">
         <div class="eyebrow">Step 1 of 8 · About You</div>
         <div class="title">What's your <strong>name?</strong></div>
-        <div class="subtitle">Let's start with the basics so we can personalise your experience.</div>
+        <div class="subtitle">Start with the basics so we can personalize your review.</div>
         <div class="field-group c2">
           <div class="field"><label>First Name</label><input type="text" id="first_name" placeholder="Jane" autocomplete="given-name" required></div>
           <div class="field"><label>Last Name</label><input type="text" id="last_name" placeholder="Smith" autocomplete="family-name" required></div>
@@ -87,7 +87,7 @@
       <div class="slide" id="slide-2">
         <div class="eyebrow">Step 2 of 8 · Contact</div>
         <div class="title">How should we <strong>reach you?</strong></div>
-        <div class="subtitle">We'll only use this to send your matched results — no spam, ever.</div>
+        <div class="subtitle">We'll use this to send your results and updates.</div>
         <div class="field-group">
           <div class="field"><label>Email Address</label><input type="email" id="email" placeholder="jane@example.com" autocomplete="email" required></div>
           <div class="field"><label>Phone Number</label><input type="tel" id="phone" placeholder="+1 (555) 000-0000" autocomplete="tel" required></div>
@@ -95,8 +95,8 @@
         <div class="eyebrow" style="margin-top:0;margin-bottom:12px;">Preferred Contact Method</div>
         <div class="pills" id="contact_method_pills">
           <div class="pill" data-val="email"    onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-mail"/></svg> Email</div>
-          <div class="pill" data-val="phone"    onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-phone"/></svg> Phone Call</div>
-          <div class="pill" data-val="sms"      onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-msg"/></svg> Text / SMS</div>
+          <div class="pill" data-val="phone"    onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-phone"/></svg> Call</div>
+          <div class="pill" data-val="sms"      onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-msg"/></svg> Text</div>
           <div class="pill" data-val="whatsapp" onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-msg"/></svg> WhatsApp</div>
         </div>
         <div class="btn-row">
@@ -109,13 +109,13 @@
       <div class="slide" id="slide-3">
         <div class="eyebrow">Step 3 of 8 · Move Plans</div>
         <div class="title">When are you <strong>planning to move?</strong></div>
-        <div class="subtitle">Tell us your timeline and where you're heading.</div>
+        <div class="subtitle">Tell us your timeline and preferred area.</div>
         <div class="eyebrow" style="margin-top:0;margin-bottom:12px;">Move Timeline</div>
         <div class="pills" id="move_timeline_pills">
           <div class="pill" data-val="asap"     onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-zap"/></svg> ASAP</div>
-          <div class="pill" data-val="1_month"  onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-cal"/></svg> Within 1 Month</div>
-          <div class="pill" data-val="3_months" onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-clock"/></svg> 1 – 3 Months</div>
-          <div class="pill" data-val="6_months" onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-compass"/></svg> 3 – 6 Months</div>
+          <div class="pill" data-val="1_month"  onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-cal"/></svg> 1 Month</div>
+          <div class="pill" data-val="3_months" onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-clock"/></svg> 1-3 Months</div>
+          <div class="pill" data-val="6_months" onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-compass"/></svg> 3-6 Months</div>
           <div class="pill" data-val="flexible" onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-flag"/></svg> Flexible</div>
         </div>
         <div class="field-group" style="margin-top:4px;">
@@ -131,14 +131,14 @@
       <div class="slide" id="slide-4">
         <div class="eyebrow">Step 4 of 8 · Motivation</div>
         <div class="title">Why are you <strong>moving?</strong></div>
-        <div class="subtitle">This helps us surface the most relevant listings for your situation.</div>
+        <div class="subtitle">Choose the reason that best fits your move.</div>
         <div class="pills" id="move_reason_pills">
           <div class="pill" data-val="new_job"    onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-brief"/></svg> New Job</div>
-          <div class="pill" data-val="lifestyle"  onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-star"/></svg> Lifestyle Upgrade</div>
-          <div class="pill" data-val="family"     onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-users"/></svg> Family Change</div>
-          <div class="pill" data-val="school"     onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-book"/></svg> School / Study</div>
+          <div class="pill" data-val="lifestyle"  onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-star"/></svg> Upgrade</div>
+          <div class="pill" data-val="family"     onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-users"/></svg> Family</div>
+          <div class="pill" data-val="school"     onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-book"/></svg> School</div>
           <div class="pill" data-val="downsizing" onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-box"/></svg> Downsizing</div>
-          <div class="pill" data-val="upsizing"   onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-expand"/></svg> Need More Space</div>
+          <div class="pill" data-val="upsizing"   onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-expand"/></svg> More Space</div>
           <div class="pill" data-val="relocation" onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-globe"/></svg> Relocation</div>
           <div class="pill" data-val="other"      onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-bulb"/></svg> Other</div>
         </div>
@@ -152,7 +152,7 @@
       <div class="slide" id="slide-5">
         <div class="eyebrow">Step 5 of 8 · Financials</div>
         <div class="title">Let's talk <strong>numbers.</strong></div>
-        <div class="subtitle">Your financial details are encrypted and never shared without your consent.</div>
+        <div class="subtitle">These numbers help shape your readiness review.</div>
         <label style="display:block;margin-bottom:10px;">Annual Household Income</label>
         <div class="range-num"><span class="acc">$</span><span id="v-income">75,000</span></div>
         <input type="range" id="annual_income" min="20000" max="500000" step="5000" value="75000" oninput="rng('annual_income','v-income',v=>'$'+N(v))" required>
@@ -172,7 +172,7 @@
       <div class="slide" id="slide-6">
         <div class="eyebrow">Step 6 of 8 · Credit</div>
         <div class="title">What's your <strong>credit score</strong> range?</div>
-        <div class="subtitle">Select the band that best reflects your score. No hard inquiry performed.</div>
+        <div class="subtitle">Choose the range that best reflects your score.</div>
         <div class="score-bars">
           <div class="score-bar" style="height:24px;background:#A93226;" data-val="below_580" onclick="pickScore(this,'below_580')"></div>
           <div class="score-bar" style="height:29px;background:#C0773A;" data-val="580_619"   onclick="pickScore(this,'580_619')"></div>
@@ -183,12 +183,12 @@
           <div class="score-bar" style="height:50px;background:#1A4731;" data-val="800_plus"  onclick="pickScore(this,'800_plus')"></div>
         </div>
         <div class="pills" id="credit_score_pills" style="margin-bottom:0">
-          <div class="pill" data-val="below_580" onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>Below 580<br><small style="color:var(--muted-lt);font-weight:400">Poor</small></span></div>
-          <div class="pill" data-val="580_619"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>580 – 619<br><small style="color:var(--muted-lt);font-weight:400">Fair</small></span></div>
-          <div class="pill" data-val="620_659"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>620 – 659<br><small style="color:var(--muted-lt);font-weight:400">Fair–Good</small></span></div>
-          <div class="pill" data-val="660_699"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>660 – 699<br><small style="color:var(--muted-lt);font-weight:400">Good</small></span></div>
-          <div class="pill" data-val="700_739"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>700 – 739<br><small style="color:var(--muted-lt);font-weight:400">Very Good</small></span></div>
-          <div class="pill" data-val="740_799"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>740 – 799<br><small style="color:var(--muted-lt);font-weight:400">Excellent</small></span></div>
+          <div class="pill" data-val="below_580" onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>Under 580<br><small style="color:var(--muted-lt);font-weight:400">Poor</small></span></div>
+          <div class="pill" data-val="580_619"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>580-619<br><small style="color:var(--muted-lt);font-weight:400">Fair</small></span></div>
+          <div class="pill" data-val="620_659"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>620-659<br><small style="color:var(--muted-lt);font-weight:400">Fair</small></span></div>
+          <div class="pill" data-val="660_699"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>660-699<br><small style="color:var(--muted-lt);font-weight:400">Good</small></span></div>
+          <div class="pill" data-val="700_739"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>700-739<br><small style="color:var(--muted-lt);font-weight:400">Very Good</small></span></div>
+          <div class="pill" data-val="740_799"   onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>740-799<br><small style="color:var(--muted-lt);font-weight:400">Excellent</small></span></div>
           <div class="pill" data-val="800_plus"  onclick="sel('credit_score_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-trend"/></svg><span>800+<br><small style="color:var(--muted-lt);font-weight:400">Exceptional</small></span></div>
         </div>
         <div class="btn-row" style="margin-top:28px;">
@@ -201,13 +201,13 @@
       <div class="slide" id="slide-7">
         <div class="eyebrow">Step 7 of 8 · Home Details</div>
         <div class="title">How many <strong>bedrooms</strong> do you need?</div>
-        <div class="subtitle">Select all that apply — we'll surface options across your preferred sizes.</div>
+        <div class="subtitle">Select the bedroom sizes you want to consider.</div>
         <div class="pills" id="beds_needed_pills">
           <div class="pill" data-val="studio" onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-sofa"/></svg> Studio</div>
-          <div class="pill" data-val="1"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-bed"/></svg> 1 Bedroom</div>
-          <div class="pill" data-val="2"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-bed"/></svg> 2 Bedrooms</div>
-          <div class="pill" data-val="3"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-home"/></svg> 3 Bedrooms</div>
-          <div class="pill" data-val="4plus"  onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-grid"/></svg> 4+ Bedrooms</div>
+          <div class="pill" data-val="1"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-bed"/></svg> 1 Bed</div>
+          <div class="pill" data-val="2"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-bed"/></svg> 2 Beds</div>
+          <div class="pill" data-val="3"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-home"/></svg> 3 Beds</div>
+          <div class="pill" data-val="4plus"  onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-grid"/></svg> 4+ Beds</div>
         </div>
         <div class="btn-row" style="margin-top:16px;">
           <button class="btn-back" onclick="goTo(6,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
@@ -219,7 +219,7 @@
       <div class="slide" id="slide-8">
         <div class="eyebrow">Step 8 of 8 · Review</div>
         <div class="title">Ready to see your <strong>matches?</strong></div>
-        <div class="subtitle">Review your details below, then submit to receive personalised rental matches instantly.</div>
+        <div class="subtitle">Review your details before viewing your results.</div>
         <div class="summary" id="summary-box"></div>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(7,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
