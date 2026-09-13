@@ -5,7 +5,7 @@
   var PRESCREEN_INTENT_KEY = 'rrn_prescreen_payment_intent_v1';
   var RESULTS_URL = '/after-payment-results/';
   var START_URL = '/index.html';
-  var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51TeycBPJOp8s8XsSvgsYs2KtFZt1F2fUg9W32bxS2rDcORtp4F89PUj54Dz1WJbhPS1i8vnouVLeSiUX9cWfzp4v00RLV2KMcT';
+  var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
   var stripe = null;
   var elements = null;
   var cardNumber = null;

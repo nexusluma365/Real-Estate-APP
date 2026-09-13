@@ -103,7 +103,7 @@ async function run() {
       },
     },
     Stripe(key) {
-      assert.match(key, /^pk_test_/);
+      assert.match(key, /^pk_(test|live)_/);
       return {
         elements() {
           return {
