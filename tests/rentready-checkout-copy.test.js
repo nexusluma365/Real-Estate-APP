@@ -15,12 +15,16 @@ for (const file of files) {
   assert.doesNotMatch(html, /<div class="country-field">United States<\/div>/);
 
   [
+    'Your Next Step Before Touring',
+    'GET PRE-QUALIFIED &amp; CONTINUE',
     'Review Eligibility',
     'See What Property Managers Look For',
     'Increase Your Approval Odds',
     'Schedule Your Next Tour with Confidence',
   ].forEach((text) => assert.match(html, new RegExp(text)));
 
+  assert.doesNotMatch(html, /RentReady Outlook/);
+  assert.doesNotMatch(html, /One-time personalized review/);
   assert.doesNotMatch(html, /Better Your Approval odds/);
   assert.doesNotMatch(html, /View Listings/);
 }

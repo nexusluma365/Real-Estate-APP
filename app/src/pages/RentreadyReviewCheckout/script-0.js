@@ -226,7 +226,7 @@
       window.location.href = RESULTS_URL;
     } catch (error) {
       btn.disabled = false;
-      btn.innerHTML = 'Continue With RentReady <span>→</span>';
+      btn.innerHTML = 'GET PRE-QUALIFIED &amp; CONTINUE <span>→</span>';
       showError(error.message);
     }
   }

@@ -50,8 +50,13 @@ assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.btn-row \{ flex-direct
 assert.ok(html.includes('Start your <strong>rental readiness</strong> check.'), 'intro title should be compact');
 assert.ok(/data-val="1_month"[\s\S]*1 Month<\/div>/.test(html), 'timeline option should be brief');
 assert.ok(/data-val="phone"[\s\S]*Call<\/div>/.test(html), 'contact option should be brief');
+assert.doesNotMatch(html, /data-val="whatsapp"/);
+assert.doesNotMatch(html, /WhatsApp/);
 assert.ok(/data-val="upsizing"[\s\S]*More Space<\/div>/.test(html), 'move reason option should be brief');
 assert.ok(/data-val="1"[\s\S]*1 Bed<\/div>/.test(html), 'bedroom option should be brief');
+assert.doesNotMatch(html, /data-val="800_plus"/);
+assert.doesNotMatch(html, /800\+/);
+assert.doesNotMatch(html, /Exceptional/);
 
 assert.match(js, /function todayMinusYears\(years\)/);
 assert.match(js, /function isAtLeast17\(dateValue\)/);

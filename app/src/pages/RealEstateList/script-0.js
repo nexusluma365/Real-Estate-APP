@@ -472,14 +472,6 @@ function renderAreaPills(){
     <button class="area-pill ${a===criteria.area ? "active": ""}" onclick="selectArea(${jsString(a)})">${htmlEscape(a)}</button>
   `).join("");
 }
-function renderPrefChips(){
-  document.getElementById("prefChips").innerHTML = ALL_PREFS.map(p => `
-    <button type="button" class="chip-toggle ${criteria.preferences.includes(p) ? "active" : ""}" data-pref="${p}">${p}</button>
-  `).join("");
-  document.querySelectorAll(".chip-toggle").forEach(btn=>{
-    btn.addEventListener("click", ()=> btn.classList.toggle("active"));
-  });
-}
 function renderAll(){
   currentResults = rankApartments(criteria);
   renderHeroAndSummary();
@@ -531,44 +523,8 @@ function runLoadingSequence(onDone, overlayMode){
   }, step || 10);
 }
 
-const panelOverlay = document.getElementById("panelOverlay");
-function openPanel(){
-  document.getElementById("fCity").value = criteria.city;
-  renderAreaSelect();
-  document.getElementById("fStyle").value = criteria.style;
-  document.getElementById("fBudget").value = String(criteria.budgetMax);
-  document.getElementById("fBeds").value = String(criteria.bedrooms);
-  renderPrefChips();
-  panelOverlay.classList.add("open");
-}
-function closePanel(){ panelOverlay.classList.remove("open"); }
-function renderAreaSelect(){
-  const areaSelect = document.getElementById("fArea");
-  const options = [criteria.city, ...nearbyAreas].filter(Boolean);
-  const unique = Array.from(new Set(options.map(a => String(a).trim()).filter(Boolean)));
-  areaSelect.innerHTML = unique.map(a => `<option value="${htmlEscape(a)}">${htmlEscape(a === criteria.city ? "Any area in " + criteria.city : a)}</option>`).join("");
-  areaSelect.value = unique.includes(criteria.area) ? criteria.area : criteria.city;
-}
-document.getElementById("openPanelBtn").addEventListener("click", openPanel);
-document.getElementById("closePanelBtn").addEventListener("click", closePanel);
-panelOverlay.addEventListener("click", e => { if(e.target === panelOverlay) closePanel(); });
-document.getElementById("applySearchBtn").addEventListener("click", async ()=>{
-  const nextCity = document.getElementById("fCity").value.trim();
-  const previousCity = criteria.city;
-  const selectedArea = document.getElementById("fArea").value;
-  criteria.city = nextCity;
-  criteria.area = nextCity !== previousCity ? nextCity : selectedArea || nextCity;
-  criteria.style = document.getElementById("fStyle").value;
-  criteria.budgetMax = parseInt(document.getElementById("fBudget").value, 10);
-  criteria.bedrooms = parseInt(document.getElementById("fBeds").value, 10);
-  criteria.preferences = Array.from(document.querySelectorAll(".chip-toggle.active")).map(b=>b.dataset.pref);
-  closePanel();
-  runLoadingSequence(refreshResults, true);
-});
-
 function selectArea(area){ criteria.area = area; runLoadingSequence(refreshResults, true); }
 document.getElementById("emptyExpandBtn").addEventListener("click", ()=>{ criteria.area = criteria.city; runLoadingSequence(refreshResults, true); });
-document.getElementById("emptyAdjustBtn").addEventListener("click", openPanel);
 
 // The purchase pages already try to email these results automatically right
 // after checkout, but that happens during a page redirect with no visible
