@@ -38,7 +38,7 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/script-
 
 assert.match(js, /statuses:\s*\["upsell-success",\s*"upsell-declined"\]/);
 assert.match(js, /APARTMENT_RESULTS_TIMEOUT_MS\s*=\s*52000/);
-assert.match(html, /Reload verified matches/);
+assert.match(html, /Reload apartment list/);
 assert.match(js, /function hideProperty\(id\)/);
 assert.match(js, /function shareProperty\(id\)/);
 assert.match(js, /onclick="shareProperty\('\$\{apt\.id\}'\)"/);

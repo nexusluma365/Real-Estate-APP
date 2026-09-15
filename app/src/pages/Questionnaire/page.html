@@ -53,46 +53,45 @@
       <!-- 0: WELCOME -->
       <div class="slide active" id="slide-0">
         <div class="hero-icon"><svg style="stroke:#fff"><use href="#i-home"/></svg></div>
-        <div class="eyebrow">RentReady Review</div>
-        <div class="title">Start your <strong>rental readiness</strong> check.</div>
-        <div class="subtitle">Answer a few quick questions to see where you stand before you tour or apply.</div>
+        <div class="eyebrow">Your Apartment Search Starts Here</div>
+        <div class="title">Find apartments that fit your <strong>next move.</strong></div>
+        <div class="subtitle">Tell us what you're looking for. We'll prepare your rental outlook first, then help you continue to apartment options in your area.</div>
         <div class="trust">
-          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-shield"/></svg> 100% Secure</div>
-          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-check"/></svg> No Inquiry</div>
-          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-zap"/></svg> Fast Results</div>
+          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-shield"/></svg> Private &amp; Secure</div>
+          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-check"/></svg> No Credit Pull</div>
+          <div class="trust-item"><svg style="stroke:var(--green-accent)"><use href="#i-zap"/></svg> Takes About 2 Minutes</div>
         </div>
         <div class="btn-row">
           <span></span>
-          <button class="btn-primary" onclick="goTo(1,'right')">Get Started <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="goTo(1,'right')">Start My Search <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
       <!-- 1: NAME -->
       <div class="slide" id="slide-1">
-        <div class="eyebrow">Step 1 of 8 · About You</div>
+        <div class="eyebrow">A Quick Start · About You</div>
         <div class="title">What's your <strong>name?</strong></div>
-        <div class="subtitle">Start with the basics so we can personalize your review.</div>
+        <div class="subtitle">We'll use your name to personalize the next steps in your apartment search.</div>
         <div class="field-group c2">
           <div class="field"><label>First Name</label><input type="text" id="first_name" placeholder="Jane" autocomplete="given-name" required></div>
           <div class="field"><label>Last Name</label><input type="text" id="last_name" placeholder="Smith" autocomplete="family-name" required></div>
-          <div class="field birthdate-field"><label>Date of Birth</label><input type="date" id="date_of_birth" class="centered-date" required></div>
         </div>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(0,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="validateAndNext(2,['first_name','last_name','date_of_birth'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(2,['first_name','last_name'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
       <!-- 2: CONTACT -->
       <div class="slide" id="slide-2">
-        <div class="eyebrow">Step 2 of 8 · Contact</div>
-        <div class="title">How should we <strong>reach you?</strong></div>
-        <div class="subtitle">We'll use this to send your results and updates.</div>
+        <div class="eyebrow">Save Your Progress</div>
+        <div class="title">Where should we send your <strong>RentReady review?</strong></div>
+        <div class="subtitle">So you don't lose your results, add the best email and phone number for you. No credit pull. No subscription.</div>
         <div class="field-group">
           <div class="field"><label>Email Address</label><input type="email" id="email" placeholder="jane@example.com" autocomplete="email" required></div>
           <div class="field"><label>Phone Number</label><input type="tel" id="phone" placeholder="+1 (555) 000-0000" autocomplete="tel" required></div>
         </div>
-        <div class="eyebrow" style="margin-top:0;margin-bottom:12px;">Preferred Contact Method</div>
+        <div class="eyebrow" style="margin-top:0;margin-bottom:12px;">How should RentReady contact you?</div>
         <div class="pills" id="contact_method_pills">
           <div class="pill" data-val="email"    onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-mail"/></svg> Email</div>
           <div class="pill" data-val="phone"    onclick="sel('contact_method_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-phone"/></svg> Call</div>
@@ -106,9 +105,9 @@
 
       <!-- 3: MOVE TIMELINE + CITY -->
       <div class="slide" id="slide-3">
-        <div class="eyebrow">Step 3 of 8 · Move Plans</div>
+        <div class="eyebrow">Your Search · 1 of 4</div>
         <div class="title">When are you <strong>planning to move?</strong></div>
-        <div class="subtitle">Tell us your timeline and preferred area.</div>
+        <div class="subtitle">This helps us keep your rental outlook and apartment search focused on where you actually want to live.</div>
         <div class="eyebrow" style="margin-top:0;margin-bottom:12px;">Move Timeline</div>
         <div class="pills" id="move_timeline_pills">
           <div class="pill" data-val="asap"     onclick="sel('move_timeline_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-zap"/></svg> ASAP</div>
@@ -128,9 +127,9 @@
 
       <!-- 4: MOVE REASON -->
       <div class="slide" id="slide-4">
-        <div class="eyebrow">Step 4 of 8 · Motivation</div>
-        <div class="title">Why are you <strong>moving?</strong></div>
-        <div class="subtitle">Choose the reason that best fits your move.</div>
+        <div class="eyebrow">Your Search · Optional</div>
+        <div class="title">What best describes your <strong>next move?</strong></div>
+        <div class="subtitle">Optional — choose the closest fit, or skip this step.</div>
         <div class="pills" id="move_reason_pills">
           <div class="pill" data-val="new_job"    onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-brief"/></svg> New Job</div>
           <div class="pill" data-val="lifestyle"  onclick="sel('move_reason_pills',this)"><svg style="stroke:var(--muted)"><use href="#i-star"/></svg> Upgrade</div>
@@ -143,35 +142,33 @@
         </div>
         <div class="btn-row" style="margin-top:4px;">
           <button class="btn-back" onclick="goTo(3,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="validateAndNext(5,[],['move_reason_pills'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="goTo(5,'right')">Skip or Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
       <!-- 5: FINANCIALS -->
       <div class="slide" id="slide-5">
-        <div class="eyebrow">Step 5 of 8 · Financials</div>
-        <div class="title">Let's talk <strong>numbers.</strong></div>
-        <div class="subtitle">These numbers help shape your readiness review.</div>
-        <label style="display:block;margin-bottom:10px;">Annual Household Income</label>
+        <div class="eyebrow">Your Search · 2 of 4</div>
+        <div class="title">What rent range works <strong>for you?</strong></div>
+        <div class="subtitle">This helps us prepare your rental outlook and keep your apartment search realistic. An estimate is fine.</div>
+        <label style="display:block;margin-bottom:10px;">Estimated Annual Household Income</label>
         <div class="range-num"><span class="acc">$</span><span id="v-income">75,000</span></div>
         <input type="range" id="annual_income" min="20000" max="500000" step="5000" value="75000" oninput="rng('annual_income','v-income',v=>'$'+N(v))" required>
         <label style="display:block;margin-bottom:10px;">Monthly Rent Budget</label>
         <div class="range-num"><span class="acc">$</span><span id="v-rent">2,000</span><span class="sfx">/mo</span></div>
         <input type="range" id="rent_budget" min="500" max="15000" step="100" value="2000" oninput="rng('rent_budget','v-rent',v=>'$'+N(v))" required>
-        <label style="display:block;margin-bottom:10px;">Current Monthly Rent</label>
-        <div class="range-num"><span class="acc">$</span><span id="v-cur">1,500</span><span class="sfx">/mo</span></div>
-        <input type="range" id="current_rent" min="0" max="15000" step="100" value="1500" oninput="rng('current_rent','v-cur',v=>v==0?'None':'$'+N(v))" required>
+        <input type="hidden" id="current_rent" value="0" required>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(4,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" onclick="validateAndNext(6,['annual_income','rent_budget','current_rent'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" onclick="validateAndNext(6,['annual_income','rent_budget'])">Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
       </div>
 
       <!-- 6: CREDIT SCORE -->
       <div class="slide" id="slide-6">
-        <div class="eyebrow">Step 6 of 8 · Credit</div>
-        <div class="title">What's your <strong>credit score</strong> range?</div>
-        <div class="subtitle">Choose the range that best reflects your score.</div>
+        <div class="eyebrow">Your Search · 3 of 4</div>
+        <div class="title">About where is your <strong>credit score?</strong></div>
+        <div class="subtitle">An estimate is fine. RentReady does not pull your credit.</div>
         <div class="score-bars">
           <div class="score-bar" style="height:24px;background:#A93226;" data-val="below_580" onclick="pickScore(this,'below_580')"></div>
           <div class="score-bar" style="height:29px;background:#C0773A;" data-val="580_619"   onclick="pickScore(this,'580_619')"></div>
@@ -196,9 +193,9 @@
 
       <!-- 7: BEDROOMS -->
       <div class="slide" id="slide-7">
-        <div class="eyebrow">Step 7 of 8 · Home Details</div>
-        <div class="title">How many <strong>bedrooms</strong> do you need?</div>
-        <div class="subtitle">Select the bedroom sizes you want to consider.</div>
+        <div class="eyebrow">Your Search · 4 of 4</div>
+        <div class="title">What kind of home are you <strong>looking for?</strong></div>
+        <div class="subtitle">Select the bedroom size that best fits your search.</div>
         <div class="pills" id="beds_needed_pills">
           <div class="pill" data-val="studio" onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-sofa"/></svg> Studio</div>
           <div class="pill" data-val="1"      onclick="sel('beds_needed_pills',this,true)"><svg style="stroke:var(--muted)"><use href="#i-bed"/></svg> 1 Bed</div>
@@ -214,13 +211,13 @@
 
       <!-- 8: REVIEW + SUBMIT -->
       <div class="slide" id="slide-8">
-        <div class="eyebrow">Step 8 of 8 · Review</div>
-        <div class="title">Ready to see your <strong>matches?</strong></div>
-        <div class="subtitle">Review your details before viewing your results.</div>
+        <div class="eyebrow">Ready · Final Check</div>
+        <div class="title">Your search details are <strong>ready.</strong></div>
+        <div class="subtitle">Check your details, then prepare your RentReady review and continue toward apartment options in your area.</div>
         <div class="summary" id="summary-box"></div>
         <div class="btn-row">
           <button class="btn-back" onclick="goTo(7,'left')"><svg width="14" height="14" style="stroke:currentColor"><use href="#i-left"/></svg> Back</button>
-          <button class="btn-primary" id="submitBtn" onclick="submitLead()">Submit &amp; Get Matched <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
+          <button class="btn-primary" id="submitBtn" onclick="submitLead()">Prepare My Review & Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span></button>
         </div>
         <div class="err" id="submitErr"></div>
       </div>
@@ -229,13 +226,13 @@
       <div class="slide" id="slide-9">
         <div class="success">
           <div class="success-ring"><svg width="36" height="36" style="stroke:#fff"><use href="#i-home"/></svg></div>
-          <div class="eyebrow" id="success-eyebrow" style="text-align:center;">You're Pre-Qualified</div>
+          <div class="eyebrow" id="success-eyebrow" style="text-align:center;">Your Answers Are In</div>
           <div class="title" style="text-align:center;margin-bottom:12px;">Welcome aboard,<br><strong id="success-name">there</strong>.</div>
-          <div class="subtitle" id="success-subtitle" style="text-align:center;max-width:400px;margin:0 auto 32px;">Your pre-qualification is complete. A specialist will reach out via your preferred channel within 24 hours with your rental matches.</div>
+          <div class="subtitle" id="success-subtitle" style="text-align:center;max-width:430px;margin:0 auto 32px;">We're preparing your personalized rental outlook now. Next, you'll see where you stand before you continue your apartment search.</div>
           <div class="success-cards">
             <div class="s-card"><svg style="stroke:var(--green-accent)"><use href="#i-file"/></svg>Application Saved</div>
             <div class="s-card"><svg style="stroke:var(--green-accent)"><use href="#i-bell"/></svg>Alerts Active</div>
-            <div class="s-card"><svg style="stroke:var(--green-accent)"><use href="#i-pin"/></svg>Matches Ready</div>
+            <div class="s-card"><svg style="stroke:var(--green-accent)"><use href="#i-pin"/></svg>Search Preferences Saved</div>
           </div>
         </div>
       </div>

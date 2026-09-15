@@ -5,7 +5,6 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const files = [
   'app/src/pages/RentreadyReviewCheckout/page.html',
-  'rentready-review-checkout.html',
 ];
 
 for (const file of files) {
@@ -16,12 +15,12 @@ for (const file of files) {
 
   [
     'Your Next Step Before Touring',
-    'GET PRE-QUALIFIED &amp; CONTINUE',
-    'Review Eligibility',
+    'SEE MY RENTREADY REVIEW — $10',
+    'See Your Rental Readiness Score',
     'See What Property Managers Look For',
-    'Increase Your Approval Odds',
+    'Prepare for Better Approval Odds',
     'Schedule Your Next Tour with Confidence',
-  ].forEach((text) => assert.match(html, new RegExp(text)));
+  ].forEach((text) => assert.ok(html.includes(text), `${text} should be present`));
 
   assert.doesNotMatch(html, /RentReady Outlook/);
   assert.doesNotMatch(html, /One-time personalized review/);

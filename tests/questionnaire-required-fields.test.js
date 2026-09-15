@@ -10,7 +10,6 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/script-0
 [
   'first_name',
   'last_name',
-  'date_of_birth',
   'email',
   'phone',
   'preferred_city',
@@ -25,16 +24,15 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/script-0
 [
   "validateAndNext(3,['email','phone'],['contact_method_pills'])",
   "validateAndNext(4,['preferred_city'],['move_timeline_pills'])",
-  "validateAndNext(5,[],['move_reason_pills'])",
-  "validateAndNext(6,['annual_income','rent_budget','current_rent'])",
+  
+  "validateAndNext(6,['annual_income','rent_budget'])",
   "validateAndNext(7,[],['credit_score_pills'])",
   "validateAndNext(8,[],['beds_needed_pills'])",
 ].forEach((call) => {
   assert.ok(html.includes(call), `${call} should guard the step transition`);
 });
 
-assert.match(html, /class="field birthdate-field"/);
-assert.match(html, /id="date_of_birth" class="centered-date" required/);
+assert.doesNotMatch(html, /id="date_of_birth"/);
 assert.match(css, /\.field-group\.c2 \.birthdate-field/);
 assert.match(css, /justify-self: center/);
 assert.match(css, /\.centered-date \{ text-align: center; \}/);
@@ -49,7 +47,7 @@ assert.match(css, /@media \(max-width: 768px\) \{[\s\S]*\.card \{ width: 100%; m
 assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.btn-row \{ flex-direction: column-reverse; \}/);
 assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.card \{ width: min\(100%, calc\(100vw - 24px\)\); max-width: none; \}/);
 assert.doesNotMatch(css, /max-width: 300px/);
-assert.ok(html.includes('Start your <strong>rental readiness</strong> check.'), 'intro title should be compact');
+assert.ok(html.includes('Find apartments that fit your <strong>next move.</strong>'), 'intro should continue the apartment-search intent');
 assert.ok(/data-val="1_month"[\s\S]*1 Month<\/div>/.test(html), 'timeline option should be brief');
 assert.ok(/data-val="phone"[\s\S]*Call<\/div>/.test(html), 'contact option should be brief');
 assert.doesNotMatch(html, /data-val="whatsapp"/);
@@ -60,12 +58,8 @@ assert.doesNotMatch(html, /data-val="800_plus"/);
 assert.doesNotMatch(html, /800\+/);
 assert.doesNotMatch(html, /Exceptional/);
 
-assert.match(js, /function todayMinusYears\(years\)/);
-assert.match(js, /function isAtLeast17\(dateValue\)/);
-assert.match(js, /todayMinusYears\(17\)/);
-assert.match(js, /birthdate\.max = todayMinusYears\(17\)/);
-assert.match(js, /You must be at least 17 years old to continue\./);
 assert.match(js, /function validateFields\(fields = \[\], pillGroups = \[\]\)/);
+assert.match(js, /date_of_birth:\s+''/);
 assert.match(js, /function validateEntireQuestionnaire\(\)/);
 assert.match(js, /if \(!validateEntireQuestionnaire\(\)\) return;/);
 

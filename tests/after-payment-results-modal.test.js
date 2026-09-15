@@ -9,12 +9,12 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
 
 [
   'Reviewing income and rent fit',
-  'Reviewing rental profile',
+  'Reviewing the details you shared',
   'Reviewing credit-related factors',
-  'Reviewing previous housing information',
-  'Comparing deposit qualification factors',
-  'Preparing your pre-qualification result',
-  'PRE-QUALIFICATION COMPLETE',
+  'Organizing the information you shared',
+  'Comparing common rental screening factors',
+  'Preparing your personalized rental outlook',
+  'YOUR RENTREADY REVIEW IS READY',
 ].forEach(text => assert.match(html, new RegExp(text)));
 
 [
@@ -34,25 +34,25 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
   'matchingApartmentsCta',
 ].forEach(id => assert.match(html, new RegExp(`id="${id}"`)));
 
-assert.match(html, /RENTREADY PRE-QUALIFICATION RESULT/i);
+assert.match(html, /YOUR RENTREADY RENTAL OUTLOOK/i);
 assert.match(html, /WHAT YOUR RATING MEANS/i);
 assert.match(html, /Your RentReady review is complete/i);
-assert.match(html, /Your Pre-Qualification Results Are Ready\./);
-assert.match(html, /View Your Pre-Qualification ↓/);
-assert.match(html, /SEE MY MATCHING APARTMENTS/);
-assert.match(html, /It is not a property approval/);
+assert.match(html, /Your RentReady Review Is Ready\./);
+assert.match(html, /View Your Rental Outlook ↓/);
+assert.match(html, /CONTINUE TO APARTMENT OPTIONS/);
+assert.match(html, /It is not a property approval or credit decision/);
 assert.match(html, /YOUR NEXT STEP/);
-assert.match(html, /Now, Let’s Find Apartments That Match Your Search\./);
-assert.match(html, /Choose the type of apartment you want to explore, and RentReady will use your preferences to show matching options in your selected area\./);
-assert.match(html, /Your RentReady pre-qualification is complete — now choose where you want to continue\./);
+assert.match(html, /Now, Choose the Apartments You Want to Explore\./);
+assert.match(html, /Your rental outlook is complete\. Choose Luxury or Modern/);
+assert.match(html, /No need to start over — your search details move forward with you\./);
 assert.match(html, /Upscale communities with premium finishes, amenities, and locations\./);
-assert.match(html, /EXPLORE LUXURY APARTMENTS →/);
+assert.match(html, /CONTINUE TO LUXURY APARTMENTS →/);
 assert.match(html, /Updated communities with modern features, comfort, and everyday convenience\./);
-assert.match(html, /EXPLORE MODERN APARTMENTS →/);
-assert.match(html, /Your RentReady pre-qualification stays with you as you continue your search\./);
-assert.match(html, /BEFORE WE SHOW YOUR MATCHES/);
-assert.match(html, /Know What Could Matter Before You Apply\./);
-assert.match(html, /You already know where your profile stands\. Now go one step further and see what could affect your application before you tour, call a leasing office, or spend money on an application fee\./);
+assert.match(html, /CONTINUE TO MODERN APARTMENTS →/);
+assert.match(html, /Your RentReady review stays with you as you continue your apartment search\./);
+assert.match(html, /YOU'RE READY FOR THE NEXT STEP/);
+assert.match(html, /Keep Your Search Moving With Better Information\./);
+assert.match(html, /You now know where your profile stands\. When you continue to an apartment list/);
 assert.match(html, /See What Could Affect Approval/);
 assert.match(html, /Know which parts of your profile may get a closer look\./);
 assert.match(html, /Know What to Have Ready/);

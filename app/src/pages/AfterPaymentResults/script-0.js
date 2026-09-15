@@ -348,7 +348,7 @@
     var strongSignals = profile.strengths.filter(function(item){ return item.level !== 'risk'; }).length;
     var verifySignals = profile.riskFactors.length;
     var outlookTitle = 'CONDITIONAL';
-    var readinessLabel = 'Conditional Pre-Qualification';
+    var readinessLabel = 'Conditional Rental Outlook';
     var outlookCopy = 'Your current profile may still be considered for flexible move-in options, but the result is more dependent on the property’s screening criteria and verification of the items identified in your report.';
     var scoreCopy = 'Your RentReady assessment shows a mix of qualification factors, with items that should be confirmed before applying.';
     var depositSummary = 'Your answers suggest standard deposit requirements may be more common unless the property confirms flexible move-in options or alternative qualification paths.';
@@ -358,7 +358,7 @@
     // Existing scoring behavior has three result tiers; this maps those tiers to the closest RentReady rating labels.
     if (score >= 82){
       outlookTitle = 'HIGHLY FAVORABLE';
-      readinessLabel = 'Highly Favorable Pre-Qualification';
+      readinessLabel = 'Highly Promising Rental Outlook';
       outlookCopy = 'Your questionnaire shows several positive rental indicators. Based on your RentReady assessment, your profile currently appears well-positioned to explore properties offering flexible move-in costs, including no-deposit or reduced-deposit options.';
       scoreCopy = 'Your RentReady assessment shows multiple positive qualification factors, with few identified concerns to verify before applying.';
       depositSummary = 'Your current answers appear well-positioned for exploring flexible move-in costs, including properties that may offer no-security-deposit or reduced-deposit options.';
@@ -366,7 +366,7 @@
       recommendationCopy = 'Your RentReady assessment shows multiple positive rental indicators. You can continue exploring properties that match your search, including apartments offering flexible move-in or deposit options. Before applying, confirm the property’s specific screening and deposit requirements.';
     } else if (score >= 62){
       outlookTitle = 'FAVORABLE';
-      readinessLabel = 'Favorable Pre-Qualification';
+      readinessLabel = 'Promising Rental Outlook';
       outlookCopy = 'Your questionnaire shows more positive rental indicators than concerns. Based on your RentReady assessment, flexible move-in options — including no-deposit or reduced-deposit options — may be available depending on the property and any remaining verification.';
       scoreCopy = 'Your RentReady assessment shows several positive qualification factors, with a few items that should be confirmed before applying.';
       depositSummary = 'Your current answers suggest flexible move-in options may be available, although individual property requirements and any unverified factors can still affect your final deposit.';
@@ -374,7 +374,7 @@
       recommendationCopy = 'Your RentReady assessment shows more positive rental indicators than concerns. You can continue exploring properties that match your search, including apartments offering flexible move-in or deposit options. Before applying, review the verification items identified in your report and confirm the property’s specific screening and deposit requirements.';
     } else if (score < 45){
       outlookTitle = 'HIGHER DEPOSIT LIKELY';
-      readinessLabel = 'Higher Deposit Likely Pre-Qualification';
+      readinessLabel = 'More Preparation Recommended';
       outlookCopy = 'Based on your questionnaire, some screening factors may make a standard or higher upfront deposit more likely. Reviewing the areas identified below may help you better prepare before applying.';
       scoreCopy = 'Your RentReady assessment identified factors that may need preparation or verification before you apply.';
       depositSummary = 'Your questionnaire currently contains factors that may make a standard or higher deposit more likely. Reviewing the items below can help you prepare for property-specific screening.';
@@ -738,10 +738,10 @@
   }
 
   var phrases = [
-    { at: 0,  text: 'Pulling credit signals' },
-    { at: 28, text: 'Checking rental history' },
-    { at: 55, text: 'Verifying income data' },
-    { at: 80, text: 'Calculating deposit risk' }
+    { at: 0,  text: 'Reviewing your credit range' },
+    { at: 28, text: 'Reviewing your rental answers' },
+    { at: 55, text: 'Comparing your income and rent budget' },
+    { at: 80, text: 'Preparing your rental outlook' }
   ];
 
   var duration = 3000; // ms

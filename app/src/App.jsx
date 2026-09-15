@@ -17,6 +17,7 @@ const GamePlan = lazy(() => import('./pages/GamePlan/index.jsx'));
 const Membership = lazy(() => import('./pages/Membership/index.jsx'));
 const ThankYou = lazy(() => import('./pages/ThankYou/index.jsx'));
 const ResultsProcessing = lazy(() => import('./pages/ResultsProcessing/index.jsx'));
+const Legal = lazy(() => import('./pages/Legal/index.jsx'));
 
 // Every path here matches the original standalone .html page's URL exactly
 // (netlify.toml's pretty_urls + existing redirects already made these the
@@ -62,6 +63,9 @@ export default function App() {
 
           <Route path="/results-processing" element={<ResultsProcessing />} />
           <Route path="/results-processing.html" element={<ResultsProcessing />} />
+
+          <Route path="/privacy" element={<Legal type="privacy" />} />
+          <Route path="/terms" element={<Legal type="terms" />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

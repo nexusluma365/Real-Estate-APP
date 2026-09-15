@@ -1,10 +1,18 @@
 
+function rrTrack(eventName, detail = {}) {
+  try {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event: eventName, ...detail });
+    window.dispatchEvent(new CustomEvent('rentready:event', { detail: { event: eventName, ...detail } }));
+  } catch (_) {}
+}
+
 // ── CONFIG ─────────────────────────────────────────────────────
 const GOOGLE_SCRIPT_URL = '/.netlify/functions/submit-lead';
 const LEAD_QUEUE_KEY = 'rrn_leads_v2';
 const POST_SUBMIT_REDIRECT_URL = '/results-processing.html';
 const ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
-const POST_SUBMIT_REDIRECT_DELAY_MS = 3000;
+const POST_SUBMIT_REDIRECT_DELAY_MS = 900;
 // ───────────────────────────────────────────────────────────────
 
 const TOTAL = 8;
@@ -60,19 +68,6 @@ function rng(id, vid, fmt) {
   el.style.background = `linear-gradient(90deg,var(--green) ${pct}%,#D5E2DA ${pct}%)`;
 }
 
-function todayMinusYears(years) {
-  const date = new Date();
-  date.setFullYear(date.getFullYear() - years);
-  return date.toISOString().slice(0, 10);
-}
-
-function isAtLeast17(dateValue) {
-  if (!dateValue) return false;
-  const selected = new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(selected.getTime())) return false;
-  return selected <= new Date(`${todayMinusYears(17)}T00:00:00`);
-}
-
 function markFieldInvalid(el, message) {
   if (!el) return;
   if (message && typeof el.setCustomValidity === 'function') el.setCustomValidity(message);
@@ -88,9 +83,8 @@ function validateFields(fields = [], pillGroups = []) {
   fields.forEach(id=>{
     const el = document.getElementById(id);
     let invalid = !el || !String(el.value || '').trim() || (el.type === 'email' && !el.checkValidity());
-    if (id === 'date_of_birth') invalid = invalid || !isAtLeast17(el.value);
     if (invalid) {
-      markFieldInvalid(el, id === 'date_of_birth' ? 'You must be at least 17 years old to continue.' : '');
+      markFieldInvalid(el, '');
       ok = false;
     }
   });
@@ -112,7 +106,7 @@ function validateAndNext(toSlide, fields, pillGroups = []) {
 
 function validateEntireQuestionnaire() {
   const checks = [
-    { slide: 1, fields: ['first_name','last_name','date_of_birth'], groups: [] },
+    { slide: 1, fields: ['first_name','last_name'], groups: [] },
     { slide: 2, fields: ['email','phone'], groups: ['contact_method_pills'] },
     { slide: 3, fields: ['preferred_city'], groups: ['move_timeline_pills'] },
     { slide: 4, fields: [], groups: ['move_reason_pills'] },
@@ -132,7 +126,6 @@ function validateEntireQuestionnaire() {
 function buildSummary() {
   const rows = [
     ['Name',          `${v('first_name')} ${v('last_name')}`],
-    ['Date of Birth', v('date_of_birth')],
     ['Email',         v('email')],
     ['Phone',         v('phone')],
     ['Contact Via',   getVal('contact_method_pills').replace(/_/g,' ')],
@@ -157,14 +150,8 @@ function updateSuccessMessageByCredit(creditScore) {
   const subtitle = document.getElementById('success-subtitle');
   if (!eyebrow || !subtitle) return;
 
-  if (creditScore === '740_799') {
-    eyebrow.textContent = "Congrats you're pre-Qualified";
-    subtitle.textContent = "congrats you've been pre-Qualified";
-    return;
-  }
-
-  eyebrow.textContent = "Application Update";
-  subtitle.textContent = "based on your answers you may have to put a Deposit down but Final decision is the Leasing company";
+  eyebrow.textContent = "Your Answers Are In";
+  subtitle.textContent = "We're preparing your personalized rental outlook now. Next, you'll see where you stand before you continue your apartment search.";
 }
 
 function toNumberOrEmpty(id) {
@@ -179,7 +166,7 @@ function collectPayload() {
     received_at:    new Date().toISOString(),
     first_name:     v('first_name'),
     last_name:      v('last_name'),
-    date_of_birth:  v('date_of_birth'),
+    date_of_birth:  '',
     email:          v('email'),
     phone:          v('phone'),
     contact_method: getVal('contact_method_pills'),
@@ -247,6 +234,7 @@ async function flushQueue() {
 }
 
 async function submitLead() {
+  rrTrack('questionnaire_completed');
   if (isSubmitting) return;
   if (!validateEntireQuestionnaire()) return;
   isSubmitting = true;
@@ -282,8 +270,6 @@ async function submitLead() {
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
-  const birthdate = document.getElementById('date_of_birth');
-  if (birthdate) birthdate.max = todayMinusYears(17);
 
   flushQueue();
   window.addEventListener('online', flushQueue);

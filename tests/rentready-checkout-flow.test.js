@@ -1,11 +1,13 @@
 const assert = require('assert');
 const fs = require('fs');
+const path = require('path');
 const vm = require('vm');
 
-const html = fs.readFileSync('rentready-review-checkout.html', 'utf8');
-const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
-  .map((match) => match[1])
-  .find((code) => code.includes('createPrescreenIntent'));
+const root = path.join(__dirname, '..');
+const script = fs.readFileSync(
+  path.join(root, 'app/src/pages/RentreadyReviewCheckout/script-0.js'),
+  'utf8'
+);
 
 if (!script) {
   throw new Error('Checkout inline script was not found');

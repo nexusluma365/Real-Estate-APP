@@ -1,9 +1,10 @@
 # Netlify Deployment Notes
 
 ## What is ready
-- `index.html` is the production entry page.
+- `app/index.html` is the production entry page for the Vite app.
 - `netlify.toml` is configured for:
-  - root publish
+  - `cd app && npm install && npm run build`
+  - `app/dist` publish
   - html no-cache
   - long-cache static images
   - security headers
@@ -12,8 +13,8 @@
 ## Deploy
 1. Push this folder to GitHub.
 2. In Netlify, create a new site from that repo.
-3. Build command: *(leave empty)*
-4. Publish directory: `.`
+3. Build command: `cd app && npm install && npm run build`
+4. Publish directory: `app/dist`
 5. Deploy.
 
 ## Post-deploy checks

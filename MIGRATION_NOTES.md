@@ -4,6 +4,9 @@
 - Added `app/` — a Vite + React + React Router project that is now the
   entire frontend. It replaces the 11 standalone `.html` pages that used to
   be deployed directly.
+- Removed the retired standalone HTML files and duplicate root-level public
+  assets. The source of truth is now `app/src/pages/` plus assets in
+  `app/public/`.
 - Updated `netlify.toml`: build command now builds `app/`, publish
   directory is `app/dist`, and URL aliases/redirects were retargeted from
   physical `.html` files to the new client-side routes.
@@ -19,7 +22,7 @@
   original file (verified programmatically during migration — see below).
 
 ## How the migration was done
-`scripts/migrate-pages-to-react.mjs` mechanically extracted each page's
+The one-time migration helper mechanically extracted each page's
 `<title>`, font `<link>` tags, `<style>` block, body markup (with `<script>`
 tags stripped out), and inline script contents into separate files under
 `app/src/pages/<PageName>/`, then generated a thin React component

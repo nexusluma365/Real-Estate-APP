@@ -231,7 +231,7 @@
       window.location.href = RESULTS_URL;
     } catch (error) {
       btn.disabled = false;
-      btn.innerHTML = 'GET PRE-QUALIFIED &amp; CONTINUE <span>→</span>';
+      btn.innerHTML = 'SEE MY RENTREADY REVIEW — $10 <span>→</span>';
       showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);
     }
   }

@@ -158,35 +158,35 @@ This mirrors the test list from the funnel spec:
 
 ## What changed in this pass
 
-**Kept exactly as-is:** the questionnaire (`index.html` /
-`renter-lead-form.html`), all page structure/CSS/typography/cards/buttons
+**Kept exactly as-is:** the questionnaire (`/` /
+`/renter-lead-form`), all page structure/CSS/typography/cards/buttons
 across every page, and the lead-capture half of `code.gs`.
 
 **Added:**
 - `/netlify/functions/*` — the real backend (Stripe PaymentIntents/
   Subscriptions, entitlements via Netlify Blobs, protected file delivery,
   server-generated result PDF, email delivery).
-- `/assets/checkout-client.js` — shared frontend logic for the one-click
-  purchase/3DS/entitlement calls used by `game-plan.html`,
+- `app/public/assets/checkout-client.js` — shared frontend logic for the one-click
+  purchase/3DS/entitlement calls used by `/game-plan`,
   apartment upsell pages. Purely behavioral —
   it doesn't style or render anything.
-- `rentready-review-checkout.html` — the dedicated $10 RentReady review checkout
+- `/rentready-review-checkout` — the dedicated $10 RentReady review checkout
   shown after the questionnaire analysis loader and before
-  `after-payment-results/index.html`.
+  `/after-payment-results`.
 - Server-guarded access checks and the unlocked result experience on
-  `after-payment-results/index.html`.
+  `/after-payment-results`.
 - Real one-click purchase buttons, `requires_action` (3DS) handling, and
   the "we couldn't complete this purchase" → fade-in "Continue Without
   This →" pattern on the apartment upsell pages.
-- `luxury-apartments-premium.html` and `modern-apartments-premium.html` — saved-card
-  $27 apartment upsells that redirect to `real-estate-list.html` after payment
+- `/luxury-apartments-premium` and `/modern-apartments-premium` — saved-card
+  $27 apartment upsells that redirect to `/real-estate-list` after payment
   succeeds or after the decline notice is shown.
 - `/netlify/functions/get-apartment-results.js` — fetches factual property
   data from Google Places and optionally uses OpenAI server-side for ranking
   only. It returns no invented communities if Places is not configured.
 - `/netlify/functions/join-waiting-list.js` — stores declined/opt-in waiting
   list entries in Netlify Blobs.
-- `thank-you.html` — final page, message and download links driven by the
+- `/thank-you` — final page, message and download links driven by the
   customer's actual server-verified purchase state.
 - `sendEmail` action added to `google-apps-script/code.gs`.
 - `package.json`, and `netlify.toml` updated to build the functions.
