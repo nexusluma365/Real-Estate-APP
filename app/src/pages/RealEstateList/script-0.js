@@ -298,7 +298,7 @@ function serverPropertyToResult(property){
     modern: null,
     estRent: null,
     source: property.source || "Google Places",
-    facts: [property.source || "Google Places"].filter(Boolean),
+    facts: [],
   };
   const reasons = Array.isArray(property.matchReasons) ? property.matchReasons : [];
   return {
@@ -310,7 +310,7 @@ function serverPropertyToResult(property){
       locationSummary: property.address ? `Located near ${property.address}.` : `Located around ${criteria.city}.`,
       bestFor: property.summary || `Best for renters searching for ${criteria.style.toLowerCase()} apartments in ${criteria.city}.`,
       potentialTradeoff: property.availabilityNote || "Confirm current availability directly with the property.",
-      tags: [criteria.style, criteria.city, property.website ? "Website available" : "", property.source || "Google Places"].filter(Boolean).slice(0,4),
+      tags: [criteria.style, criteria.city, property.website ? "Website available" : ""].filter(Boolean).slice(0,4),
     },
   };
 }
