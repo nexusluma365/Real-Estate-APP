@@ -5,7 +5,7 @@
   var PRESCREEN_INTENT_KEY = 'rrn_prescreen_payment_intent_v1';
   var RESULTS_URL = '/after-payment-results/';
   var START_URL = '/index.html';
-  var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
+  var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = 'Your Payment Did not go through Please Try again';
   var stripe = null;
   var elements = null;
