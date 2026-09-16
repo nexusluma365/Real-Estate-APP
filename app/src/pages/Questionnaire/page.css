@@ -234,8 +234,10 @@ input[type=range]:focus { box-shadow: none; }
   .card { width: min(100%, calc(100vw - 24px)); max-width: none; }
   .card-header { padding-left: 22px; padding-right: 22px; }
   .viewport { padding-left: 18px; padding-right: 18px; }
+  .slide { max-width: 100%; }
   .field-group.c2 { grid-template-columns: 1fr; }
   .title { font-size: 25px; }
+  #slide-0 .title { max-width: 100%; overflow-wrap: break-word; }
   .subtitle { max-width: 310px; }
   .eyebrow { margin-top: 18px; margin-bottom: 14px; }
   input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number] { min-height: 54px; padding: 13px 15px; font-size: 16px; }
@@ -248,11 +250,19 @@ input[type=range]:focus { box-shadow: none; }
   #slide-8 .summary { padding: 14px 15px; margin-bottom: 18px; }
   #slide-8 .summary-row { font-size: 12px; gap: 10px; }
   #slide-8 .summary-row .val { max-width: 60%; }
-  #slide-0 .title { max-width: 320px; }
   #slide-0 .subtitle { max-width: 320px; }
   #slide-0 .trust { max-width: 100%; margin-left: auto; margin-right: auto; gap: 10px 14px; }
   #slide-0 .trust-item { font-size: 11px; }
-  #slide-0 .btn-row { max-width: 320px; }
+  #slide-0 .btn-row { max-width: 320px; width: 100%; }
+}
+
+@media (max-width: 768px) and (height >= 1px) {
+  @supports (height: 100svh) {
+    .shell { min-height: 100svh; }
+    .card { min-height: min(720px, calc(100svh - 36px)); }
+    .viewport { min-height: calc(100svh - 112px); }
+    .slide { min-height: calc(100svh - 158px); }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
