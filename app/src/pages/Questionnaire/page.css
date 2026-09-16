@@ -274,22 +274,33 @@ input[type=range]:focus { box-shadow: none; }
   .score-bar,
   .btn-primary,
   .btn-primary .ic,
-  .btn-back { transition: none !important; }
+  .btn-back,
+  .agent-conversation,
+  .aria-robot,
+  .aria-robot-head,
+  .aria-robot-eye,
+  .aria-robot-arm-left,
+  .aria-robot-arm-right { transition: none !important; animation: none !important; }
 }
 
-/* Agent Number One chat flow */
+/* Aria chat flow */
 .shell[data-agent-number-one] { overflow: visible; }
 .agent-card { min-height: min(760px, calc(100dvh - 68px)); }
 .agent-shell {
   padding: 0 clamp(22px, 5vw, 52px) clamp(28px, 5vw, 46px);
   display: grid;
   gap: 18px;
+  min-width: 0;
+  width: 100%;
 }
-.agent-intro { text-align: center; max-width: 620px; margin: 0 auto; }
+.agent-shell > * { min-width: 0; }
+.agent-intro { width: 100%; text-align: center; max-width: 620px; margin: 0 auto; }
 .agent-intro .subtitle { margin-bottom: 18px; }
 .agent-avatar { width: 62px; height: 62px; margin: 26px auto 18px; border-radius: 20px; }
 .agent-avatar svg { width: 28px; height: 28px; }
+.agent-started .agent-intro { display: none; }
 .agent-conversation {
+  display: none;
   width: 100%;
   max-width: 620px;
   height: min(34dvh, 270px);
@@ -301,6 +312,10 @@ input[type=range]:focus { box-shadow: none; }
   border-radius: 22px;
   background: rgba(255,255,255,0.72);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+.agent-started .agent-conversation {
+  display: block;
+  animation: agentFadeIn 0.34s var(--ease-out) both;
 }
 .agent-message { display: grid; gap: 6px; margin-bottom: 14px; }
 .agent-message-user { justify-items: end; }
@@ -346,6 +361,43 @@ input[type=range]:focus { box-shadow: none; }
 .agent-input,
 .agent-range {
   width: 100%;
+}
+.agent-money-field {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 14px;
+  border: 1px solid rgba(26,71,49,0.14);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.88);
+  transition: border-color 0.28s var(--ease-butter), background 0.28s var(--ease-butter), box-shadow 0.28s var(--ease-butter);
+}
+.agent-money-field:focus-within {
+  border-color: var(--green);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(26,71,49,0.09);
+}
+.agent-money-field span,
+.agent-money-field em {
+  font-style: normal;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.agent-money-field .agent-input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+.agent-money-field .agent-input:focus {
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
 }
 .agent-options {
   display: grid;
@@ -528,6 +580,10 @@ input[type=range]:focus { box-shadow: none; }
   0%, 100% { transform: rotate(-10deg); }
   50% { transform: rotate(-4deg); }
 }
+@keyframes agentFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 @media (max-width: 768px) {
   .agent-card { min-height: min(780px, calc(100dvh - 36px)); }
@@ -546,7 +602,49 @@ input[type=range]:focus { box-shadow: none; }
 
 @media (max-width: 620px) {
   .agent-shell { padding-left: 18px; padding-right: 18px; }
-  .agent-intro .trust { justify-content: center; }
+  .agent-card { overflow: hidden; }
+  .agent-card .card-header { gap: 10px; }
+  .agent-card .step-tag {
+    max-width: 42%;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .agent-shell,
+  .agent-response,
+  #agentResponseMount,
+  .agent-actions {
+    min-width: 0;
+    width: 100%;
+  }
+  .agent-intro {
+    max-width: 280px;
+  }
+  .agent-intro .title {
+    font-size: 22px;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  .agent-intro .subtitle {
+    max-width: 280px;
+  }
+  .agent-intro .trust {
+    max-width: 320px;
+    justify-content: center;
+  }
+  .agent-response,
+  .btn-row.agent-actions {
+    max-width: 240px;
+  }
+  .btn-row.agent-actions {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .agent-actions .btn-primary,
+  .agent-actions .btn-back {
+    max-width: 240px;
+  }
   .agent-conversation { min-height: 180px; }
   .agent-options { grid-template-columns: 1fr; }
   .agent-bubble { max-width: 100%; }

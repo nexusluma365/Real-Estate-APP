@@ -17,15 +17,15 @@ const QUESTIONS = [
   {
     id: 'welcome',
     field: null,
-    prompt: 'I am Agent Number One, your RentReady Qualification Concierge. Ready to begin?',
-    helper: 'I will collect the basics, classify your intent, and prepare your handoff. I do not make approval decisions or guarantees.',
+    prompt: "I'll ask you a few quick questions about what you're looking for and where you currently stand.",
+    helper: 'No credit pull. No approval promise. No guarantee.',
     type: 'start',
-    nextLabel: 'Start My Qualification',
+    nextLabel: 'Start',
   },
   {
     id: 'first_name',
     field: 'first_name',
-    prompt: 'What is your first name?',
+    prompt: 'First, what should I call you?',
     type: 'text',
     autocomplete: 'given-name',
     placeholder: 'Jane',
@@ -34,7 +34,7 @@ const QUESTIONS = [
   {
     id: 'last_name',
     field: 'last_name',
-    prompt: 'Thanks. What is your last name?',
+    prompt: 'And what is your last name?',
     type: 'text',
     autocomplete: 'family-name',
     placeholder: 'Smith',
@@ -44,7 +44,7 @@ const QUESTIONS = [
     id: 'email',
     field: 'email',
     prompt: 'Where should RentReady send your review?',
-    helper: 'Use the email address you want tied to your RentReady progress.',
+    helper: 'Use the email address you want tied to your progress.',
     type: 'email',
     autocomplete: 'email',
     placeholder: 'jane@example.com',
@@ -62,7 +62,7 @@ const QUESTIONS = [
   {
     id: 'contact_method',
     field: 'contact_method',
-    prompt: 'How should RentReady contact you?',
+    prompt: 'How would you prefer we contact you?',
     type: 'choice',
     required: true,
     options: [
@@ -74,7 +74,7 @@ const QUESTIONS = [
   {
     id: 'preferred_city',
     field: 'preferred_city',
-    prompt: 'What city or area are you hoping to move to?',
+    prompt: 'Great. What city are you looking in?',
     type: 'text',
     placeholder: 'Austin, TX',
     required: true,
@@ -82,22 +82,22 @@ const QUESTIONS = [
   {
     id: 'move_timeline',
     field: 'move_timeline',
-    prompt: 'When are you planning to move?',
+    prompt: 'When are you looking to move?',
     type: 'choice',
     required: true,
     options: [
       { value: 'asap', label: 'ASAP' },
-      { value: '1_month', label: '1 Month' },
+      { value: '1_month', label: 'Within 30 Days' },
       { value: '3_months', label: '1-3 Months' },
       { value: '6_months', label: '3-6 Months' },
-      { value: 'flexible', label: 'Flexible' },
+      { value: 'flexible', label: 'Just Looking' },
     ],
   },
   {
     id: 'move_reason',
     field: 'move_reason',
     prompt: 'What best describes your next move?',
-    helper: 'Choose the closest fit. This helps route the handoff context, not eligibility.',
+    helper: 'Choose the closest fit, or skip if none apply.',
     type: 'choice',
     required: false,
     options: [
@@ -114,8 +114,8 @@ const QUESTIONS = [
   {
     id: 'annual_income',
     field: 'annual_income',
-    prompt: 'What is your estimated annual household income?',
-    type: 'range',
+    prompt: 'About how much household income do you make per year?',
+    type: 'number',
     min: 20000,
     max: 500000,
     step: 5000,
@@ -126,8 +126,8 @@ const QUESTIONS = [
   {
     id: 'rent_budget',
     field: 'rent_budget',
-    prompt: 'What monthly rent budget feels realistic?',
-    type: 'range',
+    prompt: 'About how much would you like to spend on rent each month?',
+    type: 'number',
     min: 500,
     max: 15000,
     step: 100,
@@ -155,7 +155,7 @@ const QUESTIONS = [
   {
     id: 'beds_needed',
     field: 'beds_needed',
-    prompt: 'What bedroom size should the search focus on?',
+    prompt: 'What bedroom size should your search focus on?',
     type: 'multi',
     required: true,
     options: [
@@ -169,8 +169,8 @@ const QUESTIONS = [
   {
     id: 'review',
     field: null,
-    prompt: 'I have enough to mark this handoff sales-ready.',
-    helper: 'Review the summary, then continue. This is not an approval, a guarantee, or a lease offer.',
+    prompt: 'You are all set.',
+    helper: 'Review your answers, then continue to your RentReady review. This is not an approval, a guarantee, or a lease offer.',
     type: 'review',
     nextLabel: 'Prepare My Review & Continue',
   },
@@ -180,6 +180,7 @@ let agentState = {
   agent: 'agent-number-one',
   version: '1.0',
   stepIndex: 0,
+  started: false,
   status: 'collecting',
   intent: 'general_renter',
   answers: { current_rent: 0 },
@@ -187,6 +188,7 @@ let agentState = {
 };
 let isSubmitting = false;
 let isFlushing = false;
+let startGuardUntil = 0;
 
 const N = (value) => Number(value || 0).toLocaleString();
 
@@ -262,6 +264,7 @@ function loadAgentState() {
       agentState = {
         ...agentState,
         ...parsed,
+        started: !!parsed.started || Number(parsed.stepIndex) > 0,
         answers: { current_rent: 0, ...(parsed.answers || {}) },
         activity: Array.isArray(parsed.activity) ? parsed.activity : [],
       };
@@ -271,11 +274,17 @@ function loadAgentState() {
 }
 
 function updateProgress() {
-  const pct = Math.round((agentState.stepIndex / (QUESTIONS.length - 1)) * 100);
+  const activeStep = Math.max(0, agentState.stepIndex - 1);
+  const totalSteps = QUESTIONS.length - 2;
+  const pct = agentState.started ? Math.round((activeStep / totalSteps) * 100) : 0;
   const fill = document.getElementById('agentProgress');
   const tag = document.getElementById('agentStepTag');
   if (fill) fill.style.width = pct + '%';
-  if (tag) tag.textContent = agentState.status === 'sales-ready' ? 'Sales-ready handoff' : `Question ${Math.max(1, agentState.stepIndex)} / ${QUESTIONS.length - 1}`;
+  if (tag) {
+    tag.textContent = agentState.started
+      ? `Step ${Math.min(totalSteps, Math.max(1, activeStep))} of ${totalSteps}`
+      : 'RentReady Assistant';
+  }
 }
 
 function labelFor(question, value) {
@@ -287,7 +296,7 @@ function labelFor(question, value) {
 function messageHtml(role, text, helper = '') {
   return `
     <div class="agent-message agent-message-${role}">
-      <div class="agent-message-name">${role === 'agent' ? 'Agent Number One' : 'You'}</div>
+      <div class="agent-message-name">${role === 'agent' ? 'Aria' : 'You'}</div>
       <div class="agent-bubble">${escapeHtml(text)}${helper ? `<p>${escapeHtml(helper)}</p>` : ''}</div>
     </div>
   `;
@@ -296,6 +305,11 @@ function messageHtml(role, text, helper = '') {
 function renderConversation() {
   const mount = document.getElementById('agentConversation');
   if (!mount) return;
+  if (!agentState.started) {
+    mount.innerHTML = '';
+    mount.scrollTop = 0;
+    return;
+  }
   const current = QUESTIONS[agentState.stepIndex];
   const answered = QUESTIONS
     .slice(1, agentState.stepIndex)
@@ -323,7 +337,7 @@ function renderResponse() {
   next.disabled = isSubmitting;
   next.innerHTML = `${question.nextLabel || (agentState.stepIndex === QUESTIONS.length - 1 ? 'Continue' : 'Next')} <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>`;
 
-  if (question.type === 'start') {
+  if (!agentState.started || question.type === 'start') {
     mount.innerHTML = '';
     return;
   }
@@ -369,6 +383,20 @@ function renderResponse() {
     });
     return;
   }
+  if (question.type === 'number') {
+    const current = value || question.defaultValue || '';
+    mount.innerHTML = `
+      <label class="agent-input-label" for="agentInput">${escapeHtml(question.prompt)}</label>
+      <div class="agent-money-field">
+        <span>${escapeHtml(question.prefix || '')}</span>
+        <input class="agent-input" id="agentInput" type="number" inputmode="numeric" min="${question.min || ''}" max="${question.max || ''}" step="${question.step || 1}" placeholder="${escapeAttr(String(question.defaultValue || ''))}" value="${escapeAttr(current)}" ${question.required ? 'required' : ''}>
+        ${question.suffix ? `<em>${escapeHtml(question.suffix)}</em>` : ''}
+      </div>
+    `;
+    const input = document.getElementById('agentInput');
+    input.focus({ preventScroll: true });
+    return;
+  }
   mount.innerHTML = `
     <label class="agent-input-label" for="agentInput">${escapeHtml(question.prompt)}</label>
     <input class="agent-input" id="agentInput" type="${question.type}" autocomplete="${question.autocomplete || 'off'}" placeholder="${escapeAttr(question.placeholder || '')}" value="${escapeAttr(value || '')}" ${question.required ? 'required' : ''}>
@@ -391,8 +419,6 @@ function buildReviewHtml() {
     ['Rent Budget', '$' + N(agentState.answers.rent_budget) + '/mo'],
     ['Credit Score', labelFor(QUESTIONS.find((q) => q.field === 'credit_score'), agentState.answers.credit_score)],
     ['Bedrooms', labelFor(QUESTIONS.find((q) => q.field === 'beds_needed'), String(agentState.answers.beds_needed || '').split(',').filter(Boolean))],
-    ['Agent Status', agentState.status],
-    ['Intent', agentState.intent.replace(/_/g, ' ')],
   ];
   return `<div class="summary agent-summary">${rows.filter((row) => row[1]).map((row) => `
     <div class="summary-row"><span class="lbl">${escapeHtml(row[0])}</span><span class="val">${escapeHtml(String(row[1]))}</span></div>
@@ -421,11 +447,34 @@ function currentQuestionValue() {
     agentState.answers[question.field] = Number(agentState.answers[question.field] || question.defaultValue);
     return agentState.answers[question.field];
   }
+  if (question.type === 'number') {
+    const input = document.getElementById('agentInput');
+    const value = Number(input && input.value);
+    if (question.required && !Number.isFinite(value)) return '';
+    if (question.min && value < question.min) return '';
+    if (question.max && value > question.max) return '';
+    agentState.answers[question.field] = value;
+    return value;
+  }
   return agentState.answers[question.field] || '';
 }
 
 function advanceAgent() {
   const question = QUESTIONS[agentState.stepIndex];
+  if (!agentState.started || question.type === 'start') {
+    if (agentState.started && agentState.stepIndex > 0) return;
+    agentState.started = true;
+    agentState.stepIndex = 1;
+    startGuardUntil = Date.now() + 700;
+    emitAgentActivity('question_presented', { question: QUESTIONS[agentState.stepIndex].id });
+    saveAgentState();
+    render();
+    return;
+  }
+  if (agentState.stepIndex === 1 && Date.now() < startGuardUntil) {
+    const input = document.getElementById('agentInput');
+    if (!String((input && input.value) || '').trim()) return;
+  }
   const value = currentQuestionValue();
   if (question.required && !value) {
     showError(question.type === 'email' ? 'Enter a valid email address to continue.' : 'Answer this question to continue.');
@@ -453,6 +502,14 @@ function advanceAgent() {
 
 function retreatAgent() {
   if (agentState.stepIndex <= 0 || isSubmitting) return;
+  if (agentState.stepIndex === 1) {
+    agentState.started = false;
+    agentState.stepIndex = 0;
+    emitAgentActivity('back_clicked', { question: QUESTIONS[agentState.stepIndex].id });
+    saveAgentState();
+    render();
+    return;
+  }
   agentState.stepIndex -= 1;
   emitAgentActivity('back_clicked', { question: QUESTIONS[agentState.stepIndex].id });
   saveAgentState();
@@ -552,7 +609,7 @@ async function flushQueue() {
 async function submitLead() {
   if (isSubmitting) return;
   if (agentState.status !== 'sales-ready') {
-    showError('Agent Number One still needs the required details before the handoff can continue.');
+    showError('Aria still needs the required details before you can continue.');
     return;
   }
   isSubmitting = true;
@@ -563,12 +620,13 @@ async function submitLead() {
   }
   emitAgentActivity('lead_submitting', { handoffStatus: agentState.status });
   const payload = collectPayload();
+  agentState.lead_id = payload.lead_id;
   enqueue(payload);
   try {
     sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
     localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
-    sessionStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, lead_id: payload.lead_id }));
-    localStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, lead_id: payload.lead_id }));
+    sessionStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, started: true, lead_id: payload.lead_id }));
+    localStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, started: true, lead_id: payload.lead_id }));
   } catch (_e) {}
   try {
     flushQueue().catch(() => {});
@@ -589,6 +647,8 @@ async function submitLead() {
 
 function render() {
   updateAgentStatus();
+  const shell = document.querySelector('[data-agent-number-one]');
+  if (shell) shell.classList.toggle('agent-started', !!agentState.started);
   updateProgress();
   renderConversation();
   renderResponse();
