@@ -278,6 +278,7 @@ input[type=range]:focus { box-shadow: none; }
 }
 
 /* Agent Number One chat flow */
+.shell[data-agent-number-one] { overflow: visible; }
 .agent-card { min-height: min(760px, calc(100dvh - 68px)); }
 .agent-shell {
   padding: 0 clamp(22px, 5vw, 52px) clamp(28px, 5vw, 46px);
@@ -393,12 +394,154 @@ input[type=range]:focus { box-shadow: none; }
   cursor: not-allowed;
   transform: none;
 }
+.aria-robot {
+  position: absolute;
+  z-index: 3;
+  top: clamp(70px, 10vh, 112px);
+  right: max(18px, calc(50% - 500px));
+  width: 132px;
+  height: 132px;
+  pointer-events: none;
+  filter: drop-shadow(0 22px 24px rgba(26,71,49,0.17));
+  animation: ariaFloat 4.8s ease-in-out infinite;
+  transform-origin: center;
+}
+.aria-robot-head {
+  position: absolute;
+  left: 20px;
+  top: 0;
+  width: 94px;
+  height: 66px;
+  border-radius: 32px 34px 28px 30px;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,0.96) 0 18%, transparent 19%),
+    linear-gradient(135deg, #fffaf2 0%, #efe7da 48%, #fffdfa 100%);
+  box-shadow:
+    inset 10px 8px 18px rgba(255,255,255,0.92),
+    inset -11px -10px 20px rgba(177,157,128,0.18),
+    0 10px 24px rgba(26,71,49,0.16);
+  animation: ariaLook 5.6s ease-in-out infinite;
+}
+.aria-robot-face {
+  position: absolute;
+  left: 18px;
+  top: 13px;
+  width: 58px;
+  height: 32px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #102929 0%, #0a1b1c 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.aria-robot-eye {
+  position: absolute;
+  top: 8px;
+  width: 10px;
+  height: 17px;
+  border-radius: 999px;
+  background: #31e99b;
+  box-shadow: 0 0 10px rgba(49,233,155,0.72);
+  animation: ariaBlink 4.6s infinite;
+}
+.aria-robot-eye:first-child { left: 16px; }
+.aria-robot-eye:last-child { right: 16px; animation-delay: 0.08s; }
+.aria-robot-cap {
+  position: absolute;
+  left: 43px;
+  top: -4px;
+  width: 12px;
+  height: 9px;
+  border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(180deg, #b9aa96, #877967);
+  box-shadow: inset 0 2px 2px rgba(255,255,255,0.28);
+}
+.aria-robot-neck {
+  position: absolute;
+  left: 61px;
+  top: 61px;
+  width: 19px;
+  height: 22px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f5efe4, #d9cab6);
+  box-shadow: inset -4px -2px 8px rgba(135,121,103,0.16);
+}
+.aria-robot-body {
+  position: absolute;
+  left: 45px;
+  top: 75px;
+  width: 49px;
+  height: 34px;
+  border-radius: 17px 17px 13px 13px;
+  background: linear-gradient(145deg, #fffaf2, #dfd0bb 70%, #f8f1e6);
+  box-shadow:
+    inset 7px 5px 12px rgba(255,255,255,0.74),
+    inset -7px -6px 14px rgba(145,126,105,0.17);
+}
+.aria-robot-arm,
+.aria-robot-leg {
+  position: absolute;
+  display: block;
+  background: linear-gradient(180deg, #f6efe4, #d7c6ae);
+  box-shadow: inset -4px -4px 9px rgba(128,111,92,0.16);
+}
+.aria-robot-arm {
+  top: 2px;
+  width: 17px;
+  height: 48px;
+  border-radius: 999px;
+}
+.aria-robot-arm-left {
+  left: -11px;
+  transform: rotate(10deg);
+  animation: ariaArmLeft 4.8s ease-in-out infinite;
+}
+.aria-robot-arm-right {
+  right: -11px;
+  transform: rotate(-10deg);
+  animation: ariaArmRight 4.8s ease-in-out infinite;
+}
+.aria-robot-leg {
+  top: 27px;
+  width: 17px;
+  height: 36px;
+  border-radius: 999px;
+}
+.aria-robot-leg-left { left: 6px; transform: rotate(4deg); }
+.aria-robot-leg-right { right: 6px; transform: rotate(-4deg); }
+@keyframes ariaFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes ariaLook {
+  0%, 18% { transform: perspective(420px) rotateY(0deg) rotateZ(0deg); }
+  35%, 58% { transform: perspective(420px) rotateY(-18deg) rotateZ(-2deg); }
+  76%, 100% { transform: perspective(420px) rotateY(0deg) rotateZ(0deg); }
+}
+@keyframes ariaBlink {
+  0%, 8%, 11%, 62%, 65%, 100% { transform: scaleY(1); }
+  9%, 63% { transform: scaleY(0.08); }
+}
+@keyframes ariaArmLeft {
+  0%, 100% { transform: rotate(10deg); }
+  50% { transform: rotate(3deg); }
+}
+@keyframes ariaArmRight {
+  0%, 100% { transform: rotate(-10deg); }
+  50% { transform: rotate(-4deg); }
+}
 
 @media (max-width: 768px) {
   .agent-card { min-height: min(780px, calc(100dvh - 36px)); }
   .agent-shell { padding: 0 22px max(24px, env(safe-area-inset-bottom)); }
   .agent-avatar { margin-top: 20px; }
   .agent-conversation { height: min(36dvh, 280px); min-height: 190px; padding: 14px; }
+  .aria-robot {
+    top: 72px;
+    right: 12px;
+    width: 92px;
+    height: 92px;
+    transform: scale(0.84);
+    transform-origin: top right;
+  }
 }
 
 @media (max-width: 620px) {
@@ -408,4 +551,5 @@ input[type=range]:focus { box-shadow: none; }
   .agent-options { grid-template-columns: 1fr; }
   .agent-bubble { max-width: 100%; }
   .agent-range-value { font-size: 28px; }
+  .aria-robot { display: none; }
 }

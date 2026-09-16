@@ -9,6 +9,8 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/script-0
 
 assert.ok(html.includes('data-agent-number-one'), 'questionnaire should mount Agent Number One');
 assert.ok(html.includes('RentReady Qualification Concierge'), 'agent role should be customer-visible');
+assert.ok(html.includes('HI I AM <strong>ARIA</strong>'), 'intro should introduce ARIA');
+assert.ok(html.includes('aria-robot'), 'decorative ARIA robot should be present');
 assert.ok(html.includes('No Approval Promise'), 'agent must avoid approval positioning');
 assert.ok(html.includes('No Guarantee'), 'agent must avoid guarantee positioning');
 assert.ok(html.includes('agentConversation'), 'chat transcript mount should exist');
@@ -50,6 +52,9 @@ assert.match(js, /function salesReady\(answers\)/);
 assert.match(js, /window\.rrnAttachManyChatContactId/);
 assert.match(js, /I do not make approval decisions or guarantees/);
 assert.match(css, /\.agent-conversation/);
+assert.match(css, /\.aria-robot/);
+assert.match(css, /@keyframes ariaLook/);
+assert.match(css, /@keyframes ariaBlink/);
 assert.match(css, /\.agent-message-user/);
 assert.match(css, /\.agent-option\.selected/);
 assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.agent-options \{ grid-template-columns: 1fr; \}/);
