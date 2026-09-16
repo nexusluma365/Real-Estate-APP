@@ -1,6 +1,7 @@
 const { saveLead } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId } = require('./_lib/manychat');
+const { normalizeAgentLead } = require('./_lib/agent-number-one');
 
 function json(statusCode, body) {
   return {
@@ -37,6 +38,7 @@ exports.handler = async function handler(event) {
     delete payload.manychat_contact_id;
     delete payload.manychatContactId;
   }
+  Object.assign(payload, normalizeAgentLead(payload));
 
   let saved = false;
   try {

@@ -21,6 +21,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const { normalizeEmail, isValidEmail } = require('./email');
 const { normalizeManyChatContactId } = require('./manychat');
+const { normalizeAgentLead } = require('./agent-number-one');
 
 class LocalBlobStore {
   constructor(name) {
@@ -107,6 +108,7 @@ async function supabaseRequest(path, options = {}) {
 function leadRecord(leadId, answers = {}) {
   const email = normalizeEmail(answers.email);
   const manychatContactId = normalizeManyChatContactId(answers.manychat_contact_id || answers.manychatContactId);
+  const agent = normalizeAgentLead(answers);
   return {
     id: leadId,
     email: isValidEmail(email) ? email : null,
@@ -119,13 +121,24 @@ function leadRecord(leadId, answers = {}) {
     move_timeline: answers.move_timeline || answers.moveTimeline || null,
     move_reason: answers.move_reason || answers.moveReason || null,
     manychat_contact_id: manychatContactId || null,
-    raw_answers: { ...answers, lead_id: leadId, ...(manychatContactId ? { manychat_contact_id: manychatContactId } : {}) },
+    agent_status: agent.agent_status,
+    agent_intent: agent.agent_intent,
+    agent_state: agent.agent_state,
+    agent_activity: agent.agent_activity,
+    raw_answers: { ...answers, lead_id: leadId, ...(manychatContactId ? { manychat_contact_id: manychatContactId } : {}), ...agent },
     updated_at: new Date().toISOString(),
   };
 }
 
 function leadFromRecord(record) {
   if (!record) return null;
+  const agent = normalizeAgentLead({
+    ...(record.raw_answers || {}),
+    agent_status: record.agent_status || (record.raw_answers || {}).agent_status,
+    agent_intent: record.agent_intent || (record.raw_answers || {}).agent_intent,
+    agent_state: record.agent_state || (record.raw_answers || {}).agent_state,
+    agent_activity: record.agent_activity || (record.raw_answers || {}).agent_activity,
+  });
   return {
     ...(record.raw_answers || {}),
     lead_id: record.id,
@@ -139,6 +152,10 @@ function leadFromRecord(record) {
     move_timeline: record.move_timeline || (record.raw_answers || {}).move_timeline || '',
     move_reason: record.move_reason || (record.raw_answers || {}).move_reason || '',
     manychat_contact_id: normalizeManyChatContactId(record.manychat_contact_id || (record.raw_answers || {}).manychat_contact_id),
+    agent_status: agent.agent_status,
+    agent_intent: agent.agent_intent,
+    agent_state: agent.agent_state,
+    agent_activity: agent.agent_activity,
   };
 }
 

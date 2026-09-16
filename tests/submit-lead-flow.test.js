@@ -100,6 +100,9 @@ async function run() {
         referrer: 'https://werentreadygo.com/',
         user_agent: 'submit-lead-test',
         manychat_contact_id: '123456789',
+        agent_status: 'sales-ready',
+        agent_intent: 'urgent_move',
+        agent_activity: [{ type: 'handoff_ready', at: '2026-09-10T18:28:00.000Z', step: 'review' }],
       }),
     });
     const forwardedBody = JSON.parse(forwardedRes.body);
@@ -133,6 +136,21 @@ async function run() {
       referrer: 'https://werentreadygo.com/',
       user_agent: 'submit-lead-test',
       manychat_contact_id: '123456789',
+      agent_status: 'sales-ready',
+      agent_intent: 'urgent_move',
+      agent_activity: [{ type: 'handoff_ready', at: '2026-09-10T18:28:00.000Z', step: 'review', status: '', intent: '' }],
+      agent_state: {
+        agent: 'agent-number-one',
+        version: '1.0',
+        status: 'sales-ready',
+        intent: 'urgent_move',
+        current_step: 'handoff',
+        handoff: {
+          target: 'sales-agent',
+          status: 'sales-ready',
+          ready: true,
+        },
+      },
     });
 
     delete process.env.GOOGLE_SCRIPT_URL;

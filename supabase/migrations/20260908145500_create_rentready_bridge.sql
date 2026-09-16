@@ -10,6 +10,10 @@ create table if not exists public.leads (
   move_timeline text,
   move_reason text,
   manychat_contact_id text,
+  agent_status text,
+  agent_intent text,
+  agent_state jsonb not null default '{}'::jsonb,
+  agent_activity jsonb not null default '[]'::jsonb,
   raw_answers jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -48,6 +52,8 @@ create table if not exists public.apartment_results (
 
 create index if not exists leads_email_idx on public.leads (email);
 create index if not exists leads_manychat_contact_id_idx on public.leads (manychat_contact_id);
+create index if not exists leads_agent_status_idx on public.leads (agent_status);
+create index if not exists leads_agent_intent_idx on public.leads (agent_intent);
 create index if not exists entitlements_manychat_contact_id_idx on public.entitlements (manychat_contact_id);
 create index if not exists apartment_results_lead_category_idx on public.apartment_results (lead_id, category);
 

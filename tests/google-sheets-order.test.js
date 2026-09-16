@@ -27,6 +27,8 @@ const expectedOrder = [
   'received_at',
   'lead_id',
   'manychat_contact_id',
+  'agent_status',
+  'agent_intent',
   'submitted_at',
   'first_name',
   'last_name',
