@@ -668,7 +668,7 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
   loadAgentState();
   updateAgentStatus();
   if (!agentState.activity.length) emitAgentActivity('agent_started', { question: QUESTIONS[0].id });

@@ -296,6 +296,11 @@ input[type=range]:focus { box-shadow: none; }
 .agent-shell > * { min-width: 0; }
 .agent-intro { width: 100%; text-align: center; max-width: 620px; margin: 0 auto; }
 .agent-intro .subtitle { margin-bottom: 18px; }
+.agent-intro .trust {
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
+}
 .agent-avatar { width: 62px; height: 62px; margin: 26px auto 18px; border-radius: 20px; }
 .agent-avatar svg { width: 28px; height: 28px; }
 .agent-started .agent-intro { display: none; }
@@ -439,7 +444,10 @@ input[type=range]:focus { box-shadow: none; }
   text-align: center;
 }
 .agent-error.show { display: block; }
-.agent-actions { margin-top: 16px; }
+.agent-actions {
+  justify-content: center;
+  margin-top: 16px;
+}
 .agent-actions .btn-back:disabled,
 .agent-actions .btn-primary:disabled {
   opacity: 0.58;

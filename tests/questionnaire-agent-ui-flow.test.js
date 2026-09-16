@@ -104,6 +104,7 @@ class DocumentMock {
   constructor() {
     this.elements = new Map();
     this.dynamicIds = new Set();
+    this.listeners = {};
     [
       'agentConversation',
       'agentResponseMount',
@@ -121,6 +122,9 @@ class DocumentMock {
   }
   querySelector(selector) {
     return selector === '[data-agent-number-one]' ? this.shell : null;
+  }
+  addEventListener(type, fn) {
+    this.listeners[type] = fn;
   }
   registerDynamic(element) {
     this.elements.set(element.id, element);
@@ -198,7 +202,8 @@ const script = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/scri
 const { context, document, listeners } = createContext();
 
 vm.runInNewContext(script, context);
-listeners.DOMContentLoaded();
+assert.equal(typeof document.listeners.DOMContentLoaded, 'function', 'questionnaire should initialize through document DOMContentLoaded for legacy React mounting');
+document.listeners.DOMContentLoaded();
 
 assert.equal(document.getElementById('agentConversation').innerHTML, '');
 assert.equal(document.getElementById('agentStepTag').textContent, 'RentReady Assistant');
