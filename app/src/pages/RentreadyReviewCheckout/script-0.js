@@ -68,10 +68,11 @@
   }
 
   async function createPrescreenIntent(answers){
+    var trackedAnswers = window.rrnAttachManyChatContactId ? window.rrnAttachManyChatContactId(answers) : answers;
     var intent = await fetchJson('/.netlify/functions/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: answers.lead_id, email: answers.email || '', answers: answers }),
+      body: JSON.stringify({ leadId: trackedAnswers.lead_id, email: trackedAnswers.email || '', answers: trackedAnswers }),
     });
     paymentIntentId = intent.paymentIntentId;
     paymentClientSecret = intent.clientSecret;

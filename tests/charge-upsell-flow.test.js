@@ -78,6 +78,7 @@ async function run() {
       paid97: false,
       stripeCustomerId: null,
       defaultPaymentMethodId: null,
+      manychat_contact_id: '123456789',
     },
     prescreenIntent: {
       id: 'pi_prescreen',
@@ -113,6 +114,7 @@ async function run() {
   assert.equal(createCalls[0].amount, 2700);
   assert.equal(createCalls[0].customer, 'cus_test');
   assert.equal(createCalls[0].payment_method, 'pm_test');
+  assert.equal(createCalls[0].metadata.manychat_contact_id, '123456789');
   assert.equal(patchCalls.length, 2);
   assert.deepEqual(patchCalls[0].patch, {
     paid10: true,
@@ -122,6 +124,8 @@ async function run() {
   assert.deepEqual(patchCalls[1].patch, {
     paid27: true,
     addPurchasedCategory: 'modern',
+    manychat_contact_id: '123456789',
+    manychatContactId: '123456789',
   });
   assert.deepEqual(downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
 

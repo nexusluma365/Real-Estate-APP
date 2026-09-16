@@ -10,6 +10,7 @@ const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, patchEntitlements } = require('./_lib/store');
 const { sendWelcomeEmail } = require('./_lib/welcome-email');
 const { sendDownloadEmail } = require('./_lib/download-email');
+const { manychatMetadata } = require('./_lib/manychat');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -57,6 +58,7 @@ exports.handler = async (event) => {
       const patch = { [field]: true };
       if (pi.customer) patch.stripeCustomerId = pi.customer;
       if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
+      Object.assign(patch, manychatMetadata(pi.metadata && pi.metadata.manychat_contact_id));
       if (product === 'modern' || product === 'luxury') patch.addPurchasedCategory = product;
       let entitlements = null;
       let entitlementWarning = null;

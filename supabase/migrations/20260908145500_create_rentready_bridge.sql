@@ -9,6 +9,7 @@ create table if not exists public.leads (
   beds_needed text,
   move_timeline text,
   move_reason text,
+  manychat_contact_id text,
   raw_answers jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -25,6 +26,7 @@ create table if not exists public.entitlements (
   stripe_customer_id text,
   stripe_payment_intent_id text,
   default_payment_method_id text,
+  manychat_contact_id text,
   raw_entitlement jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -45,6 +47,8 @@ create table if not exists public.apartment_results (
 );
 
 create index if not exists leads_email_idx on public.leads (email);
+create index if not exists leads_manychat_contact_id_idx on public.leads (manychat_contact_id);
+create index if not exists entitlements_manychat_contact_id_idx on public.entitlements (manychat_contact_id);
 create index if not exists apartment_results_lead_category_idx on public.apartment_results (lead_id, category);
 
 alter table public.leads enable row level security;

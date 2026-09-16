@@ -9,6 +9,7 @@ const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
 const { determineFocus } = require('./_lib/focus');
 const { sendDownloadEmail } = require('./_lib/download-email');
+const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
 
 const PRODUCTS = {
   gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
@@ -36,6 +37,7 @@ async function recoverPrescreenEntitlements(stripe, leadId, prescreenPaymentInte
     paid10: true,
     stripeCustomerId: pi.customer,
     defaultPaymentMethodId: pi.payment_method,
+    ...manychatMetadata(metadata.manychat_contact_id),
   };
 
   try {
@@ -67,6 +69,12 @@ exports.handler = async (event) => {
   try {
     let entitlements = await getEntitlements(leadId);
     const stripe = getStripe();
+    const lead = await getLead(leadId).catch(() => null);
+    const manychatContactId = normalizeManyChatContactId(
+      entitlements.manychat_contact_id ||
+      entitlements.manychatContactId ||
+      (lead && lead.manychat_contact_id)
+    );
 
     if (!entitlements.paid10 || !entitlements.stripeCustomerId || !entitlements.defaultPaymentMethodId) {
       entitlements = await recoverPrescreenEntitlements(stripe, leadId, prescreenPaymentIntentId, entitlements);
@@ -97,7 +105,6 @@ exports.handler = async (event) => {
     // customer can't unlock it just by hitting this endpoint if their own
     // answers don't indicate a credit/history issue worth reviewing.
     if (product === 'creditkit') {
-      const lead = await getLead(leadId);
       if (!lead || determineFocus(lead) !== 'credit') {
         return {
           statusCode: 400,
@@ -116,7 +123,7 @@ exports.handler = async (event) => {
           payment_method: entitlements.defaultPaymentMethodId,
           off_session: true,
           confirm: true,
-          metadata: { leadId, product, category: def.category || '' },
+          metadata: { leadId, product, category: def.category || '', ...manychatMetadata(manychatContactId) },
         },
         { idempotencyKey: `${leadId}:${product}:${idempotencyKey}` }
       );
@@ -141,6 +148,10 @@ exports.handler = async (event) => {
 
     if (pi.status === 'succeeded') {
       const patch = { [def.field]: true };
+      if (manychatContactId) {
+        patch.manychat_contact_id = manychatContactId;
+        patch.manychatContactId = manychatContactId;
+      }
       if (def.category) patch.addPurchasedCategory = def.category;
       let warning = null;
       try {

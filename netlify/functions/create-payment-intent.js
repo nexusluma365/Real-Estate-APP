@@ -7,8 +7,9 @@
 // same card can be charged again later for the $27 upsell without asking for
 // it again.
 const { getStripe } = require('./_lib/stripe');
-const { saveLead, patchEntitlements } = require('./_lib/store');
+const { saveLead, getLead, patchEntitlements } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
+const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
 
 const PRESCREEN_AMOUNT_CENTS = 1000;
 
@@ -51,6 +52,12 @@ exports.handler = async (event) => {
 
   try {
     const stripe = getStripe();
+    const existingLead = await getLead(normalizedLeadId).catch(() => null);
+    const manychatContactId = normalizeManyChatContactId(
+      (answers && (answers.manychat_contact_id || answers.manychatContactId)) ||
+      (existingLead && existingLead.manychat_contact_id)
+    );
+    const metadata = { leadId: normalizedLeadId, ...manychatMetadata(manychatContactId) };
 
     // Reuse an existing Stripe Customer for this leadId if one exists
     // (e.g. the customer refreshed the page after the intent was created
@@ -60,8 +67,11 @@ exports.handler = async (event) => {
       existing ||
       (await stripe.customers.create({
         email: normalizedEmail,
-        metadata: { leadId: normalizedLeadId },
+        metadata,
       }));
+    if (existing && manychatContactId && (!existing.metadata || existing.metadata.manychat_contact_id !== manychatContactId)) {
+      await stripe.customers.update(existing.id, { metadata: { ...(existing.metadata || {}), ...metadata } });
+    }
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: PRESCREEN_AMOUNT_CENTS,
@@ -69,7 +79,7 @@ exports.handler = async (event) => {
       customer: customer.id,
       setup_future_usage: 'off_session',
       payment_method_types: ['card'],
-      metadata: { leadId: normalizedLeadId, product: 'prescreen' },
+      metadata: { ...metadata, product: 'prescreen' },
     });
 
     // Save the questionnaire answers server-side so later functions (PDF
@@ -77,9 +87,9 @@ exports.handler = async (event) => {
     // authoritative copy instead of trusting whatever the browser sends.
     try {
       if (answers) {
-        await saveLead(normalizedLeadId, { ...answers, email: normalizedEmail });
+        await saveLead(normalizedLeadId, { ...answers, email: normalizedEmail, ...(manychatContactId ? { manychat_contact_id: manychatContactId } : {}) });
       }
-      await patchEntitlements(normalizedLeadId, { stripeCustomerId: customer.id });
+      await patchEntitlements(normalizedLeadId, { stripeCustomerId: customer.id, ...(manychatContactId ? { manychat_contact_id: manychatContactId, manychatContactId } : {}) });
     } catch (err) {
       console.warn('pre-payment lead save failed', err);
     }

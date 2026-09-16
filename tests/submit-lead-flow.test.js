@@ -99,6 +99,7 @@ async function run() {
         source_page: 'https://werentreadygo.com/questionnaire',
         referrer: 'https://werentreadygo.com/',
         user_agent: 'submit-lead-test',
+        manychat_contact_id: '123456789',
       }),
     });
     const forwardedBody = JSON.parse(forwardedRes.body);
@@ -131,6 +132,7 @@ async function run() {
       source_page: 'https://werentreadygo.com/questionnaire',
       referrer: 'https://werentreadygo.com/',
       user_agent: 'submit-lead-test',
+      manychat_contact_id: '123456789',
     });
 
     delete process.env.GOOGLE_SCRIPT_URL;

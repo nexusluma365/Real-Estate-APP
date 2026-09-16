@@ -33,6 +33,7 @@ exports.handler = async (event) => {
       email: lead.email,
       category,
       selectedCity: lead.preferred_city || '',
+      manychat_contact_id: lead.manychat_contact_id || '',
       timestamp: new Date().toISOString(),
     });
 

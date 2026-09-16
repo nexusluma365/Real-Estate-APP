@@ -160,7 +160,7 @@ function toNumberOrEmpty(id) {
 }
 
 function collectPayload() {
-  return {
+  const payload = {
     lead_id:        crypto.randomUUID ? crypto.randomUUID() : ('lead_' + Date.now() + '_' + Math.random().toString(36).slice(2)),
     submitted_at:   new Date().toISOString(),
     received_at:    new Date().toISOString(),
@@ -182,6 +182,7 @@ function collectPayload() {
     referrer:       document.referrer||'',
     user_agent:     navigator.userAgent||'',
   };
+  return window.rrnAttachManyChatContactId ? window.rrnAttachManyChatContactId(payload) : payload;
 }
 
 async function sendToSheets(payload) {

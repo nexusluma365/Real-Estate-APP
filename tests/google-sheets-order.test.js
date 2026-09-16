@@ -26,6 +26,7 @@ function extractRowPayloadOrder() {
 const expectedOrder = [
   'received_at',
   'lead_id',
+  'manychat_contact_id',
   'submitted_at',
   'first_name',
   'last_name',

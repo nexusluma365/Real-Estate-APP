@@ -4,6 +4,7 @@ const SHEET_NAME = "Leads";
 const HEADERS = [
   "received_at",
   "lead_id",
+  "manychat_contact_id",
   "submitted_at",
   "first_name",
   "last_name",
@@ -226,6 +227,7 @@ function writeLead_(payload) {
   const row = [
     new Date(),
     leadId,
+    payload.manychat_contact_id || "",
     payload.submitted_at || "",
     payload.first_name || "",
     payload.last_name || "",

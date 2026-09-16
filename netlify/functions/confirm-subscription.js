@@ -6,6 +6,7 @@
 // Stripe directly before granting membership access.
 const { getStripe } = require('./_lib/stripe');
 const { patchEntitlements } = require('./_lib/store');
+const { manychatMetadata } = require('./_lib/manychat');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -41,6 +42,7 @@ exports.handler = async (event) => {
         membershipStatus: 'active',
         membershipPlan: plan,
         stripeSubscriptionId: subscription.id,
+        ...manychatMetadata(subscription.metadata && subscription.metadata.manychat_contact_id),
       });
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded' }) };
     }

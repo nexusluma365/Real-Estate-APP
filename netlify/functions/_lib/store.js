@@ -20,6 +20,7 @@ const { getStore } = require('@netlify/blobs');
 const fs = require('fs/promises');
 const path = require('path');
 const { normalizeEmail, isValidEmail } = require('./email');
+const { normalizeManyChatContactId } = require('./manychat');
 
 class LocalBlobStore {
   constructor(name) {
@@ -105,6 +106,7 @@ async function supabaseRequest(path, options = {}) {
 
 function leadRecord(leadId, answers = {}) {
   const email = normalizeEmail(answers.email);
+  const manychatContactId = normalizeManyChatContactId(answers.manychat_contact_id || answers.manychatContactId);
   return {
     id: leadId,
     email: isValidEmail(email) ? email : null,
@@ -116,7 +118,8 @@ function leadRecord(leadId, answers = {}) {
     beds_needed: answers.beds_needed || answers.bedrooms || null,
     move_timeline: answers.move_timeline || answers.moveTimeline || null,
     move_reason: answers.move_reason || answers.moveReason || null,
-    raw_answers: { ...answers, lead_id: leadId },
+    manychat_contact_id: manychatContactId || null,
+    raw_answers: { ...answers, lead_id: leadId, ...(manychatContactId ? { manychat_contact_id: manychatContactId } : {}) },
     updated_at: new Date().toISOString(),
   };
 }
@@ -135,6 +138,7 @@ function leadFromRecord(record) {
     beds_needed: record.beds_needed || (record.raw_answers || {}).beds_needed || '',
     move_timeline: record.move_timeline || (record.raw_answers || {}).move_timeline || '',
     move_reason: record.move_reason || (record.raw_answers || {}).move_reason || '',
+    manychat_contact_id: normalizeManyChatContactId(record.manychat_contact_id || (record.raw_answers || {}).manychat_contact_id),
   };
 }
 
@@ -150,6 +154,8 @@ function defaultEntitlements(leadId) {
     purchasedCategories: [],
     stripeCustomerId: null,
     defaultPaymentMethodId: null,
+    manychat_contact_id: null,
+    manychatContactId: null,
   };
 }
 
@@ -165,6 +171,7 @@ function mostRecentCategory(purchasedCategories, fallback) {
 
 function entitlementRecord(leadId, entitlements = {}) {
   const purchasedCategories = Array.isArray(entitlements.purchasedCategories) ? entitlements.purchasedCategories : [];
+  const manychatContactId = normalizeManyChatContactId(entitlements.manychat_contact_id || entitlements.manychatContactId);
   return {
     lead_id: leadId,
     paid10: !!entitlements.paid10,
@@ -176,7 +183,8 @@ function entitlementRecord(leadId, entitlements = {}) {
     stripe_customer_id: entitlements.stripeCustomerId || null,
     stripe_payment_intent_id: entitlements.stripePaymentIntentId || null,
     default_payment_method_id: entitlements.defaultPaymentMethodId || null,
-    raw_entitlement: { ...entitlements, leadId, purchasedCategories },
+    manychat_contact_id: manychatContactId || null,
+    raw_entitlement: { ...entitlements, leadId, purchasedCategories, ...(manychatContactId ? { manychat_contact_id: manychatContactId, manychatContactId } : {}) },
     updated_at: new Date().toISOString(),
   };
 }
@@ -191,6 +199,11 @@ function entitlementsFromRecord(record, leadId) {
     : record.purchased_category
     ? [record.purchased_category]
     : [];
+  const manychatContactId = normalizeManyChatContactId(
+    record.manychat_contact_id ||
+    (record.raw_entitlement || {}).manychat_contact_id ||
+    (record.raw_entitlement || {}).manychatContactId
+  );
   return {
     ...(record.raw_entitlement || {}),
     leadId,
@@ -204,6 +217,8 @@ function entitlementsFromRecord(record, leadId) {
     stripeCustomerId: record.stripe_customer_id || null,
     stripePaymentIntentId: record.stripe_payment_intent_id || null,
     defaultPaymentMethodId: record.default_payment_method_id || null,
+    manychat_contact_id: manychatContactId || null,
+    manychatContactId: manychatContactId || null,
   };
 }
 
@@ -215,7 +230,14 @@ function normalizeLocalEntitlements(rec, leadId) {
       : rec.purchasedCategory
       ? [rec.purchasedCategory]
       : [];
-  return { ...rec, purchasedCategories, purchasedCategory: mostRecentCategory(purchasedCategories, rec.purchasedCategory) };
+  const manychatContactId = normalizeManyChatContactId(rec.manychat_contact_id || rec.manychatContactId);
+  return {
+    ...rec,
+    purchasedCategories,
+    purchasedCategory: mostRecentCategory(purchasedCategories, rec.purchasedCategory),
+    manychat_contact_id: manychatContactId || null,
+    manychatContactId: manychatContactId || null,
+  };
 }
 
 async function saveLead(leadId, answers) {
@@ -342,6 +364,7 @@ async function saveWaitingListEntry(entry) {
         lead_id: entry.leadId || null,
         category: entry.category || null,
         selected_city: entry.selectedCity || null,
+        manychat_contact_id: normalizeManyChatContactId(entry.manychat_contact_id || entry.manychatContactId) || null,
         reason: entry.reason || null,
         raw_entry: entry,
       }),

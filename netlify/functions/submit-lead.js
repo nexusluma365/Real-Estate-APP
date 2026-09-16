@@ -1,5 +1,6 @@
 const { saveLead } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
+const { normalizeManyChatContactId } = require('./_lib/manychat');
 
 function json(statusCode, body) {
   return {
@@ -30,6 +31,12 @@ exports.handler = async function handler(event) {
     return json(400, { ok: false, error: 'A valid email address is required.' });
   }
   payload.email = email;
+  const manychatContactId = normalizeManyChatContactId(payload.manychat_contact_id || payload.manychatContactId);
+  if (manychatContactId) payload.manychat_contact_id = manychatContactId;
+  else {
+    delete payload.manychat_contact_id;
+    delete payload.manychatContactId;
+  }
 
   let saved = false;
   try {

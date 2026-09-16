@@ -6,7 +6,8 @@
 // Requires STRIPE_PRICE_MONTHLY and STRIPE_PRICE_ANNUAL (Stripe recurring
 // Price IDs, created in the Dashboard) as environment variables.
 const { getStripe } = require('./_lib/stripe');
-const { getEntitlements, patchEntitlements } = require('./_lib/store');
+const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
+const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -41,6 +42,12 @@ exports.handler = async (event) => {
     }
 
     const stripe = getStripe();
+    const lead = await getLead(leadId).catch(() => null);
+    const manychatContactId = normalizeManyChatContactId(
+      entitlements.manychat_contact_id ||
+      entitlements.manychatContactId ||
+      (lead && lead.manychat_contact_id)
+    );
     const subscription = await stripe.subscriptions.create(
       {
         customer: entitlements.stripeCustomerId,
@@ -49,7 +56,7 @@ exports.handler = async (event) => {
         payment_behavior: 'default_incomplete',
         payment_settings: { save_default_payment_method: 'on_subscription' },
         expand: ['latest_invoice.payment_intent'],
-        metadata: { leadId, plan },
+        metadata: { leadId, plan, ...manychatMetadata(manychatContactId) },
       },
       { idempotencyKey: `${leadId}:membership:${idempotencyKey}` }
     );
@@ -61,6 +68,7 @@ exports.handler = async (event) => {
         membershipStatus: 'active',
         membershipPlan: plan,
         stripeSubscriptionId: subscription.id,
+        ...(manychatContactId ? { manychat_contact_id: manychatContactId, manychatContactId } : {}),
       });
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded' }) };
     }
