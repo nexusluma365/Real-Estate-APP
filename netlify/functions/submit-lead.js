@@ -3,6 +3,8 @@ const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId } = require('./_lib/manychat');
 const { normalizeAgentLead } = require('./_lib/agent-number-one');
 
+const AGENT_HANDOFF_TIMEOUT_MS = 25000;
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -27,7 +29,7 @@ async function triggerAgentHandoff(event, leadId) {
   }
 
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), AGENT_HANDOFF_TIMEOUT_MS) : null;
   try {
     console.log('[Agent1 Handoff] Triggering from submit-lead', { leadId });
     const res = await fetch(`${origin}/.netlify/functions/agent-handoff`, {
