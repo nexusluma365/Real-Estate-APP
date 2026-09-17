@@ -10,6 +10,14 @@ function loadHandler({ lead, fetchImpl } = {}) {
     loaded: true,
     exports: {
       getLead: async () => lead || null,
+      claimAgentHandoff: async (leadId) => {
+        if (!lead || lead.agent_state?.handoff?.agent_1_status === 'processing') {
+          return { claimed: false, reason: 'agent_1_already_processing', lead };
+        }
+        return { claimed: true, reason: 'agent_1_claimed', lead: { ...lead, lead_id: leadId } };
+      },
+      markAgentHandoffComplete: async () => null,
+      markAgentHandoffFailed: async () => null,
     },
   };
   const oldFetch = global.fetch;
@@ -85,6 +93,44 @@ async function run() {
     assert.equal(forwardedBody.ok, true);
     assert.deepEqual(forwardedPayload, { leadId: 'lead_inline' });
     forwarded.restore();
+
+    let duplicateFetchCount = 0;
+    const duplicate = loadHandler({
+      lead: {
+        lead_id: 'lead_duplicate',
+        email: 'duplicate@example.com',
+        first_name: 'Dupe',
+        last_name: 'Lead',
+        phone: '7045550100',
+        contact_method: 'sms',
+        preferred_city: 'Charlotte, NC',
+        move_timeline: 'asap',
+        annual_income: 72000,
+        rent_budget: 1800,
+        credit_score: '700_739',
+        beds_needed: '1',
+        agent_state: {
+          handoff: {
+            agent_1_status: 'processing',
+          },
+        },
+      },
+      fetchImpl: async () => {
+        duplicateFetchCount += 1;
+        return { ok: true, status: 200, text: async () => 'accepted' };
+      },
+    });
+    const duplicateRes = await duplicate.handler({
+      httpMethod: 'POST',
+      body: JSON.stringify({ leadId: 'lead_duplicate' }),
+    });
+    const duplicateBody = JSON.parse(duplicateRes.body);
+    assert.equal(duplicateRes.statusCode, 200);
+    assert.equal(duplicateBody.ok, true);
+    assert.equal(duplicateBody.skipped, true);
+    assert.equal(duplicateBody.reason, 'agent_1_already_processing');
+    assert.equal(duplicateFetchCount, 0);
+    duplicate.restore();
   } finally {
     if (oldWebhook === undefined) delete process.env.N8N_AGENT_HANDOFF_WEBHOOK_URL;
     else process.env.N8N_AGENT_HANDOFF_WEBHOOK_URL = oldWebhook;

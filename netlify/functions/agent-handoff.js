@@ -4,7 +4,12 @@
 // If N8N_AGENT_HANDOFF_WEBHOOK_URL is configured, this forwards the saved
 // lead UUID to Agent 1. Otherwise it returns the handoff payload without side
 // effects so local/test flows can be exercised safely.
-const { getLead } = require('./_lib/store');
+const {
+  getLead,
+  claimAgentHandoff,
+  markAgentHandoffComplete,
+  markAgentHandoffFailed,
+} = require('./_lib/store');
 const { buildAgentHandoff } = require('./_lib/agent-number-one');
 
 const LOCAL_VILLAGE_ORIGINS = [
@@ -50,14 +55,34 @@ exports.handler = async (event) => {
     if (!lead && leadId) lead = await getLead(leadId);
     if (!lead) return json(event, 404, { ok: false, error: 'No saved Agent Number One lead was found.' });
 
-    const handoff = buildAgentHandoff({ ...lead, lead_id: lead.lead_id || leadId });
-    const actualLeadId = handoff.lead_id;
     const webhookUrl = process.env.N8N_AGENT_HANDOFF_WEBHOOK_URL || '';
     if (!webhookUrl) {
+      const handoff = buildAgentHandoff({ ...lead, lead_id: lead.lead_id || leadId });
       console.log('[Agent1 Handoff] Webhook not configured; returning stub payload');
       return json(event, 200, { ok: true, mode: 'stub', webhookConfigured: false, handoff });
     }
 
+    if (leadId && typeof claimAgentHandoff === 'function') {
+      const claim = await claimAgentHandoff(leadId);
+      if (!claim || !claim.claimed) {
+        const skippedLead = (claim && claim.lead) || lead;
+        const handoff = buildAgentHandoff({ ...skippedLead, lead_id: skippedLead.lead_id || leadId });
+        const reason = (claim && claim.reason) || 'agent_1_handoff_not_claimed';
+        console.log('[Agent1 Handoff] Skipping duplicate handoff', { leadId, reason });
+        return json(event, 200, {
+          ok: true,
+          skipped: true,
+          reason,
+          mode: 'skipped',
+          webhookConfigured: true,
+          handoff,
+        });
+      }
+      lead = claim.lead || lead;
+    }
+
+    const handoff = buildAgentHandoff({ ...lead, lead_id: lead.lead_id || leadId });
+    const actualLeadId = handoff.lead_id;
     try {
       console.log('[Agent1 Handoff] Forwarding to n8n', { leadId: actualLeadId });
       const res = await fetch(webhookUrl, {
@@ -68,8 +93,14 @@ exports.handler = async (event) => {
       const text = await res.text().catch(() => '');
       if (res.ok) {
         console.log('[Agent1 Handoff] n8n responded successfully', { status: res.status });
+        if (actualLeadId && typeof markAgentHandoffComplete === 'function') {
+          await markAgentHandoffComplete(actualLeadId);
+        }
       } else {
         console.error('[Agent1 Handoff] n8n returned a non-success response', { status: res.status });
+        if (actualLeadId && typeof markAgentHandoffFailed === 'function') {
+          await markAgentHandoffFailed(actualLeadId, `n8n returned ${res.status}: ${text.slice(0, 500)}`);
+        }
       }
       return json(event, 200, {
         ok: res.ok,
@@ -81,6 +112,9 @@ exports.handler = async (event) => {
       });
     } catch (err) {
       console.error('[Agent1 Handoff] Handoff failed', err);
+      if (actualLeadId && typeof markAgentHandoffFailed === 'function') {
+        await markAgentHandoffFailed(actualLeadId, String(err && err.message ? err.message : err));
+      }
       return json(event, 502, {
         ok: false,
         mode: 'forward_failed',

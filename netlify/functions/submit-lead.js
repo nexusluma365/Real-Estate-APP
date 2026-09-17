@@ -41,7 +41,14 @@ async function triggerAgentHandoff(event, leadId) {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data && data.ok) {
       console.log('[Agent1 Handoff] submit-lead trigger completed', { leadId, status: res.status });
-      return { ok: true, status: res.status, mode: data.mode || null };
+      const result = {
+        ok: true,
+        status: res.status,
+        mode: data.mode || null,
+      };
+      if (data.skipped) result.skipped = true;
+      if (data.reason) result.reason = data.reason;
+      return result;
     }
     console.error('[Agent1 Handoff] submit-lead trigger returned an error', { leadId, status: res.status, body: data });
     return { ok: false, status: res.status, error: data && data.error ? data.error : 'Agent handoff failed.' };

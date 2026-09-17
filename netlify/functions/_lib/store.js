@@ -159,6 +159,70 @@ function leadFromRecord(record) {
   };
 }
 
+function agentHandoffStatus(lead = {}) {
+  const handoff = lead.agent_state && lead.agent_state.handoff && typeof lead.agent_state.handoff === 'object'
+    ? lead.agent_state.handoff
+    : {};
+  return String(handoff.agent_1_status || handoff.agent1_status || '').trim();
+}
+
+function mergeAgentHandoffState(answers = {}, existingLead = null) {
+  if (!existingLead) return answers;
+  const existingHandoff = existingLead.agent_state && existingLead.agent_state.handoff && typeof existingLead.agent_state.handoff === 'object'
+    ? existingLead.agent_state.handoff
+    : {};
+  const incomingState = answers.agent_state && typeof answers.agent_state === 'object' ? answers.agent_state : {};
+  const incomingHandoff = incomingState.handoff && typeof incomingState.handoff === 'object' ? incomingState.handoff : {};
+  if (incomingHandoff.agent_1_status || incomingHandoff.agent1_status) return answers;
+
+  const currentStatus = agentHandoffStatus(existingLead);
+  if (!currentStatus || !['processing', 'completed'].includes(currentStatus)) return answers;
+
+  return {
+    ...answers,
+    agent_state: {
+      ...incomingState,
+      handoff: {
+        ...incomingHandoff,
+        agent_1_status: existingHandoff.agent_1_status || currentStatus,
+        agent_1_started_at: existingHandoff.agent_1_started_at,
+        agent_1_completed_at: existingHandoff.agent_1_completed_at,
+        agent_1_failed_at: existingHandoff.agent_1_failed_at,
+        agent_1_failure: existingHandoff.agent_1_failure,
+      },
+    },
+  };
+}
+
+function leadWithHandoffPatch(lead = {}, patch = {}) {
+  const state = lead.agent_state && typeof lead.agent_state === 'object' ? lead.agent_state : {};
+  const handoff = state.handoff && typeof state.handoff === 'object' ? state.handoff : {};
+  return {
+    ...lead,
+    agent_state: {
+      ...state,
+      handoff: {
+        ...handoff,
+        ...patch,
+      },
+    },
+  };
+}
+
+async function supabaseRpc(functionName, body) {
+  const res = await supabaseRequest(`rpc/${functionName}`, {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+function normalizeAgentHandoffRpcResult(result) {
+  if (!result || typeof result !== 'object' || !result.lead) return result;
+  return { ...result, lead: leadFromRecord(result.lead) || result.lead };
+}
+
 function defaultEntitlements(leadId) {
   return {
     leadId,
@@ -258,16 +322,19 @@ function normalizeLocalEntitlements(rec, leadId) {
 }
 
 async function saveLead(leadId, answers) {
+  let answersToSave = answers;
+  const existingLead = await getLead(leadId).catch(() => null);
+  answersToSave = mergeAgentHandoffState(answers, existingLead);
   if (supabaseConfig()) {
     await supabaseRequest('leads?on_conflict=id', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(leadRecord(leadId, answers)),
+      body: JSON.stringify(leadRecord(leadId, answersToSave)),
     });
     return;
   }
-  const normalizedEmail = normalizeEmail(answers && answers.email);
-  const normalizedAnswers = { ...answers, ...(isValidEmail(normalizedEmail) ? { email: normalizedEmail } : {}) };
+  const normalizedEmail = normalizeEmail(answersToSave && answersToSave.email);
+  const normalizedAnswers = { ...answersToSave, ...(isValidEmail(normalizedEmail) ? { email: normalizedEmail } : {}) };
   await leadsStore().setJSON(leadId, normalizedAnswers);
   if (isValidEmail(normalizedEmail)) {
     await leadsStore().setJSON(`email:${encodeURIComponent(normalizedEmail)}`, {
@@ -297,6 +364,72 @@ async function getLeadByEmail(email) {
   const index = await leadsStore().get(`email:${encodeURIComponent(normalizedEmail)}`, { type: 'json' });
   if (!index || !index.leadId) return null;
   return getLead(index.leadId);
+}
+
+async function claimAgentHandoff(leadId) {
+  if (supabaseConfig()) {
+    try {
+      return normalizeAgentHandoffRpcResult(await supabaseRpc('claim_agent1_handoff', { p_lead_id: leadId }));
+    } catch (err) {
+      console.error('[Agent1 Handoff] Atomic Supabase claim failed; falling back to read/write guard', err);
+    }
+  }
+  const lead = await getLead(leadId);
+  if (!lead) return { claimed: false, reason: 'lead_not_found' };
+  const status = agentHandoffStatus(lead);
+  if (status === 'processing') return { claimed: false, reason: 'agent_1_already_processing', lead };
+  if (status === 'completed') return { claimed: false, reason: 'agent_1_already_completed', lead };
+
+  const next = leadWithHandoffPatch(lead, {
+    agent_1_status: 'processing',
+    agent_1_started_at: new Date().toISOString(),
+    agent_1_completed_at: null,
+    agent_1_failed_at: null,
+    agent_1_failure: null,
+  });
+  await saveLead(leadId, next);
+  return { claimed: true, reason: 'agent_1_claimed', lead: next };
+}
+
+async function markAgentHandoffComplete(leadId) {
+  if (supabaseConfig()) {
+    try {
+      return normalizeAgentHandoffRpcResult(await supabaseRpc('complete_agent1_handoff', { p_lead_id: leadId }));
+    } catch (err) {
+      console.error('[Agent1 Handoff] Supabase completion mark failed; falling back to read/write update', err);
+    }
+  }
+  const lead = await getLead(leadId);
+  if (!lead) return null;
+  const next = leadWithHandoffPatch(lead, {
+    agent_1_status: 'completed',
+    agent_1_completed_at: new Date().toISOString(),
+    agent_1_failure: null,
+  });
+  await saveLead(leadId, next);
+  return next;
+}
+
+async function markAgentHandoffFailed(leadId, error) {
+  if (supabaseConfig()) {
+    try {
+      return normalizeAgentHandoffRpcResult(await supabaseRpc('fail_agent1_handoff', {
+        p_lead_id: leadId,
+        p_error: String(error || '').slice(0, 1000),
+      }));
+    } catch (err) {
+      console.error('[Agent1 Handoff] Supabase failure mark failed; falling back to read/write update', err);
+    }
+  }
+  const lead = await getLead(leadId);
+  if (!lead) return null;
+  const next = leadWithHandoffPatch(lead, {
+    agent_1_status: 'failed',
+    agent_1_failed_at: new Date().toISOString(),
+    agent_1_failure: String(error || '').slice(0, 1000),
+  });
+  await saveLead(leadId, next);
+  return next;
 }
 
 async function getEntitlements(leadId) {
@@ -419,6 +552,9 @@ module.exports = {
   saveLead,
   getLead,
   getLeadByEmail,
+  claimAgentHandoff,
+  markAgentHandoffComplete,
+  markAgentHandoffFailed,
   getEntitlements,
   patchEntitlements,
   getProtectedFile,
