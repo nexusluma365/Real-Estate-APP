@@ -155,10 +155,15 @@ function createContext() {
     Set,
     Array,
     JSON,
+    Promise,
     RegExp,
     sessionStorage: new Store(),
     localStorage: storage,
-    fetch: async () => ({ ok: true, json: async () => ({ ok: true }) }),
+    fetch: async (_url, options = {}) => {
+      const body = JSON.parse(options.body || '{}');
+      if (body.lookupOnly) return { ok: true, json: async () => ({ ok: true, registered: false }) };
+      return { ok: true, json: async () => ({ ok: true }) };
+    },
     setTimeout: () => 1,
     window: {
       location: { href: 'https://werentreadygo.com/questionnaire' },
@@ -180,82 +185,97 @@ function createContext() {
   return { context, document, listeners };
 }
 
-function submit(document) {
-  document.getElementById('agentForm').listeners.submit({ preventDefault() {} });
+async function submit(document) {
+  await document.getElementById('agentForm').listeners.submit({ preventDefault() {} });
 }
 
-function answerInput(document, value) {
+async function answerInput(document, value) {
   document.getElementById('agentInput').value = value;
-  submit(document);
+  await submit(document);
 }
 
-function choose(document, value) {
+async function choose(document, value) {
   const button = document.getElementById('agentResponseMount').querySelectorAll('.agent-option')
     .find((option) => option.dataset.value === value);
   assert.ok(button, `expected option ${value}`);
   button.click();
-  submit(document);
+  await submit(document);
 }
 
 const root = path.join(__dirname, '..');
 const script = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/script-0.js'), 'utf8');
 const { context, document, listeners } = createContext();
 
-vm.runInNewContext(script, context);
-assert.equal(typeof document.listeners.DOMContentLoaded, 'function', 'questionnaire should initialize through document DOMContentLoaded for legacy React mounting');
-document.listeners.DOMContentLoaded();
+async function run() {
+  context.localStorage.setItem('rrn_agent_number_one_v1', JSON.stringify({
+    agent: 'agent-number-one',
+    started: true,
+    stepIndex: 8,
+    answers: { first_name: 'Old', email: 'old@example.com' },
+  }));
 
-assert.equal(document.getElementById('agentConversation').innerHTML, '');
-assert.equal(document.getElementById('agentStepTag').textContent, 'RentReady Assistant');
-assert.match(document.getElementById('agentNext').innerHTML, /Start/);
+  vm.runInNewContext(script, context);
+  assert.equal(typeof document.listeners.DOMContentLoaded, 'function', 'questionnaire should initialize through document DOMContentLoaded for legacy React mounting');
+  document.listeners.DOMContentLoaded();
 
-submit(document);
-submit(document);
-assert.ok(document.shell.classList.contains('agent-started'));
-assert.match(document.getElementById('agentConversation').innerHTML, /First, what should I call you\?/);
-assert.equal(document.getElementById('agentError').textContent, '');
+  assert.equal(document.getElementById('agentConversation').innerHTML, '');
+  assert.equal(document.getElementById('agentStepTag').textContent, 'RentReady Assistant');
+  assert.match(document.getElementById('agentNext').innerHTML, /Start/);
 
-answerInput(document, 'Rae');
-assert.match(document.getElementById('agentConversation').innerHTML, /And what is your last name\?/);
+  await submit(document);
+  await submit(document);
+  assert.ok(document.shell.classList.contains('agent-started'));
+  assert.match(document.getElementById('agentConversation').innerHTML, /First, what should I call you\?/);
+  assert.equal(document.getElementById('agentError').textContent, '');
 
-answerInput(document, 'Jordan');
-answerInput(document, 'rae@example.com');
-answerInput(document, '5551112222');
-choose(document, 'sms');
-answerInput(document, 'Austin, TX');
-choose(document, '1_month');
-choose(document, 'relocation');
-answerInput(document, '90000');
-answerInput(document, '2200');
-choose(document, '660_699');
-choose(document, '2');
+  await answerInput(document, 'Rae');
+  assert.match(document.getElementById('agentConversation').innerHTML, /And what is your last name\?/);
 
-assert.match(document.getElementById('agentConversation').innerHTML, /You are all set\./);
-assert.doesNotMatch(document.getElementById('agentResponseMount').innerHTML, /Agent Status|Intent|sales-ready|agent_status/);
+  await answerInput(document, 'Jordan');
+  await answerInput(document, 'rae@example.com');
+  await answerInput(document, '5551112222');
+  await choose(document, 'sms');
+  await answerInput(document, 'Austin, TX');
+  await choose(document, '1_month');
+  await choose(document, 'relocation');
+  await answerInput(document, '90000');
+  await answerInput(document, '2200');
+  await choose(document, '660_699');
+  await choose(document, '2');
 
-submit(document);
+  assert.match(document.getElementById('agentConversation').innerHTML, /You are all set\./);
+  assert.doesNotMatch(document.getElementById('agentResponseMount').innerHTML, /Agent Status|Intent|sales-ready|agent_status/);
 
-const answers = JSON.parse(context.localStorage.getItem('rrn_answers_v1'));
-assert.equal(answers.agent_status, 'sales-ready');
-assert.equal(answers.manychat_contact_id, '123456789');
-assert.equal(answers.first_name, 'Rae');
-assert.equal(answers.rent_budget, 2200);
+  await submit(document);
 
-const state = JSON.parse(context.localStorage.getItem('rrn_agent_number_one_v1'));
-assert.equal(state.started, true);
-assert.equal(state.lead_id, 'lead-test-123');
-assert.equal(state.status, 'sales-ready');
+  const answers = JSON.parse(context.localStorage.getItem('rrn_answers_v1'));
+  assert.equal(answers.agent_status, 'sales-ready');
+  assert.equal(answers.manychat_contact_id, '123456789');
+  assert.equal(answers.first_name, 'Rae');
+  assert.equal(answers.rent_budget, 2200);
 
-const activityTypes = state.activity.map((event) => event.type);
-[
-  'agent_started',
-  'question_presented',
-  'answer_captured',
-  'intent_classified',
-  'handoff_ready',
-  'lead_submitted',
-].forEach((type) => {
-  assert.ok(activityTypes.includes(type), `${type} should be emitted`);
-});
+  const state = JSON.parse(context.sessionStorage.getItem('rrn_agent_number_one_v1'));
+  assert.equal(state.started, true);
+  assert.equal(state.lead_id, 'lead-test-123');
+  assert.equal(state.status, 'sales-ready');
 
-console.log('questionnaire agent UI flow test passed');
+  const activityTypes = state.activity.map((event) => event.type);
+  [
+    'agent_started',
+    'question_presented',
+    'answer_captured',
+    'intent_classified',
+    'handoff_ready',
+    'lead_submitted',
+  ].forEach((type) => {
+    assert.ok(activityTypes.includes(type), `${type} should be emitted`);
+  });
+
+}
+
+run()
+  .then(() => console.log('questionnaire agent UI flow test passed'))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

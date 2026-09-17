@@ -1,4 +1,4 @@
-const { saveLead } = require('./_lib/store');
+const { saveLead, getLeadByEmail } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId } = require('./_lib/manychat');
 const { normalizeAgentLead } = require('./_lib/agent-number-one');
@@ -23,13 +23,29 @@ exports.handler = async function handler(event) {
     return json(400, { ok: false, error: 'Invalid JSON payload.' });
   }
 
-  const leadId = String(payload.lead_id || payload.leadId || '').trim();
-  if (!leadId) {
-    return json(400, { ok: false, error: 'lead_id is required.' });
-  }
   const email = normalizeEmail(payload.email);
   if (!isValidEmail(email)) {
     return json(400, { ok: false, error: 'A valid email address is required.' });
+  }
+
+  if (payload.lookupOnly || payload.lookup_only) {
+    let lead = null;
+    try {
+      lead = await getLeadByEmail(email);
+    } catch (err) {
+      console.error('lead lookup failed', err);
+      return json(200, { ok: true, registered: false, error: 'Could not check this email right now.' });
+    }
+    return json(200, {
+      ok: true,
+      registered: !!(lead && lead.lead_id),
+      lead: lead && lead.lead_id ? lead : undefined,
+    });
+  }
+
+  const leadId = String(payload.lead_id || payload.leadId || '').trim();
+  if (!leadId) {
+    return json(400, { ok: false, error: 'lead_id is required.' });
   }
   payload.email = email;
   const manychatContactId = normalizeManyChatContactId(payload.manychat_contact_id || payload.manychatContactId);

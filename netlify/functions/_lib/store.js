@@ -266,7 +266,15 @@ async function saveLead(leadId, answers) {
     });
     return;
   }
-  await leadsStore().setJSON(leadId, answers);
+  const normalizedEmail = normalizeEmail(answers && answers.email);
+  const normalizedAnswers = { ...answers, ...(isValidEmail(normalizedEmail) ? { email: normalizedEmail } : {}) };
+  await leadsStore().setJSON(leadId, normalizedAnswers);
+  if (isValidEmail(normalizedEmail)) {
+    await leadsStore().setJSON(`email:${encodeURIComponent(normalizedEmail)}`, {
+      leadId,
+      updated_at: new Date().toISOString(),
+    });
+  }
 }
 
 async function getLead(leadId) {
@@ -276,6 +284,19 @@ async function getLead(leadId) {
     return leadFromRecord(rows[0]);
   }
   return leadsStore().get(leadId, { type: 'json' });
+}
+
+async function getLeadByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!isValidEmail(normalizedEmail)) return null;
+  if (supabaseConfig()) {
+    const res = await supabaseRequest(`leads?email=eq.${encodeURIComponent(normalizedEmail)}&select=*&order=updated_at.desc&limit=1`);
+    const rows = await res.json();
+    return leadFromRecord(rows[0]);
+  }
+  const index = await leadsStore().get(`email:${encodeURIComponent(normalizedEmail)}`, { type: 'json' });
+  if (!index || !index.leadId) return null;
+  return getLead(index.leadId);
 }
 
 async function getEntitlements(leadId) {
@@ -397,6 +418,7 @@ async function saveWaitingListEntry(entry) {
 module.exports = {
   saveLead,
   getLead,
+  getLeadByEmail,
   getEntitlements,
   patchEntitlements,
   getProtectedFile,

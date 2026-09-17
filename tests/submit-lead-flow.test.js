@@ -6,6 +6,7 @@ function loadHandler(options = {}) {
   delete require.cache[fnPath];
 
   const savedLeads = [];
+  const lookedUpEmails = [];
   require.cache[storePath] = {
     id: storePath,
     filename: storePath,
@@ -16,10 +17,16 @@ function loadHandler(options = {}) {
         (async (leadId, answers) => {
           savedLeads.push({ leadId, answers });
         }),
+      getLeadByEmail:
+        options.getLeadByEmail ||
+        (async (email) => {
+          lookedUpEmails.push(email);
+          return null;
+        }),
     },
   };
 
-  return { handler: require('../netlify/functions/submit-lead').handler, savedLeads };
+  return { handler: require('../netlify/functions/submit-lead').handler, savedLeads, lookedUpEmails };
 }
 
 async function run() {
@@ -48,6 +55,28 @@ async function run() {
     assert.equal(missingSheets.savedLeads[0].leadId, 'lead_123');
     assert.equal(missingSheets.savedLeads[0].answers.preferred_city, 'High Point, NC');
     assert.equal(missingSheets.savedLeads[0].answers.email, 'renter@example.com');
+
+    const registeredEmail = loadHandler({
+      getLeadByEmail: async (email) => ({
+        lead_id: 'lead_existing',
+        email,
+        preferred_city: 'Charlotte, NC',
+      }),
+    });
+    const registeredEmailRes = await registeredEmail.handler({
+      httpMethod: 'POST',
+      body: JSON.stringify({
+        lookupOnly: true,
+        email: 'RENTER@EXAMPLE.COM',
+      }),
+    });
+    const registeredEmailBody = JSON.parse(registeredEmailRes.body);
+
+    assert.equal(registeredEmailRes.statusCode, 200);
+    assert.equal(registeredEmailBody.ok, true);
+    assert.equal(registeredEmailBody.registered, true);
+    assert.equal(registeredEmailBody.lead.lead_id, 'lead_existing');
+    assert.equal(registeredEmail.savedLeads.length, 0);
 
     const invalidEmail = loadHandler();
     const invalidEmailRes = await invalidEmail.handler({

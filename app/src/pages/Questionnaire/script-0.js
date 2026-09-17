@@ -10,7 +10,9 @@ const GOOGLE_SCRIPT_URL = '/.netlify/functions/submit-lead';
 const LEAD_QUEUE_KEY = 'rrn_leads_v2';
 const ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
 const AGENT_STATE_KEY = 'rrn_agent_number_one_v1';
+const FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
 const POST_SUBMIT_REDIRECT_URL = '/results-processing.html';
+const REGISTERED_EMAIL_REDIRECT_URL = '/real-estate-list.html';
 const POST_SUBMIT_REDIRECT_DELAY_MS = 900;
 
 const QUESTIONS = [
@@ -187,6 +189,7 @@ let agentState = {
   activity: [],
 };
 let isSubmitting = false;
+let isCheckingRegisteredEmail = false;
 let isFlushing = false;
 let startGuardUntil = 0;
 
@@ -251,13 +254,12 @@ function updateAgentStatus() {
 function saveAgentState() {
   try {
     sessionStorage.setItem(AGENT_STATE_KEY, JSON.stringify(agentState));
-    localStorage.setItem(AGENT_STATE_KEY, JSON.stringify(agentState));
   } catch (_e) {}
 }
 
 function loadAgentState() {
   try {
-    const raw = sessionStorage.getItem(AGENT_STATE_KEY) || localStorage.getItem(AGENT_STATE_KEY);
+    const raw = sessionStorage.getItem(AGENT_STATE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && parsed.agent === 'agent-number-one' && parsed.answers) {
@@ -334,7 +336,7 @@ function renderResponse() {
   err.textContent = '';
   err.classList.remove('show');
   back.disabled = agentState.stepIndex === 0 || isSubmitting;
-  next.disabled = isSubmitting;
+  next.disabled = isSubmitting || isCheckingRegisteredEmail;
   next.innerHTML = `${question.nextLabel || (agentState.stepIndex === QUESTIONS.length - 1 ? 'Continue' : 'Next')} <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>`;
 
   if (!agentState.started || question.type === 'start') {
@@ -459,8 +461,70 @@ function currentQuestionValue() {
   return agentState.answers[question.field] || '';
 }
 
-function advanceAgent() {
+function grantRegisteredListingAccess(category, city) {
+  try {
+    sessionStorage.setItem(FLOW_ACCESS_KEY, JSON.stringify({
+      step: 'apartment-list',
+      status: 'registered-return',
+      category,
+      city: city || null,
+      at: Date.now(),
+    }));
+  } catch (_e) {}
+}
+
+function redirectRegisteredEmailLead(lead) {
+  const existing = lead || {};
+  const category = new URLSearchParams(window.location.search).get('category') === 'modern' ? 'modern' : 'luxury';
+  const payload = {
+    ...existing,
+    lead_id: existing.lead_id || existing.leadId || '',
+    email: existing.email || agentState.answers.email || '',
+    preferred_city: existing.preferred_city || agentState.answers.preferred_city || existing.city || '',
+  };
+  try {
+    sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
+  } catch (_e) {}
+  grantRegisteredListingAccess(category, payload.preferred_city);
+  const params = new URLSearchParams({ category });
+  if (payload.lead_id) params.set('leadId', payload.lead_id);
+  if (payload.preferred_city) params.set('city', payload.preferred_city);
+  window.location.href = `${REGISTERED_EMAIL_REDIRECT_URL}?${params.toString()}`;
+}
+
+async function checkRegisteredEmail(value) {
+  if (!value || isCheckingRegisteredEmail) return false;
+  isCheckingRegisteredEmail = true;
+  const btn = document.getElementById('agentNext');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
+  }
+  try {
+    const res = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: value, lookupOnly: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data && data.registered && data.lead) {
+      emitAgentActivity('registered_email_found', { field: 'email' });
+      redirectRegisteredEmailLead(data.lead);
+      return true;
+    }
+  } catch (_e) {
+    return false;
+  } finally {
+    isCheckingRegisteredEmail = false;
+    render();
+  }
+  return false;
+}
+
+async function advanceAgent() {
   const question = QUESTIONS[agentState.stepIndex];
+  if (isCheckingRegisteredEmail) return;
   if (!agentState.started || question.type === 'start') {
     if (agentState.started && agentState.stepIndex > 0) return;
     agentState.started = true;
@@ -483,6 +547,7 @@ function advanceAgent() {
   if (question.field) {
     emitAgentActivity('answer_captured', { field: question.field });
   }
+  if (question.field === 'email' && await checkRegisteredEmail(value)) return;
   updateAgentStatus();
   if (agentState.stepIndex === QUESTIONS.length - 1) {
     submitLead();
@@ -626,7 +691,6 @@ async function submitLead() {
     sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
     localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(payload));
     sessionStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, started: true, lead_id: payload.lead_id }));
-    localStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, started: true, lead_id: payload.lead_id }));
   } catch (_e) {}
   try {
     flushQueue().catch(() => {});
@@ -675,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
   render();
   const form = document.getElementById('agentForm');
   const back = document.getElementById('agentBack');
-  if (form) form.addEventListener('submit', (event) => { event.preventDefault(); advanceAgent(); });
+  if (form) form.addEventListener('submit', (event) => { event.preventDefault(); return advanceAgent(); });
   if (back) back.addEventListener('click', retreatAgent);
   flushQueue();
   window.addEventListener('online', flushQueue);
