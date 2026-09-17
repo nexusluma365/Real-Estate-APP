@@ -550,7 +550,7 @@ async function advanceAgent() {
   if (question.field === 'email' && await checkRegisteredEmail(value)) return;
   updateAgentStatus();
   if (agentState.stepIndex === QUESTIONS.length - 1) {
-    submitLead();
+    await submitLead();
     return;
   }
   agentState.stepIndex += 1;
@@ -693,7 +693,7 @@ async function submitLead() {
     sessionStorage.setItem(AGENT_STATE_KEY, JSON.stringify({ ...agentState, started: true, lead_id: payload.lead_id }));
   } catch (_e) {}
   try {
-    flushQueue().catch(() => {});
+    await flushQueue();
     emitAgentActivity('lead_submitted', { leadId: payload.lead_id });
     rrTrack('questionnaire_completed', { agent_status: payload.agent_status, agent_intent: payload.agent_intent });
     setTimeout(() => {

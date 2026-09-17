@@ -56,6 +56,38 @@ async function run() {
     assert.equal(missingSheets.savedLeads[0].answers.preferred_city, 'High Point, NC');
     assert.equal(missingSheets.savedLeads[0].answers.email, 'renter@example.com');
 
+    const oldFetchForHandoff = global.fetch;
+    const handoffTriggered = loadHandler();
+    let handoffRequest = null;
+    global.fetch = async (url, options) => {
+      handoffRequest = { url, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, mode: 'forwarded' }),
+      };
+    };
+    const handoffTriggeredRes = await handoffTriggered.handler({
+      httpMethod: 'POST',
+      headers: { host: 'werentreadygo.com', 'x-forwarded-proto': 'https' },
+      body: JSON.stringify({
+        lead_id: 'lead_handoff_123',
+        email: 'handoff@example.com',
+        preferred_city: 'Charlotte, NC',
+      }),
+    });
+    const handoffTriggeredBody = JSON.parse(handoffTriggeredRes.body);
+
+    assert.equal(handoffTriggeredRes.statusCode, 200);
+    assert.equal(handoffTriggeredBody.ok, true);
+    assert.equal(handoffTriggeredBody.saved, true);
+    assert.deepEqual(handoffTriggeredBody.agentHandoff, { ok: true, status: 200, mode: 'forwarded' });
+    assert.deepEqual(handoffRequest, {
+      url: 'https://werentreadygo.com/.netlify/functions/agent-handoff',
+      body: { leadId: 'lead_handoff_123' },
+    });
+    global.fetch = oldFetchForHandoff;
+
     const registeredEmail = loadHandler({
       getLeadByEmail: async (email) => ({
         lead_id: 'lead_existing',

@@ -11,6 +11,46 @@ function json(statusCode, body) {
   };
 }
 
+function requestOrigin(event) {
+  const headers = event.headers || {};
+  const host = headers.host || headers.Host;
+  if (!host) return '';
+  const proto = headers['x-forwarded-proto'] || headers['X-Forwarded-Proto'] || 'https';
+  return `${proto}://${host}`;
+}
+
+async function triggerAgentHandoff(event, leadId) {
+  const origin = requestOrigin(event);
+  if (!origin) {
+    console.warn('[Agent1 Handoff] Skipping submit-lead trigger because request host is unavailable', { leadId });
+    return { ok: false, skipped: true, reason: 'missing_host' };
+  }
+
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
+  try {
+    console.log('[Agent1 Handoff] Triggering from submit-lead', { leadId });
+    const res = await fetch(`${origin}/.netlify/functions/agent-handoff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId }),
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data && data.ok) {
+      console.log('[Agent1 Handoff] submit-lead trigger completed', { leadId, status: res.status });
+      return { ok: true, status: res.status, mode: data.mode || null };
+    }
+    console.error('[Agent1 Handoff] submit-lead trigger returned an error', { leadId, status: res.status, body: data });
+    return { ok: false, status: res.status, error: data && data.error ? data.error : 'Agent handoff failed.' };
+  } catch (err) {
+    console.error('[Agent1 Handoff] submit-lead trigger failed', { leadId, error: String(err && err.message ? err.message : err) });
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers: { Allow: 'POST' }, body: JSON.stringify({ ok: false, error: 'Method not allowed' }) };
@@ -64,12 +104,17 @@ exports.handler = async function handler(event) {
     console.error('lead save failed', err);
   }
 
+  const agentHandoff = saved
+    ? await triggerAgentHandoff(event, leadId)
+    : { ok: false, skipped: true, reason: 'lead_not_saved' };
+
   const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL || '';
   if (!googleScriptUrl) {
     return json(200, {
       ok: saved,
       saved,
       sheetsOk: false,
+      agentHandoff,
       warning: saved ? 'GOOGLE_SCRIPT_URL is not configured; lead was saved without Google Sheets forwarding.' : undefined,
       error: saved ? undefined : 'Could not save questionnaire.',
     });
@@ -90,6 +135,7 @@ exports.handler = async function handler(event) {
       ok: saved || sheetsOk,
       saved,
       sheetsOk,
+      agentHandoff,
       sheets: data,
       warning: saved && !sheetsOk ? 'Google Sheets did not accept the lead; lead was still saved.' : undefined,
       error: saved || sheetsOk ? undefined : 'Could not save questionnaire.',
@@ -99,6 +145,7 @@ exports.handler = async function handler(event) {
       ok: saved,
       saved,
       sheetsOk: false,
+      agentHandoff,
       warning: saved ? String(err && err.message ? err.message : err) : undefined,
       error: saved ? undefined : 'Could not save questionnaire.',
     });

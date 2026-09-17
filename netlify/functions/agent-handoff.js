@@ -1,9 +1,9 @@
 // POST /.netlify/functions/agent-handoff
 // Body: { leadId } or { lead: {...} }
 //
-// Stub for the future N8N handoff. If N8N_AGENT_HANDOFF_WEBHOOK_URL is
-// configured, this forwards the clean handoff payload. Otherwise it returns
-// the payload without side effects so the next automation can be tested safely.
+// If N8N_AGENT_HANDOFF_WEBHOOK_URL is configured, this forwards the saved
+// lead UUID to Agent 1. Otherwise it returns the handoff payload without side
+// effects so local/test flows can be exercised safely.
 const { getLead } = require('./_lib/store');
 const { buildAgentHandoff } = require('./_lib/agent-number-one');
 
@@ -23,6 +23,7 @@ function allowedOrigins() {
 }
 
 exports.handler = async (event) => {
+  console.log('[Agent1 Handoff] Starting handoff');
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -44,23 +45,32 @@ exports.handler = async (event) => {
     }
 
     const leadId = String(body.leadId || body.lead_id || '').trim();
+    console.log('[Agent1 Handoff] Lead ID received', { hasLeadId: !!leadId });
     let lead = body.lead && typeof body.lead === 'object' ? body.lead : null;
     if (!lead && leadId) lead = await getLead(leadId);
     if (!lead) return json(event, 404, { ok: false, error: 'No saved Agent Number One lead was found.' });
 
     const handoff = buildAgentHandoff({ ...lead, lead_id: lead.lead_id || leadId });
+    const actualLeadId = handoff.lead_id;
     const webhookUrl = process.env.N8N_AGENT_HANDOFF_WEBHOOK_URL || '';
     if (!webhookUrl) {
+      console.log('[Agent1 Handoff] Webhook not configured; returning stub payload');
       return json(event, 200, { ok: true, mode: 'stub', webhookConfigured: false, handoff });
     }
 
     try {
+      console.log('[Agent1 Handoff] Forwarding to n8n', { leadId: actualLeadId });
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(handoff),
+        body: JSON.stringify({ leadId: actualLeadId }),
       });
       const text = await res.text().catch(() => '');
+      if (res.ok) {
+        console.log('[Agent1 Handoff] n8n responded successfully', { status: res.status });
+      } else {
+        console.error('[Agent1 Handoff] n8n returned a non-success response', { status: res.status });
+      }
       return json(event, 200, {
         ok: res.ok,
         mode: 'forwarded',
@@ -70,6 +80,7 @@ exports.handler = async (event) => {
         handoff,
       });
     } catch (err) {
+      console.error('[Agent1 Handoff] Handoff failed', err);
       return json(event, 502, {
         ok: false,
         mode: 'forward_failed',
@@ -79,6 +90,7 @@ exports.handler = async (event) => {
       });
     }
   } catch (err) {
+    console.error('[Agent1 Handoff] Unexpected handoff error', err);
     return json(event, 500, {
       ok: false,
       error: 'Unexpected Agent handoff error.',

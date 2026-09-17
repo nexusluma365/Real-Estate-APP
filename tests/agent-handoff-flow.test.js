@@ -83,8 +83,7 @@ async function run() {
     const forwardedBody = JSON.parse(forwardedRes.body);
     assert.equal(forwardedBody.mode, 'forwarded');
     assert.equal(forwardedBody.ok, true);
-    assert.equal(forwardedPayload.lead_id, 'lead_inline');
-    assert.equal(forwardedPayload.agent_status, 'sales-ready');
+    assert.deepEqual(forwardedPayload, { leadId: 'lead_inline' });
     forwarded.restore();
   } finally {
     if (oldWebhook === undefined) delete process.env.N8N_AGENT_HANDOFF_WEBHOOK_URL;
