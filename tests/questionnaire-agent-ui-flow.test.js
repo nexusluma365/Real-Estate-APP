@@ -243,7 +243,7 @@ async function run() {
   await choose(document, '660_699');
   await choose(document, '2');
 
-  assert.match(document.getElementById('agentConversation').innerHTML, /You are all set\./);
+  assert.match(document.getElementById('agentConversation').innerHTML, /Your RentReady check is ready to review\./);
   assert.doesNotMatch(document.getElementById('agentResponseMount').innerHTML, /Agent Status|Intent|sales-ready|agent_status/);
 
   await submit(document);

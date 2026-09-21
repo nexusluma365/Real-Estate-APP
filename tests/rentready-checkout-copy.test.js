@@ -14,12 +14,17 @@ for (const file of files) {
   assert.doesNotMatch(html, /<div class="country-field">United States<\/div>/);
 
   [
-    'Your Next Step Before Touring',
-    'SEE MY RENTREADY REVIEW — $10',
-    'See Your Rental Readiness Score',
-    'See What Property Managers Look For',
-    'Prepare for Better Approval Odds',
-    'Schedule Your Next Tour with Confidence',
+    'See Where You Stand Before You Apply.',
+    'Your Personalized RentReady Check Is Ready',
+    'SEE WHERE I STAND — $10',
+    'Your Rental Readiness Check',
+    'Personalized RentReady Check',
+    'See Your Rental Readiness Outlook',
+    'See What May Need Attention',
+    'Know What to Prepare Before Applying',
+    'Know What to Ask Before You Apply',
+    'Plus: See your next recommended step based on the information you provided.',
+    'This is not a rental application, landlord approval, or guarantee of approval.',
   ].forEach((text) => assert.ok(html.includes(text), `${text} should be present`));
 
   assert.doesNotMatch(html, /RentReady Outlook/);

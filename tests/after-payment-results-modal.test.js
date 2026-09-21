@@ -14,7 +14,7 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
   'Organizing the information you shared',
   'Comparing common rental screening factors',
   'Preparing your personalized rental outlook',
-  'YOUR RENTREADY REVIEW IS READY',
+  'YOUR RENTREADY OUTLOOK IS READY',
 ].forEach(text => assert.match(html, new RegExp(text)));
 
 [
@@ -34,16 +34,16 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
   'matchingApartmentsCta',
 ].forEach(id => assert.match(html, new RegExp(`id="${id}"`)));
 
-assert.match(html, /YOUR RENTREADY RENTAL OUTLOOK/i);
+assert.match(html, /YOUR RENTAL READINESS OUTLOOK/i);
 assert.match(html, /WHAT YOUR RATING MEANS/i);
-assert.match(html, /Your RentReady review is complete/i);
-assert.match(html, /Your RentReady Review Is Ready\./);
+assert.match(html, /YOUR RENTREADY CHECK IS COMPLETE/i);
+assert.match(html, /Here's Where You Stand\./);
 assert.match(html, /View Your Rental Outlook ↓/);
 assert.match(html, /CONTINUE TO APARTMENT OPTIONS/);
 assert.match(html, /It is not a property approval or credit decision/);
 assert.match(html, /YOUR NEXT STEP/);
-assert.match(html, /Now, Choose the Apartments You Want to Explore\./);
-assert.match(html, /Your rental outlook is complete\. Choose Luxury or Modern/);
+assert.match(html, /Now You Know More\. Let's Continue Your Apartment Search\./);
+assert.match(html, /Choose the apartment style you want to explore\. We'll keep using/);
 assert.match(html, /No need to start over — your search details move forward with you\./);
 assert.match(html, /Upscale communities with premium finishes, amenities, and locations\./);
 assert.match(html, /CONTINUE TO LUXURY APARTMENTS →/);

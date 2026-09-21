@@ -6,14 +6,61 @@ function rrTrack(eventName, detail = {}) {
   } catch (_) {}
 }
 
+function readEntryIntent() {
+  try {
+    const sessionValue = sessionStorage.getItem(ENTRY_INTENT_KEY);
+    if (VALID_ENTRY_INTENTS.includes(sessionValue)) return sessionValue;
+    const localValue = localStorage.getItem(ENTRY_INTENT_KEY);
+    if (VALID_ENTRY_INTENTS.includes(localValue)) return localValue;
+  } catch (_e) {}
+  return '';
+}
+
+function ensureEntryIntent() {
+  const existing = readEntryIntent();
+  const value = existing || 'general_renter';
+  try { sessionStorage.setItem(ENTRY_INTENT_KEY, value); } catch (_e) {}
+  try { localStorage.setItem(ENTRY_INTENT_KEY, value); } catch (_e) {}
+  return value;
+}
+
+function queryParam(name) {
+  try {
+    if (typeof URLSearchParams !== 'undefined') {
+      return new URLSearchParams(window.location.search || '').get(name) || '';
+    }
+    const search = String((window.location && window.location.search) || '').replace(/^\?/, '');
+    const parts = search ? search.split('&') : [];
+    for (const part of parts) {
+      const pair = part.split('=');
+      if (decodeURIComponent(pair[0] || '') === name) return decodeURIComponent((pair[1] || '').replace(/\+/g, ' '));
+    }
+  } catch (_e) {}
+  return '';
+}
+
+function marketingContext() {
+  return {
+    entry_intent: ensureEntryIntent(),
+    landing_page: window.location.pathname || '',
+    utm_source: queryParam('utm_source'),
+    utm_medium: queryParam('utm_medium'),
+    utm_campaign: queryParam('utm_campaign'),
+    utm_term: queryParam('utm_term'),
+    utm_content: queryParam('utm_content'),
+  };
+}
+
 const GOOGLE_SCRIPT_URL = '/.netlify/functions/submit-lead';
 const LEAD_QUEUE_KEY = 'rrn_leads_v2';
 const ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
 const AGENT_STATE_KEY = 'rrn_agent_number_one_v1';
 const FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
+const ENTRY_INTENT_KEY = 'rrn_entry_intent_v1';
 const POST_SUBMIT_REDIRECT_URL = '/results-processing.html';
 const REGISTERED_EMAIL_REDIRECT_URL = '/real-estate-list.html';
 const POST_SUBMIT_REDIRECT_DELAY_MS = 900;
+const VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
 
 const QUESTIONS = [
   {
@@ -171,10 +218,10 @@ const QUESTIONS = [
   {
     id: 'review',
     field: null,
-    prompt: 'You are all set.',
-    helper: 'Review your answers, then continue to your RentReady review. This is not an approval, a guarantee, or a lease offer.',
+    prompt: 'Your RentReady check is ready to review.',
+    helper: 'Review your answers, then continue to see where your rental profile stands. This is not a landlord approval or rental application.',
     type: 'review',
-    nextLabel: 'Prepare My Review & Continue',
+    nextLabel: 'See Where I Stand',
   },
 ];
 
@@ -192,6 +239,13 @@ let isSubmitting = false;
 let isCheckingRegisteredEmail = false;
 let isFlushing = false;
 let startGuardUntil = 0;
+let typingState = {
+  key: '',
+  phase: 'done',
+  text: '',
+  timer: null,
+  interval: null,
+};
 
 const N = (value) => Number(value || 0).toLocaleString();
 
@@ -304,6 +358,81 @@ function messageHtml(role, text, helper = '') {
   `;
 }
 
+function currentTypingKey(question) {
+  return `${agentState.stepIndex}:${question.id}:${question.prompt}`;
+}
+
+function clearTypingTimers() {
+  if (typingState.timer && typeof clearTimeout === 'function') clearTimeout(typingState.timer);
+  if (typingState.interval && typeof clearInterval === 'function') clearInterval(typingState.interval);
+  typingState.timer = null;
+  typingState.interval = null;
+}
+
+function typingHtml() {
+  return `
+    <div class="agent-message agent-message-agent agent-message-typing" aria-live="polite">
+      <div class="agent-message-name">Aria</div>
+      <div class="agent-bubble agent-typing-bubble" aria-label="Aria is typing">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  `;
+}
+
+function startTyping(question, key) {
+  clearTypingTimers();
+  typingState.key = key;
+  typingState.phase = 'waiting';
+  typingState.text = '';
+
+  if (typeof setTimeout !== 'function' || typeof setInterval !== 'function') {
+    typingState.phase = 'done';
+    typingState.text = question.prompt;
+    return;
+  }
+
+  typingState.timer = setTimeout(() => {
+    typingState.phase = 'typing';
+    typingState.text = '';
+    let index = 0;
+    renderConversation();
+    renderResponse();
+    typingState.interval = setInterval(() => {
+      index += 1;
+      typingState.text = question.prompt.slice(0, index);
+      renderConversation();
+      if (index >= question.prompt.length) {
+        clearTypingTimers();
+        typingState.phase = 'done';
+        typingState.text = question.prompt;
+        renderConversation();
+        renderResponse();
+      }
+    }, 22);
+  }, 520);
+}
+
+function incomingAgentHtml(question) {
+  const key = currentTypingKey(question);
+  if (typingState.key !== key) startTyping(question, key);
+  if (typingState.phase === 'waiting') return typingHtml();
+  if (typingState.phase === 'typing') {
+    return `
+      <div class="agent-message agent-message-agent">
+        <div class="agent-message-name">Aria</div>
+        <div class="agent-bubble is-typing">${escapeHtml(typingState.text || '')}</div>
+      </div>
+    `;
+  }
+  const done = typingState.phase === 'done';
+  return messageHtml('agent', typingState.text || question.prompt, done ? question.helper : '');
+}
+
+function isIncomingMessageReady() {
+  return typingState.phase === 'done';
+}
+
 function renderConversation() {
   const mount = document.getElementById('agentConversation');
   if (!mount) return;
@@ -321,7 +450,7 @@ function renderConversation() {
       return messageHtml('agent', q.prompt) + messageHtml('user', labelFor(q, value));
     })
     .join('');
-  mount.innerHTML = answered + messageHtml('agent', current.prompt, current.helper);
+  mount.innerHTML = answered + incomingAgentHtml(current);
   mount.scrollTop = mount.scrollHeight;
 }
 
@@ -340,6 +469,10 @@ function renderResponse() {
   next.innerHTML = `${question.nextLabel || (agentState.stepIndex === QUESTIONS.length - 1 ? 'Continue' : 'Next')} <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>`;
 
   if (!agentState.started || question.type === 'start') {
+    mount.innerHTML = '';
+    return;
+  }
+  if (!isIncomingMessageReady()) {
     mount.innerHTML = '';
     return;
   }
@@ -530,6 +663,7 @@ async function advanceAgent() {
     agentState.started = true;
     agentState.stepIndex = 1;
     startGuardUntil = Date.now() + 700;
+    rrTrack('questionnaire_started', marketingContext());
     emitAgentActivity('question_presented', { question: QUESTIONS[agentState.stepIndex].id });
     saveAgentState();
     render();
@@ -602,6 +736,7 @@ function collectPayload() {
     credit_score: agentState.answers.credit_score || '',
     beds_needed: agentState.answers.beds_needed || '',
     source_page: window.location.href,
+    entry_intent: ensureEntryIntent(),
     referrer: document.referrer || '',
     user_agent: navigator.userAgent || '',
     agent_status: agentState.status,
@@ -695,7 +830,7 @@ async function submitLead() {
   try {
     await flushQueue();
     emitAgentActivity('lead_submitted', { leadId: payload.lead_id });
-    rrTrack('questionnaire_completed', { agent_status: payload.agent_status, agent_intent: payload.agent_intent });
+    rrTrack('questionnaire_completed', { ...marketingContext(), agent_status: payload.agent_status, agent_intent: payload.agent_intent });
     setTimeout(() => {
       window.location.href = POST_SUBMIT_REDIRECT_URL;
     }, POST_SUBMIT_REDIRECT_DELAY_MS);
@@ -703,7 +838,7 @@ async function submitLead() {
     showError(`Something went wrong: ${err.message}. Please try again.`);
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = 'Prepare My Review & Continue <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
+      btn.innerHTML = 'See Where I Stand <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
     }
     isSubmitting = false;
   }
@@ -733,6 +868,7 @@ function escapeAttr(value) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  ensureEntryIntent();
   loadAgentState();
   updateAgentStatus();
   if (!agentState.activity.length) emitAgentActivity('agent_started', { question: QUESTIONS[0].id });

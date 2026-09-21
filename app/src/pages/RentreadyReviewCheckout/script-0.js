@@ -2,11 +2,24 @@
 (function(){
   var ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
   var FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
+  var ENTRY_INTENT_KEY = 'rrn_entry_intent_v1';
   var PRESCREEN_INTENT_KEY = 'rrn_prescreen_payment_intent_v1';
   var RESULTS_URL = '/after-payment-results/';
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
   var PAYMENT_DECLINED_MESSAGE = 'Your Payment Did not go through Please Try again';
+  var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
+  var INTENT_MESSAGES = {
+    bad_credit: 'Worried about your credit? Your RentReady check looks at more than one part of your rental situation.',
+    eviction: 'Renting after an eviction? See what may be worth checking before your next application.',
+    broken_lease: 'Have a past broken lease? See what may need attention before you apply again.',
+    denied_application: 'Recently denied? Use this check to better understand what to prepare before your next application.',
+    income_requirements: 'Not sure if your income fits your rent target? Your RentReady check will help you see the numbers together.',
+    no_credit: 'Little or no credit history? See what you may want to prepare before your first application.',
+    approval_requirements: "Wondering if you're ready to apply? See how the rental information you provided fits together.",
+    second_chance: 'Looking for another chance to rent? Start by understanding your current rental situation.',
+    general_renter: 'See where your rental profile stands before your next application.',
+  };
   var stripe = null;
   var elements = null;
   var cardNumber = null;
@@ -18,6 +31,65 @@
   function readAnswers(){
     try { return JSON.parse(sessionStorage.getItem(ANSWERS_STORAGE_KEY) || localStorage.getItem(ANSWERS_STORAGE_KEY) || '{}') || {}; }
     catch (_e) { return {}; }
+  }
+
+  function rrTrack(eventName, detail){
+    try {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push(Object.assign({ event: eventName }, detail || {}));
+      window.dispatchEvent(new CustomEvent('rentready:event', { detail: Object.assign({ event: eventName }, detail || {}) }));
+    } catch (_e) {}
+  }
+
+  function readEntryIntent(answers){
+    if (answers && VALID_ENTRY_INTENTS.indexOf(answers.entry_intent) >= 0) return answers.entry_intent;
+    try {
+      var sessionValue = sessionStorage.getItem(ENTRY_INTENT_KEY);
+      if (VALID_ENTRY_INTENTS.indexOf(sessionValue) >= 0) return sessionValue;
+      var localValue = localStorage.getItem(ENTRY_INTENT_KEY);
+      if (VALID_ENTRY_INTENTS.indexOf(localValue) >= 0) return localValue;
+    } catch (_e) {}
+    return 'general_renter';
+  }
+
+  function storeEntryIntent(value){
+    if (VALID_ENTRY_INTENTS.indexOf(value) < 0) return;
+    try { sessionStorage.setItem(ENTRY_INTENT_KEY, value); } catch (_e) {}
+    try { localStorage.setItem(ENTRY_INTENT_KEY, value); } catch (_e) {}
+  }
+
+  function queryParam(name){
+    try {
+      if (typeof URLSearchParams !== 'undefined') {
+        return new URLSearchParams(window.location.search || '').get(name) || '';
+      }
+      var search = String((window.location && window.location.search) || '').replace(/^\?/, '');
+      var parts = search ? search.split('&') : [];
+      for (var i = 0; i < parts.length; i += 1) {
+        var pair = parts[i].split('=');
+        if (decodeURIComponent(pair[0] || '') === name) return decodeURIComponent((pair[1] || '').replace(/\+/g, ' '));
+      }
+    } catch (_e) {}
+    return '';
+  }
+
+  function marketingContext(answers){
+    return {
+      entry_intent: readEntryIntent(answers),
+      landing_page: window.location.pathname || '',
+      utm_source: queryParam('utm_source'),
+      utm_medium: queryParam('utm_medium'),
+      utm_campaign: queryParam('utm_campaign'),
+      utm_term: queryParam('utm_term'),
+      utm_content: queryParam('utm_content'),
+    };
+  }
+
+  function hydrateIntentContext(answers){
+    var entryIntent = readEntryIntent(answers);
+    storeEntryIntent(entryIntent);
+    var el = document.getElementById('checkoutIntentContext');
+    if (el) el.textContent = INTENT_MESSAGES[entryIntent] || INTENT_MESSAGES.general_renter;
   }
 
   function label(value, map){
@@ -126,6 +198,8 @@
       return;
     }
     hydrateSummary(answers);
+    hydrateIntentContext(answers);
+    rrTrack('checkout_viewed', marketingContext(answers));
 
     try {
       try {
@@ -229,10 +303,11 @@
       }
 
       grantResultsAccess();
+      rrTrack('review_purchased', marketingContext(answers));
       window.location.href = RESULTS_URL;
     } catch (error) {
       btn.disabled = false;
-      btn.innerHTML = 'SEE MY RENTREADY REVIEW — $10 <span>→</span>';
+      btn.innerHTML = 'SEE WHERE I STAND — $10 <span>→</span>';
       showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);
     }
   }

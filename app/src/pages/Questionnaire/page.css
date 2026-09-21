@@ -94,6 +94,7 @@ html, body { min-height: 100%; font-family: var(--font); background: var(--off-w
 .trust { display: flex; gap: 10px; margin-bottom: 28px; flex-wrap: wrap; }
 .trust-item { padding: 7px 11px; border-radius: 999px; background: rgba(255,255,255,0.78); border: 1px solid rgba(26,71,49,0.08); font-size: 11px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .trust-item svg { width: 13px; height: 13px; flex-shrink: 0; }
+.trust-note { margin: -14px auto 28px; max-width: 520px; color: var(--muted); font-size: 11px; line-height: 1.45; text-align: center; }
 
 #slide-0 { text-align: center; padding-top: 0; }
 #slide-0 .hero-icon { margin-left: auto; margin-right: auto; }
@@ -280,7 +281,9 @@ input[type=range]:focus { box-shadow: none; }
   .aria-robot-head,
   .aria-robot-eye,
   .aria-robot-arm-left,
-  .aria-robot-arm-right { transition: none !important; animation: none !important; }
+  .aria-robot-arm-right,
+  .agent-typing-bubble span,
+  .agent-bubble.is-typing::after { transition: none !important; animation: none !important; }
 }
 
 /* Aria chat flow */
@@ -352,6 +355,42 @@ input[type=range]:focus { box-shadow: none; }
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+.agent-typing-bubble {
+  min-width: 58px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.agent-typing-bubble span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(26,71,49,0.48);
+  animation: typingDot 0.92s ease-in-out infinite;
+}
+.agent-typing-bubble span:nth-child(2) { animation-delay: 0.14s; }
+.agent-typing-bubble span:nth-child(3) { animation-delay: 0.28s; }
+.agent-message-typing .agent-bubble { box-shadow: 0 8px 22px rgba(26,71,49,0.06); }
+.agent-bubble.is-typing::after {
+  content: "";
+  display: inline-block;
+  width: 1px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  background: var(--green);
+  animation: typeCursor 0.8s steps(1) infinite;
+}
+@keyframes typingDot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.38; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes typeCursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
 }
 .agent-response {
   width: 100%;

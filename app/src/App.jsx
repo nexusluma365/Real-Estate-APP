@@ -18,6 +18,8 @@ const Membership = lazy(() => import('./pages/Membership/index.jsx'));
 const ThankYou = lazy(() => import('./pages/ThankYou/index.jsx'));
 const ResultsProcessing = lazy(() => import('./pages/ResultsProcessing/index.jsx'));
 const Legal = lazy(() => import('./pages/Legal/index.jsx'));
+const Home = lazy(() => import('./pages/Home/index.jsx'));
+const IntentLanding = lazy(() => import('./pages/IntentLanding/index.jsx'));
 
 // Every path here matches the original standalone .html page's URL exactly
 // (netlify.toml's pretty_urls + existing redirects already made these the
@@ -29,8 +31,20 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={null}>
         <Routes>
-          <Route path="/" element={<Questionnaire />} />
-          <Route path="/index.html" element={<Questionnaire />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/index.html" element={<Home />} />
+
+          <Route path="/check-my-rental-readiness" element={<Questionnaire />} />
+          <Route path="/check-my-rental-readiness/" element={<Questionnaire />} />
+
+          <Route path="/apartments-with-bad-credit" element={<IntentLanding intentKey="bad_credit" />} />
+          <Route path="/rent-after-eviction" element={<IntentLanding intentKey="eviction" />} />
+          <Route path="/rent-after-broken-lease" element={<IntentLanding intentKey="broken_lease" />} />
+          <Route path="/apartment-application-denied" element={<IntentLanding intentKey="denied_application" />} />
+          <Route path="/apartment-income-requirements" element={<IntentLanding intentKey="income_requirements" />} />
+          <Route path="/first-apartment-no-credit" element={<IntentLanding intentKey="no_credit" />} />
+          <Route path="/apartment-approval-requirements" element={<IntentLanding intentKey="approval_requirements" />} />
+          <Route path="/second-chance-apartments" element={<IntentLanding intentKey="second_chance" />} />
 
           <Route path="/luxury-apartments-premium" element={<LuxuryApartmentsPremium />} />
           <Route path="/luxury-apartments-premium.html" element={<LuxuryApartmentsPremium />} />

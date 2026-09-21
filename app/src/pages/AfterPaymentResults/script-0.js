@@ -1,6 +1,7 @@
 
 (function(){
   var ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
+  var ENTRY_INTENT_KEY = 'rrn_entry_intent_v1';
   var FOLDER_STORAGE_KEY = 'rrn_folder_checklist_v1';
   var START_URL = '/index.html';
   var stage = document.getElementById('stage');
@@ -12,9 +13,12 @@
   var skipBtn = document.getElementById('skipBtn');
   var needle = document.getElementById('needle');
   var loaderEl = document.getElementById('loader');
-  var params = new URLSearchParams(window.location.search);
+  var params = (typeof URLSearchParams !== 'undefined')
+    ? new URLSearchParams(window.location.search)
+    : { get: function(){ return ''; } };
   var loaderPreviewComplete = params.get('loaderPreview') === 'complete';
   var reportPreview = params.get('reportPreview') === '1';
+  var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var analysisOverlay = document.getElementById('analysisOverlay');
   var analysisModal = document.getElementById('analysisModal');
   var analysisClose = document.getElementById('analysisClose');
@@ -163,6 +167,45 @@
     } catch (err) {
       return {};
     }
+  }
+
+  function readEntryIntent(answers){
+    if (answers && VALID_ENTRY_INTENTS.indexOf(answers.entry_intent) >= 0) return answers.entry_intent;
+    try {
+      var sessionValue = sessionStorage.getItem(ENTRY_INTENT_KEY);
+      if (VALID_ENTRY_INTENTS.indexOf(sessionValue) >= 0) return sessionValue;
+      var localValue = localStorage.getItem(ENTRY_INTENT_KEY);
+      if (VALID_ENTRY_INTENTS.indexOf(localValue) >= 0) return localValue;
+    } catch (_e) {}
+    return 'general_renter';
+  }
+
+  function rrTrack(eventName, detail){
+    try {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push(Object.assign({ event: eventName }, detail || {}));
+      window.dispatchEvent(new CustomEvent('rentready:event', { detail: Object.assign({ event: eventName }, detail || {}) }));
+    } catch (_e) {}
+  }
+
+  function queryParam(name){
+    try {
+      if (params && typeof params.get === 'function') return params.get(name) || '';
+    } catch (_e) {}
+    return '';
+  }
+
+  function marketingContext(){
+    var answers = readAnswers();
+    return {
+      entry_intent: readEntryIntent(answers),
+      landing_page: window.location.pathname || '',
+      utm_source: queryParam('utm_source'),
+      utm_medium: queryParam('utm_medium'),
+      utm_campaign: queryParam('utm_campaign'),
+      utm_term: queryParam('utm_term'),
+      utm_content: queryParam('utm_content'),
+    };
   }
 
   function money(value){
@@ -941,6 +984,7 @@
       denyResultsAccess();
       return;
     }
+    rrTrack('results_viewed', marketingContext());
 
     if (reportPreview){
       done = true;

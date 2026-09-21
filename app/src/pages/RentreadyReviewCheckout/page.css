@@ -19,6 +19,7 @@ body{padding:24px}
 .hero-copy{max-width:650px;text-align:center}
 h1{font-size:clamp(32px,3.35vw,44px);line-height:1.08;letter-spacing:0;font-weight:900;margin:0 auto 22px;max-width:650px;overflow-wrap:break-word}
 .lead-kicker{font-size:19px;font-weight:800;line-height:1.35;color:var(--green);margin:0 auto 14px;overflow-wrap:break-word}
+.intent-context{display:inline-flex;margin:0 auto 16px;padding:9px 13px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--green-mid);font-size:13px;font-weight:800;line-height:1.35}
 .lead{font-size:17px;line-height:1.5;color:var(--muted);max-width:650px;margin:0 auto;overflow-wrap:break-word}
 .rule{border:0;border-top:1px solid var(--line);margin:30px 0 26px;max-width:650px}
 h2{font-size:24px;line-height:1.1;margin-bottom:12px}
