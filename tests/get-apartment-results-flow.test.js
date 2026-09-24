@@ -234,6 +234,7 @@ async function run() {
 
     urls.length = 0;
     let deniedCalls = 0;
+    let newPlacesCalls = 0;
     global.fetch = async (url) => {
       urls.push(String(url));
       if (String(url).includes('/textsearch/')) {
@@ -243,6 +244,33 @@ async function run() {
             status: 'REQUEST_DENIED',
             error_message: 'This API key is not authorized to use this service or API.',
             results: [],
+          }),
+        };
+      }
+      if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
+        newPlacesCalls++;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            places: [
+              {
+                id: 'place_new_api_1',
+                displayName: { text: 'New API Concord Apartments' },
+                formattedAddress: '33 New API Blvd, Concord, NC',
+                nationalPhoneNumber: '(704) 555-0303',
+                websiteUri: 'https://example.com/new-api-concord',
+                googleMapsUri: 'https://maps.google.com/?cid=newapiconcord',
+                rating: 4.8,
+                userRatingCount: 75,
+                businessStatus: 'OPERATIONAL',
+                addressComponents: [
+                  { longText: 'Concord', shortText: 'Concord', types: ['locality', 'political'] },
+                  { longText: 'North Carolina', shortText: 'NC', types: ['administrative_area_level_1', 'political'] },
+                ],
+                photos: [{ name: 'places/place_new_api_1/photos/photo_1' }],
+              },
+            ],
           }),
         };
       }
@@ -267,12 +295,14 @@ async function run() {
 
     assert.equal(deniedRes.statusCode, 200);
     assert.equal(deniedBody.ok, true);
-    assert.equal(deniedBody.googleStatus, 'REQUEST_DENIED');
-    assert.match(deniedBody.message, /temporarily unavailable/);
-    assert.match(deniedBody.providerMessage, /Google Maps API setup issue/);
-    assert.deepEqual(deniedBody.properties, []);
-    assert.equal(denied.savedResults.length, 0);
+    assert.equal(deniedBody.properties.length, 1);
+    assert.equal(deniedBody.properties[0].name, 'New API Concord Apartments');
+    assert.equal(deniedBody.properties[0].phone, '(704) 555-0303');
+    assert.equal(deniedBody.properties[0].website, 'https://example.com/new-api-concord');
+    assert.match(deniedBody.properties[0].image, /places.googleapis.com\/v1\/places\/place_new_api_1\/photos\/photo_1\/media/);
+    assert.equal(denied.savedResults.length, 1);
     assert.equal(deniedCalls, 1);
+    assert.equal(newPlacesCalls, 1);
 
     urls.length = 0;
     let broadSearchCalls = 0;

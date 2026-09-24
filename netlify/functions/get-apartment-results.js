@@ -227,6 +227,27 @@ async function fetchGooglePlaces(criteria) {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   if (!key) return [];
 
+  try {
+    return await fetchGooglePlacesLegacy(criteria, key);
+  } catch (legacyError) {
+    if (!(legacyError instanceof GooglePlacesError) || !isGoogleSetupStatus(legacyError.status)) {
+      throw legacyError;
+    }
+
+    try {
+      const newApiResults = await fetchGooglePlacesNew(criteria, key);
+      if (newApiResults.length) return newApiResults;
+      return [];
+    } catch (newApiError) {
+      if (newApiError instanceof GooglePlacesError) {
+        newApiError.message = `${newApiError.message} Legacy Places also failed: ${legacyError.message}`;
+      }
+      throw newApiError;
+    }
+  }
+}
+
+async function fetchGooglePlacesLegacy(criteria, key) {
   const resultsByPlaceId = new Map();
   for (const query of googlePlaceQueries(criteria)) {
     const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
@@ -257,6 +278,54 @@ async function fetchGooglePlaces(criteria) {
   const details = await Promise.all(results.map((p) => fetchPlaceDetails(p.place_id, key)));
 
   return results.map((p, index) => normalizePlace(p, details[index], criteria, key)).filter((p) => p.propertyId && p.name);
+}
+
+async function fetchGooglePlacesNew(criteria, key) {
+  const resultsByPlaceId = new Map();
+  for (const query of googlePlaceQueries(criteria)) {
+    const resp = await fetchWithTimeout('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': [
+          'places.id',
+          'places.displayName',
+          'places.formattedAddress',
+          'places.addressComponents',
+          'places.nationalPhoneNumber',
+          'places.internationalPhoneNumber',
+          'places.websiteUri',
+          'places.googleMapsUri',
+          'places.rating',
+          'places.userRatingCount',
+          'places.photos',
+          'places.types',
+          'places.businessStatus',
+        ].join(','),
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        pageSize: MAX_RESULTS,
+        regionCode: 'US',
+      }),
+    }, GOOGLE_FETCH_TIMEOUT_MS);
+    const data = await resp.json().catch(() => ({}));
+    assertGooglePlacesNewResponse(data, resp.status, resp.ok);
+    const places = Array.isArray(data.places) ? data.places : [];
+    places.forEach((place) => {
+      if (place.id && !resultsByPlaceId.has(place.id)) {
+        resultsByPlaceId.set(place.id, place);
+      }
+    });
+    if (places.length) break;
+    if (resultsByPlaceId.size >= MAX_RESULTS) break;
+  }
+
+  return Array.from(resultsByPlaceId.values())
+    .slice(0, MAX_RESULTS)
+    .map((place) => normalizeNewPlace(place, criteria, key))
+    .filter((place) => place.propertyId && place.name);
 }
 
 function googlePlaceQueries(criteria) {
@@ -299,11 +368,24 @@ function assertGooglePlacesResponse(data) {
   if (!status || status === 'OK' || status === 'ZERO_RESULTS') return;
 
   const googleMessage = data.error_message ? ` ${data.error_message}` : '';
-  const setupStatuses = new Set(['REQUEST_DENIED', 'INVALID_REQUEST', 'OVER_QUERY_LIMIT']);
-  const message = setupStatuses.has(status)
+  const message = isGoogleSetupStatus(status)
     ? `Google Places is not returning apartment results because of a Google Maps API setup issue: ${status}.${googleMessage}`
     : `Google Places returned ${status}.${googleMessage}`;
   throw new GooglePlacesError(message.trim(), status);
+}
+
+function assertGooglePlacesNewResponse(data, statusCode, ok) {
+  if (ok && !data.error) return;
+  const status = (data.error && (data.error.status || data.error.code)) || `HTTP_${statusCode || 500}`;
+  const googleMessage = data.error && data.error.message ? ` ${data.error.message}` : '';
+  const message = isGoogleSetupStatus(status)
+    ? `Google Places API (New) is not returning apartment results because of a Google Maps API setup issue: ${status}.${googleMessage}`
+    : `Google Places API (New) returned ${status}.${googleMessage}`;
+  throw new GooglePlacesError(message.trim(), status);
+}
+
+function isGoogleSetupStatus(status) {
+  return new Set(['REQUEST_DENIED', 'INVALID_REQUEST', 'OVER_QUERY_LIMIT', 'PERMISSION_DENIED', 'RESOURCE_EXHAUSTED']).has(String(status));
 }
 
 async function fetchPlaceDetails(placeId, key) {
@@ -353,11 +435,49 @@ function normalizePlace(place, details, criteria, key) {
   return { ...property, ...scoreProperty(property, criteria) };
 }
 
+function normalizeNewPlace(place, criteria, key) {
+  const photoName = place.photos && place.photos[0] && place.photos[0].name;
+  const property = {
+    propertyId: place.id || '',
+    name: (place.displayName && place.displayName.text) || '',
+    address: place.formattedAddress || '',
+    area: addressArea(newAddressComponentsToLegacy(place.addressComponents), criteria),
+    phone: place.nationalPhoneNumber || place.internationalPhoneNumber || '',
+    website: place.websiteUri || '',
+    image: newPhotoUrl(photoName, key),
+    rating: typeof place.rating === 'number' ? place.rating : null,
+    reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
+    directions: place.googleMapsUri || (place.id ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.id)}` : ''),
+    category: criteria.category,
+    businessStatus: place.businessStatus || '',
+    source: 'Google Places',
+  };
+  return { ...property, ...scoreProperty(property, criteria) };
+}
+
+function newAddressComponentsToLegacy(components) {
+  if (!Array.isArray(components)) return [];
+  return components.map((component) => ({
+    long_name: component.longText || component.shortText || '',
+    short_name: component.shortText || component.longText || '',
+    types: component.types || [],
+  }));
+}
+
 function photoUrl(ref, key) {
   if (!ref) return '';
   const url = new URL('https://maps.googleapis.com/maps/api/place/photo');
   url.searchParams.set('maxwidth', '900');
   url.searchParams.set('photo_reference', ref);
+  url.searchParams.set('key', key);
+  return url.toString();
+}
+
+function newPhotoUrl(name, key) {
+  const value = clean(name);
+  if (!value) return '';
+  const url = new URL(`https://places.googleapis.com/v1/${value}/media`);
+  url.searchParams.set('maxWidthPx', '900');
   url.searchParams.set('key', key);
   return url.toString();
 }
