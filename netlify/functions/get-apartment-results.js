@@ -134,12 +134,17 @@ exports.handler = async (event) => {
       rawProperties = await fetchGooglePlaces(criteria);
     } catch (err) {
       if (err instanceof GooglePlacesError) {
-        return json(502, {
-          ok: false,
-          error: err.message,
+        return json(200, {
+          ok: true,
+          leadId,
+          category,
+          generatedAt: new Date().toISOString(),
           provider: 'google_places',
           googleStatus: err.status,
           criteria,
+          nearbyAreas: [],
+          message: err.message,
+          properties: [],
         });
       }
       throw err;
