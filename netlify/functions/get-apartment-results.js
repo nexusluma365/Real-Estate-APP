@@ -143,7 +143,8 @@ exports.handler = async (event) => {
           googleStatus: err.status,
           criteria,
           nearbyAreas: [],
-          message: err.message,
+          message: 'Verified apartment results are temporarily unavailable. You can still browse the listing page and continue your rental plan.',
+          providerMessage: err.message,
           properties: [],
         });
       }

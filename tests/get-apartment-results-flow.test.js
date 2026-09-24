@@ -268,7 +268,8 @@ async function run() {
     assert.equal(deniedRes.statusCode, 200);
     assert.equal(deniedBody.ok, true);
     assert.equal(deniedBody.googleStatus, 'REQUEST_DENIED');
-    assert.match(deniedBody.message, /Google Maps API setup issue/);
+    assert.match(deniedBody.message, /temporarily unavailable/);
+    assert.match(deniedBody.providerMessage, /Google Maps API setup issue/);
     assert.deepEqual(deniedBody.properties, []);
     assert.equal(denied.savedResults.length, 0);
     assert.equal(deniedCalls, 1);
