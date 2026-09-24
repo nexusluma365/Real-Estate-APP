@@ -11,7 +11,8 @@ valid.
 - `POST /send-download` with `{ "leadId": "...", "product": "modern" }`
 - `GET /download?token=...`
 
-Valid products are `modern`, `luxury`, `gameplan`, and `creditkit`.
+Valid products are `modern`, `luxury`, `apartment_prep`, `gameplan`, and
+`creditkit`.
 
 ## Cloudflare bindings and secrets
 
@@ -35,6 +36,7 @@ Optional vars/secrets:
 wrangler secret put PUBLIC_WORKER_URL
 wrangler secret put MODERN_DOWNLOAD_KEY
 wrangler secret put LUXURY_DOWNLOAD_KEY
+wrangler secret put APARTMENT_PREP_DOWNLOAD_KEY
 wrangler secret put GAMEPLAN_DOWNLOAD_KEY
 wrangler secret put CREDITKIT_DOWNLOAD_KEY
 ```
@@ -43,6 +45,7 @@ Default R2 object keys:
 
 - `RentReady Guide.zip` for Modern
 - `RentReady Guide.zip` for Luxury
+- `RentReady Guide.zip` for Apartment Approval Preparation Kit
 - `gameplan.pdf`
 - `creditkit.pdf`
 

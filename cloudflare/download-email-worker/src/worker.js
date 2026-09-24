@@ -129,7 +129,19 @@ async function getEntitlements(env, leadId) {
 
 function hasEntitlement(entitlements, product, def) {
   if (!entitlements || !entitlements[def.entitlementField]) return false;
-  if (def.category && entitlements.purchased_category !== def.category) return false;
+  if (def.category) {
+    const raw = entitlements.raw_entitlement && typeof entitlements.raw_entitlement === 'object'
+      ? entitlements.raw_entitlement
+      : {};
+    const categories = Array.isArray(raw.purchasedCategories)
+      ? raw.purchasedCategories
+      : Array.isArray(entitlements.purchased_categories)
+      ? entitlements.purchased_categories
+      : entitlements.purchased_category
+      ? [entitlements.purchased_category]
+      : [];
+    if (!categories.includes(def.category)) return false;
+  }
   return product === 'modern' || product === 'luxury' || entitlements[def.entitlementField] === true;
 }
 

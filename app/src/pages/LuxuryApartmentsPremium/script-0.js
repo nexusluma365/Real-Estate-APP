@@ -108,7 +108,8 @@
       const check = async () => {
         attempts++;
         const entitlements = await rrnFetchEntitlements(rrnLeadId());
-        if (entitlements && entitlements.paid27 && entitlements.purchasedCategory === APARTMENT_CATEGORY) {
+        const purchasedCategories = (entitlements && entitlements.purchasedCategories) || [];
+        if (entitlements && entitlements.paid27 && (entitlements.purchasedCategory === APARTMENT_CATEGORY || purchasedCategories.includes(APARTMENT_CATEGORY))) {
           await continueToRealEstateList();
           return;
         }
