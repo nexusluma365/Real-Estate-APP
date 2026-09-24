@@ -173,14 +173,65 @@ function computeMatch(apt, crit){
   return { propertyId: apt.id, matchScore: score, matchReason, locationSummary, bestFor, potentialTradeoff, tags: tags.slice(0,4) };
 }
 function rankApartments(crit){
-  if (Array.isArray(serverResults)) {
+  if (Array.isArray(serverResults) && serverResults.length) {
     return serverResults;
   }
-  if (hasSavedLead) return [];
+  if (hasSavedLead) return questionnaireFallbackResults(crit);
   return MOCK_APARTMENTS
     .map(apt => ({ verified: apt, rentReady: computeMatch(apt, crit) }))
     .sort((a,b) => b.rentReady.matchScore - a.rentReady.matchScore)
     .filter(r => r.rentReady.matchScore >= 45);
+}
+
+function questionnaireFallbackResults(crit){
+  const city = (crit.city || "your selected city").trim();
+  const bedroom = bedroomLabel(crit.bedrooms).toLowerCase();
+  const searches = [
+    { id:"area", label:`Apartments for rent in ${city}`, query:`apartments for rent in ${city}` },
+    { id:"beds", label:`${bedroom} apartments in ${city}`, query:`${bedroom} apartments for rent in ${city}` },
+    { id:"communities", label:`Apartment communities near ${city}`, query:`apartment communities in ${city}` },
+    { id:"availability", label:`Available apartments in ${city}`, query:`available apartments in ${city}` },
+  ];
+  return searches.map((item, index) => {
+    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(item.query)}`;
+    const apt = {
+      id: `fallback-${item.id}`,
+      name: item.label,
+      area: city,
+      address: city,
+      phone: "",
+      phoneDisplay: "",
+      website: mapsUrl,
+      mapsUrl,
+      rating: null,
+      reviewCount: null,
+      photo: "",
+      locationLabel: city,
+      style: "Apartment",
+      highRise: null,
+      bedroomsOffered: [],
+      pool: null,
+      fitnessCenter: null,
+      balcony: null,
+      petFriendly: null,
+      modern: null,
+      estRent: null,
+      source: "Apartment search",
+      facts: [bedroom, `Up to ${money(crit.budgetMax)}`],
+    };
+    return {
+      verified: apt,
+      rentReady: {
+        propertyId: apt.id,
+        matchScore: Math.max(72, 88 - index * 4),
+        matchReason: `This search is based on your questionnaire criteria for ${bedroom} apartments around ${city}.`,
+        locationSummary: `Focused on apartment options near ${city}.`,
+        bestFor: `Best for continuing your apartment search while live verified property data refreshes.`,
+        potentialTradeoff: "Open the search result and confirm pricing, availability, fees, deposits, and screening requirements directly with each property.",
+        tags: [city, bedroom, "Search ready", "Verify details"].slice(0,4),
+      },
+    };
+  });
 }
 
 function currentCategory(){
@@ -235,7 +286,8 @@ async function loadVerifiedApartmentResults(){
       criteria.bedrooms = normalizeBedrooms(data.criteria.bedrooms);
     }
     nearbyAreas = Array.isArray(data.nearbyAreas) ? data.nearbyAreas : [];
-    serverResults = Array.isArray(data.properties) ? data.properties.map(serverPropertyToResult) : [];
+    const properties = Array.isArray(data.properties) ? data.properties : [];
+    serverResults = properties.length ? properties.map(serverPropertyToResult) : null;
     serverLoadMessage = data.message || "";
     if (data.message) {
       document.getElementById("heroSub").textContent = data.message;
@@ -243,7 +295,7 @@ async function loadVerifiedApartmentResults(){
   } catch (err) {
     console.warn("Verified apartment results unavailable", err);
     nearbyAreas = [];
-    serverResults = [];
+    serverResults = null;
     serverLoadMessage = err.name === "AbortError"
       ? "Apartment results are taking longer than expected. Refresh in a moment to reload your verified matches."
       : err.message || "Verified apartment results could not be loaded right now.";
@@ -411,7 +463,7 @@ function renderHeroAndSummary(){
   document.getElementById("heroSub").textContent = serverLoadMessage && !currentResults.length
     ? serverLoadMessage
     : criteria.city
-      ? `${matchText} matched what you're looking for — ${criteria.style.toLowerCase()}, ${bedroomText}, ${cityName || criteria.city}.`
+      ? `${matchText} matched what you're looking for — ${bedroomText}, ${cityName || criteria.city}. Confirm current pricing and availability directly with each property.`
       : "Enter a city and state to search verified apartment communities.";
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
     ? `Explore apartment communities near ${criteria.city}.`
