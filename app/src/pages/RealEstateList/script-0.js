@@ -1,21 +1,18 @@
 
 async function confirmListingAccess(){
   const params = new URLSearchParams(window.location.search);
-  const category = (params.get("category") || "luxury").toLowerCase();
   const answers = readAnswers();
   const leadId = answers.lead_id || params.get("leadId") || "";
 
   if (leadId && window.rrnFetchEntitlements) {
     try {
       const ent = await rrnFetchEntitlements(leadId);
-      const purchasedCategories = (ent && ent.purchasedCategories) || [];
-      if (ent && ent.paid27 && (ent.purchasedCategory === category || purchasedCategories.includes(category) || purchasedCategories.includes("apartment_prep"))) return true;
+      if (ent && (ent.paid10 || ent.paid27)) return true;
     } catch (_e) {}
   }
 
   return !!(window.rrnHasRecentFlowAccess && rrnHasRecentFlowAccess("apartment-list", {
     statuses: ["upsell-success", "upsell-declined", "upsell-skipped", "registered-return"],
-    category,
   }));
 }
 
@@ -90,7 +87,6 @@ function readAnswers(){
 function applyAnswerCriteria(){
   const answers = readAnswers();
   const params = new URLSearchParams(window.location.search);
-  const category = (params.get("category") || "luxury").toLowerCase();
   const rentBudget = Number(answers.rent_budget);
   const urlCity = params.get("city") || params.get("c__y") || params.get("location") || "";
   const urlArea = params.get("area") || params.get("searchArea") || "";
@@ -101,7 +97,7 @@ function applyAnswerCriteria(){
     ...criteria,
     city,
     area: urlArea || city,
-    style: category === "modern" ? "Modern" : "Luxury",
+    style: "Apartment",
     budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : Number.isFinite(urlBudget) && urlBudget > 0 ? urlBudget : criteria.budgetMax,
     bedrooms: answers.beds_needed ? normalizeBedrooms(answers.beds_needed) : urlBeds ? normalizeBedrooms(urlBeds) : criteria.bedrooms,
   };
@@ -188,8 +184,7 @@ function rankApartments(crit){
 }
 
 function currentCategory(){
-  const params = new URLSearchParams(window.location.search);
-  return (params.get("category") || "luxury").toLowerCase() === "modern" ? "modern" : "luxury";
+  return "questionnaire";
 }
 
 const APARTMENT_RESULTS_TIMEOUT_MS = 52000;
@@ -216,12 +211,7 @@ async function loadVerifiedApartmentResults(){
     return;
   }
   try {
-    const category = currentCategory();
-    const params = new URLSearchParams({ leadId, category });
-    if (window.rrnApartmentPaymentIntentId) {
-      const upsellIntentId = rrnApartmentPaymentIntentId(category);
-      if (upsellIntentId) params.set("upsellPaymentIntentId", upsellIntentId);
-    }
+    const params = new URLSearchParams({ leadId });
     let res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -240,7 +230,7 @@ async function loadVerifiedApartmentResults(){
     if (data.criteria) {
       criteria.city = data.criteria.city || criteria.city;
       criteria.area = data.criteria.searchArea || data.criteria.city || criteria.area;
-      criteria.style = data.criteria.category === "modern" ? "Modern" : "Luxury";
+      criteria.style = "Apartment";
       criteria.budgetMax = Number(data.criteria.rentBudget) || criteria.budgetMax;
       criteria.bedrooms = normalizeBedrooms(data.criteria.bedrooms);
     }
@@ -309,9 +299,9 @@ function serverPropertyToResult(property){
       matchScore: Number(property.matchScore) || 80,
       matchReason: reasons.join(" ") || property.summary || "Matched from your saved RentReady search criteria.",
       locationSummary: property.address ? `Located near ${property.address}.` : `Located around ${criteria.city}.`,
-      bestFor: property.summary || `Best for renters searching for ${criteria.style.toLowerCase()} apartments in ${criteria.city}.`,
+      bestFor: property.summary || `Best for renters searching for apartments in ${criteria.city}.`,
       potentialTradeoff: property.availabilityNote || "Confirm current availability directly with the property.",
-      tags: [criteria.style, criteria.city, property.website ? "Website available" : ""].filter(Boolean).slice(0,4),
+      tags: [criteria.city, property.website ? "Website available" : "", property.phone ? "Phone available" : ""].filter(Boolean).slice(0,4),
     },
   };
 }

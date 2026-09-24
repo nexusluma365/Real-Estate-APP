@@ -71,7 +71,7 @@ async function run() {
       textSearchCalls++;
       const parsed = new URL(String(url));
       const query = parsed.searchParams.get('query');
-      assert.match(query, /luxury|modern/i);
+      assert.match(query, /apartments|apartment communities|apartment complexes/i);
       assert.match(query, /concord/i);
       // Regression guard: a `type` filter on Text Search is a hard
       // restriction, not a relevance hint, and real apartment communities
@@ -164,6 +164,41 @@ async function run() {
     assert(urls.some((url) => url.includes('/textsearch/')));
     assert(urls.some((url) => url.includes('/details/')));
 
+    const paidBaseCheckout = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+      },
+      entitlements: {
+        paid10: true,
+        paid27: false,
+        purchasedCategories: [],
+      },
+      cached: {
+        provider: 'google_places',
+        category: 'questionnaire',
+        criteria: { category: 'questionnaire', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 1600, bedrooms: 1 },
+        properties: [
+          {
+            propertyId: 'paid10_cached',
+            name: 'Paid Checkout Apartments',
+            phone: '(704) 777-0222',
+            website: 'https://paidcheckoutapartments.test',
+          },
+        ],
+      },
+    });
+    const paidBaseCheckoutRes = await paidBaseCheckout.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_paid10' },
+    });
+    const paidBaseCheckoutBody = JSON.parse(paidBaseCheckoutRes.body);
+    assert.equal(paidBaseCheckoutRes.statusCode, 200);
+    assert.equal(paidBaseCheckoutBody.ok, true);
+    assert.equal(paidBaseCheckoutBody.category, 'questionnaire');
+    assert.equal(paidBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments');
+
     const prepUnlock = await loadHandler({
       lead: {
         preferred_city: 'Concord, NC',
@@ -195,7 +230,7 @@ async function run() {
     const prepUnlockBody = JSON.parse(prepUnlockRes.body);
     assert.equal(prepUnlockRes.statusCode, 200);
     assert.equal(prepUnlockBody.ok, true);
-    assert.equal(prepUnlockBody.category, 'modern');
+    assert.equal(prepUnlockBody.category, 'questionnaire');
 
     urls.length = 0;
     textSearchCalls = 0;
@@ -229,7 +264,7 @@ async function run() {
 
     assert.equal(recoveryRes.statusCode, 200);
     assert.equal(recoveryBody.ok, true);
-    assert.equal(recoveryBody.criteria.category, 'modern');
+    assert.equal(recoveryBody.criteria.category, 'questionnaire');
     assert.deepEqual(recovery.retrieveCalls, ['pi_modern_upsell']);
 
     urls.length = 0;

@@ -1,10 +1,10 @@
-// GET  /.netlify/functions/get-apartment-results?leadId=...&category=modern|luxury
-// POST /.netlify/functions/get-apartment-results   body: { leadId, category, upsellPaymentIntentId?, answers? }
+// GET  /.netlify/functions/get-apartment-results?leadId=...
+// POST /.netlify/functions/get-apartment-results   body: { leadId, answers? }
 //
-// Produces personalized apartment results only after a qualifying $27
-// apartment charge is server-verified. Factual property data comes from Google Places
-// when GOOGLE_PLACES_API_KEY is configured. OpenAI is optional and may only
-// rank/summarize verified properties; it never creates property facts.
+// Produces personalized apartment results from the user's questionnaire.
+// Factual property data comes from Google Places when GOOGLE_PLACES_API_KEY
+// is configured. OpenAI is optional and may only rank/summarize verified
+// properties; it never creates property facts.
 //
 // Both GET (query string, plus a signed `token` for emailed links) and POST
 // (JSON body) are supported. The results page sends POST with the user's
@@ -15,7 +15,8 @@ const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentRe
 const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
 
-const VALID_CATEGORIES = new Set(['modern', 'luxury']);
+const RESULTS_CATEGORY = 'questionnaire';
+const LEGACY_CATEGORIES = new Set(['modern', 'luxury', 'apartment_prep']);
 const MAX_RESULTS = 8;
 const VALID_STATE_CODES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
@@ -46,7 +47,7 @@ function parseRequest(event) {
   }
 
   let leadId = body.leadId || q.leadId;
-  let category = String(body.category || q.category || '').toLowerCase();
+  let category = normalizeResultsCategory(body.category || q.category);
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
   const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
@@ -69,10 +70,15 @@ function parseRequest(event) {
       return { error: json(403, { ok: false, error: 'This link has expired. Request a new one from the site.' }) };
     }
     leadId = data.leadId;
-    category = data.category;
+    category = normalizeResultsCategory(data.category);
   }
 
   return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria };
+}
+
+function normalizeResultsCategory(value) {
+  const category = String(value || '').toLowerCase();
+  return LEGACY_CATEGORIES.has(category) ? RESULTS_CATEGORY : RESULTS_CATEGORY;
 }
 
 exports.handler = async (event) => {
@@ -84,17 +90,17 @@ exports.handler = async (event) => {
   if (parsed.error) return parsed.error;
   const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
 
-  if (!leadId || !VALID_CATEGORIES.has(category)) {
-    return json(400, { ok: false, error: 'Missing or invalid fields' });
+  if (!leadId) {
+    return json(400, { ok: false, error: 'Missing lead ID.' });
   }
 
   try {
     let entitlements = await getEntitlements(leadId);
-    const ownsCategory = (e) => e.paid27 && ((e.purchasedCategories || []).includes(category) || (e.purchasedCategories || []).includes('apartment_prep'));
-    if (!ownsCategory(entitlements) && upsellPaymentIntentId) {
+    const hasListingAccess = (e) => !!(e && (e.paid10 || e.paid27));
+    if (!hasListingAccess(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
-    if (!ownsCategory(entitlements)) {
+    if (!hasListingAccess(entitlements)) {
       return json(403, { ok: false, error: 'This apartment list is not unlocked yet.' });
     }
 
@@ -206,11 +212,11 @@ async function recoverApartmentEntitlement(leadId, category, paymentIntentId, cu
   }
 
   const metadata = pi.metadata || {};
-  if (pi.status !== 'succeeded' || metadata.leadId !== leadId || metadata.product !== category) {
+  if (pi.status !== 'succeeded' || metadata.leadId !== leadId || !LEGACY_CATEGORIES.has(String(metadata.product || metadata.category || '').toLowerCase())) {
     return current;
   }
 
-  const patch = { paid27: true, addPurchasedCategory: category };
+  const patch = { paid27: true, addPurchasedCategory: String(metadata.product || metadata.category || 'apartment_prep').toLowerCase() };
   if (pi.customer) patch.stripeCustomerId = pi.customer;
   if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
 
@@ -329,17 +335,16 @@ async function fetchGooglePlacesNew(criteria, key) {
 }
 
 function googlePlaceQueries(criteria) {
-  const category = criteria.category === 'luxury' ? 'luxury' : 'modern';
   const bedroomText = criteria.bedroomsLabel ? `${criteria.bedroomsLabel} ` : '';
   const primary = searchLocationForArea(criteria.searchArea, criteria.city);
   const locations = [primary];
   if (criteria.searchArea && criteria.searchArea !== criteria.city) locations.push(criteria.city);
 
   return unique(locations.filter(Boolean).map(usSearchLocation)).flatMap((location) => [
-    `${category} ${bedroomText}apartments in ${location}`,
-    `${category} apartment communities in ${location}`,
     `${bedroomText}apartments for rent in ${location}`,
     `apartment communities in ${location}`,
+    `rental apartments in ${location}`,
+    `apartment complexes in ${location}`,
   ]);
 }
 
@@ -576,7 +581,7 @@ function defaultRank(properties, criteria) {
 
 function isUsableCachedResult(cached, criteria) {
   if (!cached || cached.provider !== 'google_places') return false;
-  if (!cached.criteria || cached.criteria.category !== criteria.category || cached.criteria.city !== criteria.city) return false;
+  if (!cached.criteria || cached.criteria.city !== criteria.city) return false;
   if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
   if (Number(cached.criteria.rentBudget || 0) !== Number(criteria.rentBudget || 0)) return false;
   if (Number(cached.criteria.bedrooms ?? -1) !== Number(criteria.bedrooms ?? -1)) return false;
@@ -609,7 +614,7 @@ function buildCriteria(lead, category, overrideCriteria) {
   const bedrooms = normalizeBedrooms(lead.beds_needed);
   const overrideBedrooms = normalizeBedrooms(override.bedrooms);
   return {
-    category,
+    category: RESULTS_CATEGORY,
     city: parsedLocation,
     searchArea,
     locationWarning:
@@ -678,11 +683,7 @@ function scoreProperty(property, criteria) {
   const cityHits = cityTerms.filter((term) => text.includes(term)).length;
   if (cityTerms.length && cityHits) score += Math.min(18, cityHits * 7);
 
-  if (criteria.category === 'luxury') {
-    if (/\bluxury|residences|reserve|retreat|lofts|collection|villas|heights|park|pointe/.test(text)) score += 13;
-  } else if (/\bmodern|lofts|flats|studio|urban|new|contemporary|station|square/.test(text)) {
-    score += 13;
-  }
+  if (/\bapartments|apartment|homes|residences|villas|flats|lofts|townhomes|place|park|pointe|landing|station|square|commons|reserve|retreat|terrace|village/.test(text)) score += 13;
 
   if (typeof property.rating === 'number') score += Math.max(0, Math.min(12, Math.round((property.rating - 3.4) * 8)));
   if (property.phone) score += 4;
@@ -692,7 +693,7 @@ function scoreProperty(property, criteria) {
   score = Math.max(55, Math.min(98, Math.round(score)));
 
   const matchReasons = [
-    `Searched for ${criteria.category} apartments in ${criteria.city}`,
+    `Searched for apartments in ${criteria.city}`,
     criteria.rentBudget
       ? `Matched against your target budget around $${criteria.rentBudget}/mo`
       : 'Matched against your saved RentReady search profile',
