@@ -15,7 +15,7 @@ for (const file of files) {
 
   [
     'See Your Rental Approval Odds Before You Apply.',
-    'Don’t Waste Money on Applications.',
+    'Save money on Application Fees',
     'Your Personalized RentReady Check Is Ready',
     'Continue to Your Approval Odds',
     'Your Rental Readiness Check',

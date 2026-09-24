@@ -18,7 +18,7 @@
     no_credit: 'Little or no credit history? See what you may want to prepare before your first application.',
     approval_requirements: "Wondering if you're ready to apply? See how the rental information you provided fits together.",
     second_chance: 'Looking for another chance to rent? Start by understanding your current rental situation.',
-    general_renter: 'Don’t Waste Money on Applications.',
+    general_renter: 'Save money on Application Fees',
   };
   var stripe = null;
   var elements = null;

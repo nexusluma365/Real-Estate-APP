@@ -81,7 +81,7 @@ assert.match(homeScript, /rrn_entry_intent_v1/);
 assert.match(questionnaireScript, /entry_intent: ensureEntryIntent\(\)/);
 assert.match(checkoutHtml, /id="checkoutIntentContext"/);
 assert.match(checkoutScript, /Worried about your credit\? Your RentReady check looks at more than one part of your rental situation\./);
-assert.match(checkoutScript, /Don’t Waste Money on Applications\./);
+assert.match(checkoutScript, /Save money on Application Fees/);
 
 [
   'intent_landing_view',
