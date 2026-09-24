@@ -71,7 +71,7 @@ async function run() {
       textSearchCalls++;
       const parsed = new URL(String(url));
       const query = parsed.searchParams.get('query');
-      assert.match(query, /apartments|apartment communities|apartment complexes/i);
+      assert.match(query, /apartment/i);
       assert.match(query, /concord/i);
       // Regression guard: a `type` filter on Text Search is a hard
       // restriction, not a relevance hint, and real apartment communities
@@ -156,11 +156,11 @@ async function run() {
     assert.equal(body.properties[0].name, 'Concord Reserve Apartments');
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
-    assert.equal(body.properties[0].image, '');
+    assert.match(body.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=streetview/);
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
-    assert.equal(textSearchCalls, 1);
+    assert.equal(textSearchCalls, 6);
     assert(urls.some((url) => url.includes('/textsearch/')));
     assert(urls.some((url) => url.includes('/details/')));
 
@@ -179,14 +179,14 @@ async function run() {
         provider: 'google_places',
         category: 'questionnaire',
         criteria: { category: 'questionnaire', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 1600, bedrooms: 1 },
-        properties: [
-          {
-            propertyId: 'paid10_cached',
-            name: 'Paid Checkout Apartments',
-            phone: '(704) 777-0222',
-            website: 'https://paidcheckoutapartments.test',
-          },
-        ],
+        properties: Array.from({ length: 8 }, (_, i) => ({
+          propertyId: `paid10_cached_${i + 1}`,
+          name: `Paid Checkout Apartments ${i + 1}`,
+          phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
+          website: `https://paidcheckoutapartments${i + 1}.test`,
+          image: `https://maps.googleapis.com/maps/api/streetview?location=paid${i + 1}`,
+          source: 'Google Places',
+        })),
       },
     });
     const paidBaseCheckoutRes = await paidBaseCheckout.handler({
@@ -197,7 +197,8 @@ async function run() {
     assert.equal(paidBaseCheckoutRes.statusCode, 200);
     assert.equal(paidBaseCheckoutBody.ok, true);
     assert.equal(paidBaseCheckoutBody.category, 'questionnaire');
-    assert.equal(paidBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments');
+    assert.equal(paidBaseCheckoutBody.properties.length, 8);
+    assert.equal(paidBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments 1');
 
     const prepUnlock = await loadHandler({
       lead: {
@@ -288,24 +289,23 @@ async function run() {
           ok: true,
           status: 200,
           json: async () => ({
-            places: [
-              {
-                id: 'place_new_api_1',
-                displayName: { text: 'New API Concord Apartments' },
-                formattedAddress: '33 New API Blvd, Concord, NC',
-                nationalPhoneNumber: '(704) 555-0303',
-                websiteUri: 'https://example.com/new-api-concord',
-                googleMapsUri: 'https://maps.google.com/?cid=newapiconcord',
-                rating: 4.8,
-                userRatingCount: 75,
-                businessStatus: 'OPERATIONAL',
-                addressComponents: [
-                  { longText: 'Concord', shortText: 'Concord', types: ['locality', 'political'] },
-                  { longText: 'North Carolina', shortText: 'NC', types: ['administrative_area_level_1', 'political'] },
-                ],
-                photos: [{ name: 'places/place_new_api_1/photos/photo_1' }],
-              },
-            ],
+            places: Array.from({ length: 8 }, (_, i) => ({
+              id: `place_new_api_${i + 1}`,
+              displayName: { text: `New API Concord Apartments ${i + 1}` },
+              formattedAddress: `${33 + i} New API Blvd, Concord, NC`,
+              nationalPhoneNumber: `(704) 555-03${String(i + 1).padStart(2, '0')}`,
+              websiteUri: `https://new-api-concord-${i + 1}.test`,
+              googleMapsUri: `https://maps.google.com/?cid=newapiconcord${i + 1}`,
+              rating: 4.8,
+              userRatingCount: 75 + i,
+              businessStatus: 'OPERATIONAL',
+              types: ['apartment_building', 'point_of_interest', 'establishment'],
+              addressComponents: [
+                { longText: 'Concord', shortText: 'Concord', types: ['locality', 'political'] },
+                { longText: 'North Carolina', shortText: 'NC', types: ['administrative_area_level_1', 'political'] },
+              ],
+              photos: [{ name: `places/place_new_api_${i + 1}/photos/photo_1` }],
+            })),
           }),
         };
       }
@@ -330,11 +330,11 @@ async function run() {
 
     assert.equal(deniedRes.statusCode, 200);
     assert.equal(deniedBody.ok, true);
-    assert.equal(deniedBody.properties.length, 1);
-    assert.equal(deniedBody.properties[0].name, 'New API Concord Apartments');
-    assert.equal(deniedBody.properties[0].phone, '(704) 555-0303');
-    assert.equal(deniedBody.properties[0].website, 'https://example.com/new-api-concord');
-    assert.match(deniedBody.properties[0].image, /places.googleapis.com\/v1\/places\/place_new_api_1\/photos\/photo_1\/media/);
+    assert.equal(deniedBody.properties.length, 8);
+    assert.equal(deniedBody.properties[0].name, 'New API Concord Apartments 1');
+    assert.equal(deniedBody.properties[0].phone, '(704) 555-0301');
+    assert.equal(deniedBody.properties[0].website, 'https://new-api-concord-1.test');
+    assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=new-photo/);
     assert.equal(denied.savedResults.length, 1);
     assert.equal(deniedCalls, 1);
     assert.equal(newPlacesCalls, 1);
@@ -406,7 +406,7 @@ async function run() {
     assert.equal(broadRes.statusCode, 200);
     assert.equal(broadBody.properties.length, 1);
     assert.equal(broadBody.properties[0].name, 'Broad Concord Apartments');
-    assert.equal(broadSearchCalls, 2);
+    assert.equal(broadSearchCalls, 6);
 
     urls.length = 0;
     const emptyCache = await loadHandler({
@@ -600,9 +600,9 @@ async function run() {
       const variedBody = JSON.parse(variedRes.body);
       assert.equal(variedRes.statusCode, 200, `expected ${city} to search successfully`);
       assert.equal(variedBody.criteria.city, city);
-      assert.equal(variedBody.properties.length, 1);
+      assert(variedBody.properties.length >= 1);
       assert.notEqual(variedBody.properties[0].name, 'Old Real Apartments');
-      assert.equal(variedBody.properties[0].image, '');
+      assert.match(variedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=streetview/);
       assert.equal(varied.savedResults.length, 1);
     }
     assert(variedQueries.some((query) => query.includes('Austin, TX')));

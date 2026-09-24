@@ -33,6 +33,22 @@ async function run() {
     rent_budget: 2000,
     beds_needed: '2',
   };
+  const googleProperties = Array.from({ length: 8 }, (_, i) => ({
+    propertyId: `google_miami_${i + 1}`,
+    name: `Miami Google Apartments ${i + 1}`,
+    address: `${100 + i} Biscayne Blvd, Miami, FL`,
+    area: 'Miami, FL',
+    phone: `(305) 777-10${String(i + 1).padStart(2, '0')}`,
+    website: `https://miami-google-apartments-${i + 1}.test`,
+    directions: `https://maps.google.com/?cid=miamigoogle${i + 1}`,
+    rating: 4.4,
+    reviewCount: 50 + i,
+    image: `/.netlify/functions/google-place-image?kind=photo&ref=photo_${i + 1}`,
+    source: 'Google Places',
+    matchScore: 88 - i,
+    matchReasons: ['Searched for apartments in miami', 'Contact details found through Google Places'],
+    summary: 'A real Google Places apartment community match.',
+  }));
 
   const context = {
     console,
@@ -73,8 +89,7 @@ async function run() {
         json: async () => ({
           ok: true,
           provider: 'google_places',
-          googleStatus: 'REQUEST_DENIED',
-          message: 'Verified apartment results are temporarily unavailable. You can still browse the listing page and continue your rental plan.',
+          category: 'questionnaire',
           criteria: {
             category: 'questionnaire',
             city: 'miami',
@@ -82,8 +97,8 @@ async function run() {
             rentBudget: 2000,
             bedrooms: 2,
           },
-          nearbyAreas: [],
-          properties: [],
+          nearbyAreas: ['Miami, FL'],
+          properties: googleProperties,
         }),
       };
     },
@@ -98,15 +113,18 @@ async function run() {
   await context.loadVerifiedApartmentResults();
   context.renderAll();
 
+  const html = getElementById('listingList').innerHTML;
   assert.equal(getElementById('emptySection').style.display, 'none');
   assert.equal(getElementById('listSection').style.display, 'block');
-  assert.match(getElementById('listingList').innerHTML, /Apartments for rent in miami/);
-  assert.match(getElementById('listingList').innerHTML, /2 bedrooms apartments in miami/);
-  assert.doesNotMatch(getElementById('heroSub').textContent, /temporarily unavailable/i);
+  assert.equal(getElementById('resultCount').textContent, '8 matches');
+  assert.equal((html.match(/<article class="listing/g) || []).length, 8);
+  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?kind=photo/g) || []).length, 8);
+  assert.doesNotMatch(html, /photo-placeholder/);
+  assert.doesNotMatch(html, /Apartment search/);
 }
 
 run()
-  .then(() => console.log('real estate list provider fallback test passed'))
+  .then(() => console.log('real estate list google results test passed'))
   .catch((err) => {
     console.error(err);
     process.exit(1);

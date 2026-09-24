@@ -176,62 +176,11 @@ function rankApartments(crit){
   if (Array.isArray(serverResults) && serverResults.length) {
     return serverResults;
   }
-  if (hasSavedLead) return questionnaireFallbackResults(crit);
+  if (hasSavedLead) return [];
   return MOCK_APARTMENTS
     .map(apt => ({ verified: apt, rentReady: computeMatch(apt, crit) }))
     .sort((a,b) => b.rentReady.matchScore - a.rentReady.matchScore)
     .filter(r => r.rentReady.matchScore >= 45);
-}
-
-function questionnaireFallbackResults(crit){
-  const city = (crit.city || "your selected city").trim();
-  const bedroom = bedroomLabel(crit.bedrooms).toLowerCase();
-  const searches = [
-    { id:"area", label:`Apartments for rent in ${city}`, query:`apartments for rent in ${city}` },
-    { id:"beds", label:`${bedroom} apartments in ${city}`, query:`${bedroom} apartments for rent in ${city}` },
-    { id:"communities", label:`Apartment communities near ${city}`, query:`apartment communities in ${city}` },
-    { id:"availability", label:`Available apartments in ${city}`, query:`available apartments in ${city}` },
-  ];
-  return searches.map((item, index) => {
-    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(item.query)}`;
-    const apt = {
-      id: `fallback-${item.id}`,
-      name: item.label,
-      area: city,
-      address: city,
-      phone: "",
-      phoneDisplay: "",
-      website: mapsUrl,
-      mapsUrl,
-      rating: null,
-      reviewCount: null,
-      photo: "",
-      locationLabel: city,
-      style: "Apartment",
-      highRise: null,
-      bedroomsOffered: [],
-      pool: null,
-      fitnessCenter: null,
-      balcony: null,
-      petFriendly: null,
-      modern: null,
-      estRent: null,
-      source: "Apartment search",
-      facts: [bedroom, `Up to ${money(crit.budgetMax)}`],
-    };
-    return {
-      verified: apt,
-      rentReady: {
-        propertyId: apt.id,
-        matchScore: Math.max(72, 88 - index * 4),
-        matchReason: `This search is based on your questionnaire criteria for ${bedroom} apartments around ${city}.`,
-        locationSummary: `Focused on apartment options near ${city}.`,
-        bestFor: `Best for continuing your apartment search while live verified property data refreshes.`,
-        potentialTradeoff: "Open the search result and confirm pricing, availability, fees, deposits, and screening requirements directly with each property.",
-        tags: [city, bedroom, "Search ready", "Verify details"].slice(0,4),
-      },
-    };
-  });
 }
 
 function currentCategory(){

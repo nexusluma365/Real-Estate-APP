@@ -234,22 +234,21 @@ async function fetchGooglePlaces(criteria) {
   if (!key) return [];
 
   try {
-    return await fetchGooglePlacesLegacy(criteria, key);
+    const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
+    if (legacyResults.length >= MAX_RESULTS) return legacyResults;
+    try {
+      const newApiResults = await fetchGooglePlacesNew(criteria, key);
+      return combineGoogleResults(legacyResults, newApiResults).slice(0, MAX_RESULTS);
+    } catch (newApiError) {
+      if (legacyResults.length) return legacyResults;
+      throw newApiError;
+    }
   } catch (legacyError) {
     if (!(legacyError instanceof GooglePlacesError) || !isGoogleSetupStatus(legacyError.status)) {
       throw legacyError;
     }
-
-    try {
-      const newApiResults = await fetchGooglePlacesNew(criteria, key);
-      if (newApiResults.length) return newApiResults;
-      return [];
-    } catch (newApiError) {
-      if (newApiError instanceof GooglePlacesError) {
-        newApiError.message = `${newApiError.message} Legacy Places also failed: ${legacyError.message}`;
-      }
-      throw newApiError;
-    }
+    const newApiResults = await fetchGooglePlacesNew(criteria, key);
+    return newApiResults.slice(0, MAX_RESULTS);
   }
 }
 
@@ -276,14 +275,14 @@ async function fetchGooglePlacesLegacy(criteria, key) {
         resultsByPlaceId.set(place.place_id, place);
       }
     });
-    if (results.length) break;
     if (resultsByPlaceId.size >= MAX_RESULTS) break;
   }
 
-  const results = Array.from(resultsByPlaceId.values()).slice(0, MAX_RESULTS);
+  const results = Array.from(resultsByPlaceId.values())
+    .slice(0, MAX_RESULTS);
   const details = await Promise.all(results.map((p) => fetchPlaceDetails(p.place_id, key)));
 
-  return results.map((p, index) => normalizePlace(p, details[index], criteria, key)).filter((p) => p.propertyId && p.name);
+  return realApartmentResults(results.map((p, index) => normalizePlace(p, details[index], criteria, key))).slice(0, MAX_RESULTS);
 }
 
 async function fetchGooglePlacesNew(criteria, key) {
@@ -324,14 +323,13 @@ async function fetchGooglePlacesNew(criteria, key) {
         resultsByPlaceId.set(place.id, place);
       }
     });
-    if (places.length) break;
     if (resultsByPlaceId.size >= MAX_RESULTS) break;
   }
 
-  return Array.from(resultsByPlaceId.values())
+  return realApartmentResults(Array.from(resultsByPlaceId.values())
     .slice(0, MAX_RESULTS)
     .map((place) => normalizeNewPlace(place, criteria, key))
-    .filter((place) => place.propertyId && place.name);
+    .filter((place) => place.propertyId && place.name));
 }
 
 function googlePlaceQueries(criteria) {
@@ -345,7 +343,37 @@ function googlePlaceQueries(criteria) {
     `apartment communities in ${location}`,
     `rental apartments in ${location}`,
     `apartment complexes in ${location}`,
+    `professionally managed apartments in ${location}`,
+    `apartment rentals near ${location}`,
   ]);
+}
+
+function realApartmentResults(properties) {
+  const seen = new Set();
+  const apartmentTypePattern = /apartment|real_estate_agency|point_of_interest|establishment|premise/i;
+  const apartmentTextPattern = /\b(apartments?|apartment homes|apartment community|residences|villas|flats|lofts|townhomes|terrace|landing|station|commons|reserve|retreat|pointe|place|park|village)\b/i;
+  const bannedTypePattern = /lodging|hotel|motel|campground|rv_park|storage|school|university|restaurant|bar|shopping_mall|hospital/i;
+
+  return properties.filter((property) => {
+    if (!property || !property.propertyId || !property.name) return false;
+    if (!property.image) return false;
+    if (seen.has(property.propertyId)) return false;
+    seen.add(property.propertyId);
+    const types = Array.isArray(property.types) ? property.types.join(' ') : '';
+    if (bannedTypePattern.test(types)) return false;
+    const text = `${property.name} ${property.address || ''}`;
+    return apartmentTextPattern.test(text) || apartmentTypePattern.test(types);
+  });
+}
+
+function combineGoogleResults(...groups) {
+  const byId = new Map();
+  groups.flat().forEach((property) => {
+    if (property && property.propertyId && !byId.has(property.propertyId)) {
+      byId.set(property.propertyId, property);
+    }
+  });
+  return realApartmentResults(Array.from(byId.values()));
 }
 
 function usSearchLocation(location) {
@@ -397,7 +425,7 @@ async function fetchPlaceDetails(placeId, key) {
   if (!placeId) return null;
   const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
   url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'name,formatted_address,address_components,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,photo,types,business_status');
+  url.searchParams.set('fields', 'name,formatted_address,address_components,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,photos,types,business_status');
   url.searchParams.set('key', key);
 
   try {
@@ -415,14 +443,15 @@ function normalizePlace(place, details, criteria, key) {
   const photoRef =
     (source.photos && source.photos[0] && source.photos[0].photo_reference) ||
     (place.photos && place.photos[0] && place.photos[0].photo_reference);
+  const address = source.formatted_address || place.formatted_address || '';
   const property = {
     propertyId: place.place_id || '',
     name: source.name || place.name || '',
-    address: source.formatted_address || place.formatted_address || '',
+    address,
     area: addressArea(source.address_components || place.address_components, criteria),
     phone: source.formatted_phone_number || source.international_phone_number || '',
     website: source.website || '',
-    image: photoUrl(photoRef, key),
+    image: photoUrl(photoRef) || streetViewUrl(address || source.name || place.name || criteria.city),
     rating: typeof source.rating === 'number' ? source.rating : typeof place.rating === 'number' ? place.rating : null,
     reviewCount:
       typeof source.user_ratings_total === 'number'
@@ -435,6 +464,7 @@ function normalizePlace(place, details, criteria, key) {
       (place.place_id ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}` : ''),
     category: criteria.category,
     businessStatus: source.business_status || place.business_status || '',
+    types: source.types || place.types || [],
     source: 'Google Places',
   };
   return { ...property, ...scoreProperty(property, criteria) };
@@ -442,19 +472,21 @@ function normalizePlace(place, details, criteria, key) {
 
 function normalizeNewPlace(place, criteria, key) {
   const photoName = place.photos && place.photos[0] && place.photos[0].name;
+  const address = place.formattedAddress || '';
   const property = {
     propertyId: place.id || '',
     name: (place.displayName && place.displayName.text) || '',
-    address: place.formattedAddress || '',
+    address,
     area: addressArea(newAddressComponentsToLegacy(place.addressComponents), criteria),
     phone: place.nationalPhoneNumber || place.internationalPhoneNumber || '',
     website: place.websiteUri || '',
-    image: newPhotoUrl(photoName, key),
+    image: newPhotoUrl(photoName) || streetViewUrl(address || (place.displayName && place.displayName.text) || criteria.city),
     rating: typeof place.rating === 'number' ? place.rating : null,
     reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
     directions: place.googleMapsUri || (place.id ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.id)}` : ''),
     category: criteria.category,
     businessStatus: place.businessStatus || '',
+    types: place.types || [],
     source: 'Google Places',
   };
   return { ...property, ...scoreProperty(property, criteria) };
@@ -469,22 +501,34 @@ function newAddressComponentsToLegacy(components) {
   }));
 }
 
-function photoUrl(ref, key) {
+function photoUrl(ref) {
   if (!ref) return '';
-  const url = new URL('https://maps.googleapis.com/maps/api/place/photo');
-  url.searchParams.set('maxwidth', '900');
-  url.searchParams.set('photo_reference', ref);
-  url.searchParams.set('key', key);
-  return url.toString();
+  const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
+  url.searchParams.set('kind', 'photo');
+  url.searchParams.set('ref', ref);
+  return localUrl(url);
 }
 
-function newPhotoUrl(name, key) {
+function newPhotoUrl(name) {
   const value = clean(name);
   if (!value) return '';
-  const url = new URL(`https://places.googleapis.com/v1/${value}/media`);
-  url.searchParams.set('maxWidthPx', '900');
-  url.searchParams.set('key', key);
-  return url.toString();
+  const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
+  url.searchParams.set('kind', 'new-photo');
+  url.searchParams.set('name', value);
+  return localUrl(url);
+}
+
+function streetViewUrl(location) {
+  const value = clean(location);
+  if (!value) return '';
+  const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
+  url.searchParams.set('kind', 'streetview');
+  url.searchParams.set('location', value);
+  return localUrl(url);
+}
+
+function localUrl(url) {
+  return `${url.pathname}${url.search}`;
 }
 
 async function rankWithOpenAI(properties, criteria) {
@@ -586,11 +630,12 @@ function isUsableCachedResult(cached, criteria) {
   if (Number(cached.criteria.rentBudget || 0) !== Number(criteria.rentBudget || 0)) return false;
   if (Number(cached.criteria.bedrooms ?? -1) !== Number(criteria.bedrooms ?? -1)) return false;
   const properties = Array.isArray(cached.properties) ? cached.properties : [];
-  if (!properties.length) return false;
+  if (properties.length < MAX_RESULTS) return false;
   return properties.every((property) => {
     const website = String(property.website || '');
     const phone = String(property.phone || '');
-    return !website.includes('example.com') && !/555-0\d{3}|555\d{4}/.test(phone);
+    const image = String(property.image || '');
+    return property.source === 'Google Places' && image && !website.includes('example.com') && !/555-0\d{3}|555\d{4}/.test(phone);
   });
 }
 
