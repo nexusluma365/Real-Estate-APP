@@ -215,6 +215,38 @@ async function run() {
   assert.equal(alreadyOwned.createCalls.length, 0);
   assert.deepEqual(alreadyOwned.downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
 
+  // The Apartment Approval Preparation Kit uses the one-click upsell
+  // infrastructure at $47 and sends the RentReady Kit download email.
+  const prepPatchCalls = [];
+  const apartmentPrep = await loadHandler({
+    entitlements: {
+      leadId: 'lead_123',
+      paid10: true,
+      paid27: false,
+      paid97: false,
+      purchasedCategories: [],
+      stripeCustomerId: 'cus_test',
+      defaultPaymentMethodId: 'pm_test',
+    },
+    upsellIntent: { id: 'pi_prep', status: 'succeeded' },
+    patchEntitlements: async (leadId, patch) => {
+      prepPatchCalls.push({ leadId, patch });
+      return { leadId, purchasedCategories: ['apartment_prep'], ...patch };
+    },
+  });
+  const prepRes = await apartmentPrep.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_prep' }),
+  });
+  const prepBody = JSON.parse(prepRes.body);
+  assert.equal(prepRes.statusCode, 200);
+  assert.equal(prepBody.status, 'succeeded');
+  assert.equal(apartmentPrep.createCalls.length, 1);
+  assert.equal(apartmentPrep.createCalls[0].amount, 4700);
+  assert.equal(apartmentPrep.createCalls[0].metadata.product, 'apartment_prep');
+  assert.deepEqual(prepPatchCalls[0].patch, { paid27: true, addPurchasedCategory: 'apartment_prep' });
+  assert.deepEqual(apartmentPrep.downloadEmailCalls, [{ leadId: 'lead_123', product: 'apartment_prep' }]);
+
   // A declined upsell must not send the download email.
   const declineError = new Error('card declined');
   declineError.code = 'card_declined';

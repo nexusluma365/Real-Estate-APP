@@ -1,5 +1,5 @@
 // POST /.netlify/functions/charge-upsell
-// Body: { leadId, product, idempotencyKey }   product: 'modern'|'luxury'|'gameplan'|'creditkit'
+// Body: { leadId, product, idempotencyKey }   product: 'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
 //
 // This is the actual "one click" purchase: no card form, no redirect —
 // it charges the payment method saved during the $10 pre-screen. It only
@@ -15,6 +15,7 @@ const PRODUCTS = {
   gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
   modern: { amount: 2700, field: 'paid27', label: 'RentReady Modern Apartment Matches & RentReady Guide', category: 'modern' },
   luxury: { amount: 2700, field: 'paid27', label: 'RentReady Luxury Apartment Matches & RentReady Guide', category: 'luxury' },
+  apartment_prep: { amount: 4700, field: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
   creditkit: { amount: 9700, field: 'paid97', label: 'RentReady Credit Action Kit' },
 };
 
@@ -91,7 +92,7 @@ exports.handler = async (event) => {
     // can own more than one apartment category, so this checks membership
     // in the full set, not equality against the single most-recent one.
     if (entitlements[def.field] && (!def.category || (entitlements.purchasedCategories || []).includes(def.category))) {
-      if (def.category) {
+      if (def.category && def.sendDownloadEmail !== false) {
         try {
           await sendDownloadEmail(leadId, def.category);
         } catch (err) {
@@ -160,7 +161,7 @@ exports.handler = async (event) => {
         warning = 'Purchase succeeded, but access status could not be saved immediately.';
         console.error('charge-upsell entitlement patch error', err);
       }
-      if (def.category) {
+      if (def.category && def.sendDownloadEmail !== false) {
         try {
           await sendDownloadEmail(leadId, def.category);
         } catch (err) {

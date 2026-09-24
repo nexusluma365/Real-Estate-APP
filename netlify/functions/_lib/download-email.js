@@ -1,4 +1,4 @@
-const DOWNLOAD_PRODUCTS = new Set(['modern', 'luxury', 'gameplan', 'creditkit']);
+const DOWNLOAD_PRODUCTS = new Set(['modern', 'luxury', 'apartment_prep', 'gameplan', 'creditkit']);
 
 function cloudflareDownloadUrl() {
   return process.env.CLOUDFLARE_DOWNLOAD_EMAIL_URL || '';

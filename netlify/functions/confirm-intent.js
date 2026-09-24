@@ -1,5 +1,5 @@
 // POST /.netlify/functions/confirm-intent
-// Body: { leadId, paymentIntentId, product }   product: 'prescreen'|'modern'|'luxury'|'gameplan'|'creditkit'
+// Body: { leadId, paymentIntentId, product }   product: 'prescreen'|'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
 //
 // The frontend never gets to just SAY a payment succeeded — this function
 // re-fetches the PaymentIntent from Stripe itself and only grants
@@ -12,7 +12,7 @@ const { sendWelcomeEmail } = require('./_lib/welcome-email');
 const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
 
-const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
+const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
 
 function setupErrorMessage(err) {
   const message = err && err.message ? err.message : '';
@@ -59,7 +59,7 @@ exports.handler = async (event) => {
       if (pi.customer) patch.stripeCustomerId = pi.customer;
       if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
       Object.assign(patch, manychatMetadata(pi.metadata && pi.metadata.manychat_contact_id));
-      if (product === 'modern' || product === 'luxury') patch.addPurchasedCategory = product;
+      if (product === 'modern' || product === 'luxury' || product === 'apartment_prep') patch.addPurchasedCategory = product;
       let entitlements = null;
       let entitlementWarning = null;
 
@@ -92,7 +92,7 @@ exports.handler = async (event) => {
           console.error('confirm-intent welcome email error', err);
         }
       }
-      if (product === 'modern' || product === 'luxury') {
+      if (product === 'modern' || product === 'luxury' || product === 'apartment_prep') {
         try {
           await sendDownloadEmail(leadId, product);
         } catch (err) {

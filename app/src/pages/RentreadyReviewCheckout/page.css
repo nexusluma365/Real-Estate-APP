@@ -65,3 +65,10 @@ h2{font-size:24px;line-height:1.1;margin-bottom:12px}
 .disclaimer{font-size:12px;line-height:1.5;color:#9aaa9f;margin-top:26px}
 @media(max-width:1100px){.content{grid-template-columns:minmax(0,1fr) 370px;gap:32px;padding-inline:32px}h1{font-size:38px}.progress{font-size:16px}.progress .bar{width:62px}}
 @media(max-width:860px){body{padding:0}.page{width:100%;min-height:100dvh;border:0;overflow:hidden}.nav{padding:24px 20px}.secure span{display:none}.progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12px;padding:24px 20px 34px}.step{min-width:0;flex-direction:column;gap:8px;text-align:center;white-space:normal;line-height:1.15}.progress .bar{display:none}.progress .dot{width:34px;height:34px;flex-basis:34px;margin:0 auto}.content{width:100%;grid-template-columns:minmax(0,1fr);padding:0 20px 34px;gap:30px}.main{min-width:0;padding-top:0}.hero-copy{max-width:100%}h1{max-width:100%;font-size:29px;line-height:1.08}.lead,.lead-kicker{max-width:100%;font-size:16px}.payment-grid,.billing-grid{grid-template-columns:1fr}.summary{width:100%}.summary-head{padding:28px 28px 30px}.summary-head h2{font-size:28px}.summary-body{padding:26px}.line-item{gap:14px}.price{font-size:32px}.benefit{font-size:15px}.cta{width:100%}}
+
+/* Conversion-flow refinement: preserve the existing design/copy while keeping
+   the purchase action easy to reach on smaller screens. */
+@media(max-width:860px){
+  .next-step{position:sticky;bottom:0;z-index:20;margin:18px -20px -34px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+  .next-step .cta{margin:0 auto}
+}

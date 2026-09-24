@@ -13,9 +13,10 @@
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, patchEntitlements } = require('./_lib/store');
 const { sendWelcomeEmail } = require('./_lib/welcome-email');
+const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
 
-const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
+const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid27', gameplan: 'paid27', creditkit: 'paid97' };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -46,12 +47,16 @@ exports.handler = async (event) => {
         const product = pi.metadata && pi.metadata.product;
         const field = FIELD_BY_PRODUCT[product];
         if (leadId && field) {
-          const isFirstPrescreenPayment = product === 'prescreen' && !(await getEntitlements(leadId)).paid10;
+          const currentEntitlements = (await getEntitlements(leadId)) || {};
+          const isFirstPrescreenPayment = product === 'prescreen' && !currentEntitlements.paid10;
+          const isFirstDownloadPurchase =
+            (product === 'modern' || product === 'luxury' || product === 'apartment_prep') &&
+            !(currentEntitlements.purchasedCategories || []).includes(product);
           const patch = { [field]: true };
           if (pi.customer) patch.stripeCustomerId = pi.customer;
           if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
           Object.assign(patch, manychatMetadata(pi.metadata && pi.metadata.manychat_contact_id));
-          if (product === 'modern' || product === 'luxury') patch.addPurchasedCategory = product;
+          if (product === 'modern' || product === 'luxury' || product === 'apartment_prep') patch.addPurchasedCategory = product;
           await patchEntitlements(leadId, patch);
           if (pi.customer && pi.payment_method) {
             await stripe.customers.update(pi.customer, {
@@ -67,6 +72,13 @@ exports.handler = async (event) => {
               await sendWelcomeEmail(leadId);
             } catch (err) {
               console.error('stripe-webhook welcome email error', err);
+            }
+          }
+          if (isFirstDownloadPurchase) {
+            try {
+              await sendDownloadEmail(leadId, product);
+            } catch (err) {
+              console.error('stripe-webhook download email error', err);
             }
           }
         }

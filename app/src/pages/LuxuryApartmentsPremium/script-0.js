@@ -43,6 +43,8 @@
     requireUpsellAccess();
 
     async function requireUpsellAccess() {
+      if (isLocalUpsellBypass()) return;
+
       const leadId = window.rrnLeadId ? rrnLeadId() : null;
       if (!leadId) {
         window.location.replace(START_URL);
@@ -56,6 +58,11 @@
 
       if (window.rrnHasRecentFlowAccess && rrnHasRecentFlowAccess('prescreen-results', { statuses: ['confirmed'] })) return;
       window.location.replace(START_URL);
+    }
+
+    function isLocalUpsellBypass() {
+      const host = window.location && window.location.hostname;
+      return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
     }
 
     async function handleLuxuryPurchase() {

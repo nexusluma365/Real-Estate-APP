@@ -1,22 +1,18 @@
-// Migrated legacy page source: index.html.
-// The imported .html/.css/.js files are now the source of truth for this route.
+// Integrated legacy page source: Apartment Approval Preparation Kit.
+// The imported .html/.css/.js files are the source of truth for this route.
 import bodyHtml from './page.html?raw';
 import styles from './page.css?raw';
 import headExtras from './head-extras.html?raw';
 import script0 from './script-0.js?raw';
 import { useLegacyPage } from '../../legacy/useLegacyPage';
 
-const scopedScript = `(() => {
-${script0}
-})();`;
-
-export default function Questionnaire() {
+export default function ApartmentApprovalPreparationKit() {
   const containerRef = useLegacyPage({
-    title: "RentReady — Start Your Apartment Search",
+    title: "RentReady — Apartment Approval Preparation Kit",
     headExtras,
     styles,
     bodyHtml,
-    scripts: [scopedScript],
+    scripts: [script0],
   });
   return <div ref={containerRef} />;
 }

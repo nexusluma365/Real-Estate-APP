@@ -5,6 +5,7 @@
   "description": "RentReady Network \u2014 static site + Netlify Functions backend for the paid funnel (Stripe, entitlements, secure downloads, email delivery).",
   "scripts": {
     "dev": "netlify dev",
+    "dev:preview": "npm run dev --prefix app -- --host 127.0.0.1 --port 5177",
     "check": "node scripts/check-functions.mjs",
     "test": "node --test tests/*.test.js"
   },

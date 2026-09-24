@@ -12,19 +12,28 @@
     revealEls.forEach(el => revealObserver.observe(el));
 
     // ---- checkout flow -----------------------------------------------
-    const APARTMENT_CATEGORY = 'modern';
+    const UPSELL_PRODUCT = 'apartment_prep';
     const STRIPE_PUBLISHABLE_KEY = 'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
     const START_URL = '/index.html';
 
-    const checkoutBtn = document.getElementById('checkoutBtn');
+    const learnMoreBtn = document.getElementById('learnMoreBtn');
+    const howSection = document.getElementById('heresHow');
     const sheetScrim = document.getElementById('sheetScrim');
     const sheetCancel = document.getElementById('sheetCancel');
     const sheetConfirm = document.getElementById('sheetConfirm');
+    const continueListingsLink = document.getElementById('continueListingsLink');
+    const keysCtaBtn = document.getElementById('keysCtaBtn');
     const sheetSub = sheetScrim.querySelector('.sub');
     const sheetTitle = sheetScrim.querySelector('h4');
     const originalConfirmText = 'Continue to Listings';
 
-    checkoutBtn.addEventListener('click', handleModernPurchase);
+    if (learnMoreBtn) {
+      learnMoreBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        scrollToHowSection();
+      });
+    }
+    if (keysCtaBtn) keysCtaBtn.addEventListener('click', handleApartmentPrepPurchase);
     sheetCancel.addEventListener('click', () => {
       sheetScrim.classList.remove('open');
       resetSheetMessage();
@@ -40,10 +49,18 @@
       window.location.href = sheetConfirm.dataset.target || realEstateListUrl();
     });
 
+    if (continueListingsLink) {
+      continueListingsLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', category: listingCategory(), city: selectedCity() }); } catch (_e) {}
+        window.location.href = realEstateListUrl();
+      });
+    }
+
     requireUpsellAccess();
 
     async function requireUpsellAccess() {
-      if (isLocalUpsellBypass()) return;
+      if (isLocalPreview()) return;
 
       const leadId = window.rrnLeadId ? rrnLeadId() : null;
       if (!leadId) {
@@ -60,26 +77,39 @@
       window.location.replace(START_URL);
     }
 
-    function isLocalUpsellBypass() {
+    function isLocalPreview() {
       const host = window.location && window.location.hostname;
       return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
     }
 
-    async function handleModernPurchase() {
-      if (checkoutBtn.dataset.busy === '1') return;
+    function scrollToHowSection() {
+      if (!howSection) return;
+      howSection.classList.add('show');
+      const appShell = document.querySelector('.app');
+      const sectionTop = howSection.getBoundingClientRect().top;
+      const scrollTarget = sectionTop + window.pageYOffset;
+      if (appShell && appShell.scrollHeight > appShell.clientHeight) {
+        appShell.scrollTo({ top: howSection.offsetTop, behavior: 'smooth' });
+        return;
+      }
+      window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+    }
+
+    async function handleApartmentPrepPurchase() {
+      if (!keysCtaBtn || keysCtaBtn.dataset.busy === '1') return;
       if (!window.rrnLeadId || !rrnLeadId()) {
         showDeclinedPopup();
         return;
       }
 
-      checkoutBtn.dataset.busy = '1';
-      checkoutBtn.classList.add('is-loading');
-      checkoutBtn.disabled = true;
+      keysCtaBtn.dataset.busy = '1';
+      keysCtaBtn.classList.add('is-loading');
+      keysCtaBtn.disabled = true;
 
       let status = 'failed';
       try {
         const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
-        status = await rrnChargeUpsell(APARTMENT_CATEGORY, stripeKey);
+        status = await rrnChargeUpsell(UPSELL_PRODUCT, stripeKey);
       } catch (_e) {
         status = 'failed';
       }
@@ -90,7 +120,7 @@
       }
 
       if (status === 'processing') {
-        pollForModernCompletion();
+        pollForApartmentPrepCompletion();
         return;
       }
 
@@ -99,16 +129,16 @@
     }
 
     async function continueToRealEstateList() {
-      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-success', category: APARTMENT_CATEGORY, city: selectedCity() }); } catch (_e) {}
+      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-success', category: listingCategory(), city: selectedCity() }); } catch (_e) {}
       window.location.href = realEstateListUrl();
     }
 
-    function pollForModernCompletion() {
+    function pollForApartmentPrepCompletion() {
       let attempts = 0;
       const check = async () => {
         attempts++;
         const entitlements = await rrnFetchEntitlements(rrnLeadId());
-        if (entitlements && entitlements.paid27 && entitlements.purchasedCategory === APARTMENT_CATEGORY) {
+        if (entitlements && entitlements.paid27 && (entitlements.purchasedCategories || []).includes(UPSELL_PRODUCT)) {
           await continueToRealEstateList();
           return;
         }
@@ -123,16 +153,17 @@
     }
 
     function resetCheckoutButton() {
-      checkoutBtn.classList.remove('is-loading');
-      checkoutBtn.disabled = false;
-      checkoutBtn.dataset.busy = '0';
+      if (!keysCtaBtn) return;
+      keysCtaBtn.classList.remove('is-loading');
+      keysCtaBtn.disabled = false;
+      keysCtaBtn.dataset.busy = '0';
     }
 
     function showDeclinedPopup() {
       const city = selectedCity();
-      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', category: APARTMENT_CATEGORY, city }); } catch (_e) {}
-      sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
-      showSheetMessage(`Returning you to your RentReady listings. You can retry Modern Apartment Listings for ${city} when you’re ready.`);
+      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', category: listingCategory(), city }); } catch (_e) {}
+      sheetTitle.textContent = "We Couldn’t Complete Your Purchase Yet.";
+      showSheetMessage(`You can continue to your RentReady listings for ${city} and try the Apartment Approval Preparation Kit again when you’re ready.`);
       sheetConfirm.textContent = originalConfirmText;
       sheetConfirm.disabled = false;
       sheetConfirm.dataset.busy = '0';
@@ -152,7 +183,7 @@
       if (sheetConfirm.dataset.busy === '1') return;
       sheetScrim.classList.remove('auto-redirect');
       sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
-      sheetSub.textContent = `Returning you to your RentReady listings. You can retry Modern Apartment Listings in ${selectedCity()} when you’re ready.`;
+      sheetSub.textContent = `You can continue to your RentReady listings for ${selectedCity()} and try the Apartment Approval Preparation Kit again when you’re ready.`;
       sheetConfirm.textContent = originalConfirmText;
       delete sheetConfirm.dataset.target;
     }
@@ -166,8 +197,22 @@
       }
     }
 
+    function listingCategory() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = String(params.get('category') || params.get('style') || '').toLowerCase();
+        if (fromUrl === 'modern') return 'modern';
+        if (fromUrl === 'luxury') return 'luxury';
+        const answers = JSON.parse(sessionStorage.getItem('rrn_answers_v1') || localStorage.getItem('rrn_answers_v1') || '{}') || {};
+        const fromAnswers = String(answers.apartment_style || answers.style || answers.preferred_style || '').toLowerCase();
+        return fromAnswers === 'modern' ? 'modern' : 'luxury';
+      } catch (_e) {
+        return 'luxury';
+      }
+    }
+
     function realEstateListUrl() {
-      const params = new URLSearchParams({ category: APARTMENT_CATEGORY, city: selectedCity() });
+      const params = new URLSearchParams({ category: listingCategory(), city: selectedCity() });
       const leadId = window.rrnLeadId ? rrnLeadId() : '';
       if (leadId) params.set('leadId', leadId);
       return '/real-estate-list.html?' + params.toString();

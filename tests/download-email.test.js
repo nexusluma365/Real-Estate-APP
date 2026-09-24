@@ -28,8 +28,12 @@ async function run() {
     assert.equal(sent[0].headers.Authorization, 'Bearer trigger_secret');
     assert.deepEqual(sent[0].body, { leadId: 'lead_123', product: 'modern' });
 
+    assert.equal(await sendDownloadEmail('lead_123', 'apartment_prep'), true);
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent[1].body, { leadId: 'lead_123', product: 'apartment_prep' });
+
     assert.equal(await sendDownloadEmail('lead_123', 'not-a-product'), false);
-    assert.equal(sent.length, 1);
+    assert.equal(sent.length, 2);
 
     global.fetch = async () => ({ ok: false, json: async () => ({ ok: false, error: 'locked' }) });
     await assert.rejects(() => sendDownloadEmail('lead_456', 'luxury'), /Cloudflare download email failed/);

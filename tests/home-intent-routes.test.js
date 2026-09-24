@@ -36,13 +36,16 @@ assert.doesNotMatch(app, /<Route path="\/" element={<Questionnaire \/>} \/>/);
   'Takes Just a Few Minutes',
   'Based on What You Tell Us',
   'RentReady provides rental-readiness guidance. Final approval and rental requirements are determined by each property.',
+].forEach((text) => assert.ok(homeHtml.includes(text), `${text} should be present on Home`));
+
+[
   'Will I Get Approved?',
   'What Are You Worried About?',
   'Know Before You Apply.',
   "Don't Apply Blind.",
   'Ready to See Where You Stand?',
   'RentReady is not a landlord, property manager, rental application, or guarantee of approval.',
-].forEach((text) => assert.ok(homeHtml.includes(text), `${text} should be present on Home`));
+].forEach((text) => assert.ok(!homeHtml.includes(text), `${text} should be removed from Home`));
 
 [
   'bad_credit',
@@ -78,7 +81,7 @@ assert.match(homeScript, /rrn_entry_intent_v1/);
 assert.match(questionnaireScript, /entry_intent: ensureEntryIntent\(\)/);
 assert.match(checkoutHtml, /id="checkoutIntentContext"/);
 assert.match(checkoutScript, /Worried about your credit\? Your RentReady check looks at more than one part of your rental situation\./);
-assert.match(checkoutScript, /See where your rental profile stands before your next application\./);
+assert.match(checkoutScript, /Don’t Waste Money on Applications\./);
 
 [
   'intent_landing_view',

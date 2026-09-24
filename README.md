@@ -16,11 +16,28 @@ npm install
 cp .env.example .env
 ```
 
-3. Run locally with Netlify:
+3. Run the visual frontend preview:
+
+```bash
+npm run dev:preview
+```
+
+Open:
+
+```text
+http://127.0.0.1:5177/apartment-approval-preparation-kit
+```
+
+4. Run the full Netlify Functions stack:
 
 ```bash
 npm run dev
 ```
+
+If the Netlify Dev URL shows a blank white screen during local development,
+open the Vite preview URL above. The Netlify wrapper can rewrite Vite module
+requests like `/src/main.jsx` to `/index.html` locally, which prevents React
+from mounting even though the route itself returns `200`.
 
 ## Netlify Deploy
 

@@ -1,8 +1,8 @@
 // GET  /.netlify/functions/get-apartment-results?leadId=...&category=modern|luxury
 // POST /.netlify/functions/get-apartment-results   body: { leadId, category, upsellPaymentIntentId?, answers? }
 //
-// Produces personalized apartment results only after the $27 Modern/Luxury
-// charge is server-verified. Factual property data comes from Google Places
+// Produces personalized apartment results only after a qualifying $27
+// apartment charge is server-verified. Factual property data comes from Google Places
 // when GOOGLE_PLACES_API_KEY is configured. OpenAI is optional and may only
 // rank/summarize verified properties; it never creates property facts.
 //
@@ -90,7 +90,7 @@ exports.handler = async (event) => {
 
   try {
     let entitlements = await getEntitlements(leadId);
-    const ownsCategory = (e) => e.paid27 && (e.purchasedCategories || []).includes(category);
+    const ownsCategory = (e) => e.paid27 && ((e.purchasedCategories || []).includes(category) || (e.purchasedCategories || []).includes('apartment_prep'));
     if (!ownsCategory(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }

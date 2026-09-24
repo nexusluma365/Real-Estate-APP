@@ -164,6 +164,39 @@ async function run() {
     assert(urls.some((url) => url.includes('/textsearch/')));
     assert(urls.some((url) => url.includes('/details/')));
 
+    const prepUnlock = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+      },
+      entitlements: {
+        paid27: true,
+        purchasedCategories: ['apartment_prep'],
+      },
+      cached: {
+        provider: 'google_places',
+        category: 'modern',
+        criteria: { category: 'modern', city: 'Concord, NC', rentBudget: 1600, bedrooms: 1 },
+        properties: [
+          {
+            propertyId: 'prep_demo',
+            name: 'Prep Unlocked Apartments',
+            phone: '(704) 555-0200',
+            website: 'https://example.com/prep-unlocked',
+          },
+        ],
+      },
+    });
+    const prepUnlockRes = await prepUnlock.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_prep', category: 'modern' },
+    });
+    const prepUnlockBody = JSON.parse(prepUnlockRes.body);
+    assert.equal(prepUnlockRes.statusCode, 200);
+    assert.equal(prepUnlockBody.ok, true);
+    assert.equal(prepUnlockBody.category, 'modern');
+
     urls.length = 0;
     textSearchCalls = 0;
     const recovery = await loadHandler({

@@ -15,6 +15,13 @@ const PRODUCTS = {
     envKey: 'LUXURY_DOWNLOAD_KEY',
     defaultKey: 'RentReady Guide.zip',
   },
+  apartment_prep: {
+    entitlementField: 'paid27',
+    subject: 'Your RentReady Kit is Ready',
+    filename: 'RentReady Guide.zip',
+    envKey: 'APARTMENT_PREP_DOWNLOAD_KEY',
+    defaultKey: 'RentReady Guide.zip',
+  },
   gameplan: {
     entitlementField: 'paid27',
     subject: 'Your RentReady Game Plan',

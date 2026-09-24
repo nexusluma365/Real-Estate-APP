@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 const Questionnaire = lazy(() => import('./pages/Questionnaire/index.jsx'));
 const LuxuryApartmentsPremium = lazy(() => import('./pages/LuxuryApartmentsPremium/index.jsx'));
 const ModernApartmentsPremium = lazy(() => import('./pages/ModernApartmentsPremium/index.jsx'));
+const ApartmentApprovalPreparationKit = lazy(() => import('./pages/ApartmentApprovalPreparationKit/index.jsx'));
 const RealEstateList = lazy(() => import('./pages/RealEstateList/index.jsx'));
 const AfterPaymentResults = lazy(() => import('./pages/AfterPaymentResults/index.jsx'));
 const RentreadyReviewCheckout = lazy(() => import('./pages/RentreadyReviewCheckout/index.jsx'));
@@ -51,6 +52,8 @@ export default function App() {
 
           <Route path="/modern-apartments-premium" element={<ModernApartmentsPremium />} />
           <Route path="/modern-apartments-premium.html" element={<ModernApartmentsPremium />} />
+
+          <Route path="/apartment-approval-preparation-kit" element={<ApartmentApprovalPreparationKit />} />
 
           <Route path="/real-estate-list" element={<RealEstateList />} />
           <Route path="/real-estate-list.html" element={<RealEstateList />} />

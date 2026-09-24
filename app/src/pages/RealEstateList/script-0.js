@@ -8,12 +8,13 @@ async function confirmListingAccess(){
   if (leadId && window.rrnFetchEntitlements) {
     try {
       const ent = await rrnFetchEntitlements(leadId);
-      if (ent && ent.paid27 && ent.purchasedCategory === category) return true;
+      const purchasedCategories = (ent && ent.purchasedCategories) || [];
+      if (ent && ent.paid27 && (ent.purchasedCategory === category || purchasedCategories.includes(category) || purchasedCategories.includes("apartment_prep"))) return true;
     } catch (_e) {}
   }
 
   return !!(window.rrnHasRecentFlowAccess && rrnHasRecentFlowAccess("apartment-list", {
-    statuses: ["upsell-success", "upsell-declined", "registered-return"],
+    statuses: ["upsell-success", "upsell-declined", "upsell-skipped", "registered-return"],
     category,
   }));
 }

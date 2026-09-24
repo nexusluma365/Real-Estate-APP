@@ -221,7 +221,7 @@ const QUESTIONS = [
     prompt: 'Your RentReady check is ready to review.',
     helper: 'Review your answers, then continue to see where your rental profile stands. This is not a landlord approval or rental application.',
     type: 'review',
-    nextLabel: 'See Where I Stand',
+    nextLabel: 'Continue to Your Approval Odds',
   },
 ];
 
@@ -838,7 +838,7 @@ async function submitLead() {
     showError(`Something went wrong: ${err.message}. Please try again.`);
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = 'See Where I Stand <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
+      btn.innerHTML = 'Continue to Your Approval Odds <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
     }
     isSubmitting = false;
   }

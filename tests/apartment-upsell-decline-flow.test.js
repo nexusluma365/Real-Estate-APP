@@ -126,7 +126,7 @@ async function run() {
   });
 
   const listingScript = fs.readFileSync('app/src/pages/RealEstateList/script-0.js', 'utf8');
-  assert.match(listingScript, /statuses:\s*\["upsell-success",\s*"upsell-declined",\s*"registered-return"\]/);
+  assert.match(listingScript, /statuses:\s*\["upsell-success",\s*"upsell-declined",\s*"upsell-skipped",\s*"registered-return"\]/);
 }
 
 run()

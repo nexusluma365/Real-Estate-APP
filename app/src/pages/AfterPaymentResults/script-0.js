@@ -195,6 +195,54 @@
     return '';
   }
 
+  function listingCategory(){
+    var raw = String(queryParam('category') || queryParam('style') || '').toLowerCase();
+    if (raw === 'modern') return 'modern';
+    if (raw === 'luxury') return 'luxury';
+    var answers = readAnswers();
+    raw = String(answers.apartment_style || answers.style || answers.preferred_style || '').toLowerCase();
+    return raw === 'modern' ? 'modern' : 'luxury';
+  }
+
+  function renterSearchParams(){
+    var answers = readAnswers();
+    var next = new URLSearchParams(window.location.search || '');
+    var category = listingCategory();
+    var city = answers.preferred_city || answers.city || queryParam('city') || queryParam('location') || '';
+    var rentBudget = answers.rent_budget || queryParam('rentBudget') || queryParam('budget') || '';
+    var bedrooms = answers.beds_needed || answers.bedrooms || queryParam('bedrooms') || queryParam('beds') || '';
+    var leadId = answers.lead_id || answers.leadId || queryParam('leadId') || '';
+
+    next.set('category', category);
+    if (city) next.set('city', city);
+    if (rentBudget) next.set('rentBudget', rentBudget);
+    if (bedrooms) next.set('bedrooms', Array.isArray(bedrooms) ? bedrooms.join(',') : bedrooms);
+    if (leadId) next.set('leadId', leadId);
+    return next;
+  }
+
+  function configureApartmentNextStepLinks(){
+    var prepKitCta = document.getElementById('prepKitCta');
+    var continueListingsLink = document.getElementById('continueListingsLink');
+    var params = renterSearchParams();
+    var query = params.toString();
+    var prepUrl = '/apartment-approval-preparation-kit' + (query ? '?' + query : '');
+    var listUrl = '/real-estate-list.html' + (query ? '?' + query : '');
+    if (prepKitCta) prepKitCta.href = prepUrl;
+    if (continueListingsLink) {
+      continueListingsLink.href = listUrl;
+      continueListingsLink.addEventListener('click', function(){
+        try {
+          rrnGrantFlowAccess('apartment-list', {
+            status: 'upsell-skipped',
+            category: params.get('category') || 'luxury',
+            city: params.get('city') || null,
+          });
+        } catch (_e) {}
+      });
+    }
+  }
+
   function marketingContext(){
     var answers = readAnswers();
     return {
@@ -787,7 +835,7 @@
     { at: 80, text: 'Preparing your rental outlook' }
   ];
 
-  var duration = 3000; // ms
+  var duration = 1800; // ms — keep the premium reveal while reducing post-purchase waiting
   var start = null;
   var done = false;
   var raf = null;
@@ -953,16 +1001,16 @@
     setTimeout(function(){
       stage.classList.add('is-done');
       stage.setAttribute('aria-hidden', 'true');
-    }, 220);
+    }, 120);
     setTimeout(function(){
       report.classList.add('is-revealed');
       report.removeAttribute('aria-hidden');
       document.body.classList.add('report-mode');
-    }, 520);
+    }, 280);
     setTimeout(function(){
       if (needle) needle.style.transform = 'rotate(' + Math.round((rentReadyProfile.score / 100) * 180 - 90) + 'deg)';
-    }, 1020);
-    setTimeout(revealReportModal, 1080);
+    }, 520);
+    setTimeout(revealReportModal, 560);
   }
 
   function tick(ts){
@@ -1018,6 +1066,7 @@
 
     buildBriefResult();
     renderReport();
+    configureApartmentNextStepLinks();
     if (analysisClose) analysisClose.addEventListener('click', closeAnalysisModal);
     if (outlookMini) {
       outlookMini.addEventListener('click', function(){

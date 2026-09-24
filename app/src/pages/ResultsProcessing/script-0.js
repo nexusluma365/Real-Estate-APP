@@ -46,13 +46,13 @@ function tick() {
         at: Date.now(),
       }));
     } catch (_e) {}
-    setTimeout(() => { window.location.href = RESULTS_URL; }, 550);
+    setTimeout(() => { window.location.href = RESULTS_URL; }, 250);
     return;
   }
   document.getElementById('row-' + i).classList.add('done');
   i++;
   progFill.style.width = Math.round((i / total) * 100) + '%';
   statusLine.textContent = i < total ? 'Reviewing your answers...' : 'Almost ready...';
-  setTimeout(tick, 480);
+  setTimeout(tick, 260);
 }
-setTimeout(tick, 400);
+setTimeout(tick, 220);

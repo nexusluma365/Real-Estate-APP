@@ -18,7 +18,7 @@
     no_credit: 'Little or no credit history? See what you may want to prepare before your first application.',
     approval_requirements: "Wondering if you're ready to apply? See how the rental information you provided fits together.",
     second_chance: 'Looking for another chance to rent? Start by understanding your current rental situation.',
-    general_renter: 'See where your rental profile stands before your next application.',
+    general_renter: 'Don’t Waste Money on Applications.',
   };
   var stripe = null;
   var elements = null;
@@ -307,7 +307,7 @@
       window.location.href = RESULTS_URL;
     } catch (error) {
       btn.disabled = false;
-      btn.innerHTML = 'SEE WHERE I STAND — $10 <span>→</span>';
+      btn.innerHTML = 'Continue to Your Approval Odds <span>→</span>';
       showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);
     }
   }

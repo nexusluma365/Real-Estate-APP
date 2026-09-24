@@ -166,6 +166,20 @@ async function run() {
   assert.deepEqual(apartmentUpsell.welcomeEmailCalls, []);
   assert.deepEqual(apartmentUpsell.downloadEmailCalls, [{ leadId: 'lead_123', product: 'luxury' }]);
 
+  // The Apartment Prep Kit uses the same server-confirmed success path
+  // after required bank authentication, and it must send the kit email too.
+  const prepUpsell = await loadHandler({
+    paymentIntent: { ...succeededIntent, metadata: { leadId: 'lead_123' } },
+    entitlements: { paid10: true, purchasedCategories: [] },
+    patchEntitlements: async () => ({ paid27: true, purchasedCategories: ['apartment_prep'] }),
+  });
+  await prepUpsell.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', paymentIntentId: 'pi_test', product: 'apartment_prep' }),
+  });
+  assert.deepEqual(prepUpsell.welcomeEmailCalls, []);
+  assert.deepEqual(prepUpsell.downloadEmailCalls, [{ leadId: 'lead_123', product: 'apartment_prep' }]);
+
   // A welcome-email failure must not fail the payment confirmation itself.
   const emailFails = await loadHandler({
     paymentIntent: succeededIntent,

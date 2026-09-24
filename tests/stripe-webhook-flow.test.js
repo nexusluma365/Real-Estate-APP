@@ -1,13 +1,15 @@
 const assert = require('assert');
 
-function loadHandler({ constructEvent, patchEntitlements, entitlements, sendWelcomeEmail }) {
+function loadHandler({ constructEvent, patchEntitlements, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const welcomeEmailPath = require.resolve('../netlify/functions/_lib/welcome-email');
+  const downloadEmailPath = require.resolve('../netlify/functions/_lib/download-email');
   const fnPath = require.resolve('../netlify/functions/stripe-webhook');
   delete require.cache[fnPath];
 
   const welcomeEmailCalls = [];
+  const downloadEmailCalls = [];
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -43,8 +45,20 @@ function loadHandler({ constructEvent, patchEntitlements, entitlements, sendWelc
         }),
     },
   };
+  require.cache[downloadEmailPath] = {
+    id: downloadEmailPath,
+    filename: downloadEmailPath,
+    loaded: true,
+    exports: {
+      sendDownloadEmail:
+        sendDownloadEmail ||
+        (async (leadId, product) => {
+          downloadEmailCalls.push({ leadId, product });
+        }),
+    },
+  };
 
-  return { handler: require('../netlify/functions/stripe-webhook').handler, welcomeEmailCalls };
+  return { handler: require('../netlify/functions/stripe-webhook').handler, welcomeEmailCalls, downloadEmailCalls };
 }
 
 async function run() {
@@ -57,7 +71,7 @@ async function run() {
     data: { object: { metadata: { leadId: 'lead_123', product: 'modern' }, customer: 'cus_1', payment_method: 'pm_1' } },
   });
   const seenPayloads = [];
-  const { handler } = loadHandler({
+  const modernBackstop = loadHandler({
     constructEvent: (payload, sig, secret) => {
       seenPayloads.push(payload);
       assert.equal(sig, 'test_sig');
@@ -67,10 +81,11 @@ async function run() {
     patchEntitlements: async (leadId, patch) => {
       patchCalls.push({ leadId, patch });
     },
+    entitlements: { paid10: true, purchasedCategories: [] },
   });
 
   process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
-  const res = await handler({
+  const res = await modernBackstop.handler({
     httpMethod: 'POST',
     headers: { 'stripe-signature': 'test_sig' },
     isBase64Encoded: true,
@@ -85,6 +100,7 @@ async function run() {
     leadId: 'lead_123',
     patch: { paid27: true, stripeCustomerId: 'cus_1', defaultPaymentMethodId: 'pm_1', addPurchasedCategory: 'modern' },
   });
+  assert.deepEqual(modernBackstop.downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
 
   // A plain (non-base64) body must still be passed through unchanged.
   const plainCalls = [];
@@ -149,6 +165,38 @@ async function run() {
     body: prescreenJson,
   });
   assert.deepEqual(alreadyPaid.welcomeEmailCalls, []);
+
+  // The Apartment Prep Kit download email is also covered by the webhook
+  // backstop if the browser never returns to confirm-intent after Stripe wins.
+  const prepJson = JSON.stringify({
+    type: 'payment_intent.succeeded',
+    data: { object: { metadata: { leadId: 'lead_789', product: 'apartment_prep' }, customer: 'cus_3', payment_method: 'pm_3' } },
+  });
+  const prepBackstop = loadHandler({
+    constructEvent: (payload) => JSON.parse(payload.toString()),
+    patchEntitlements: async () => ({}),
+    entitlements: { paid10: true, purchasedCategories: [] },
+  });
+  await prepBackstop.handler({
+    httpMethod: 'POST',
+    headers: { 'stripe-signature': 'test_sig' },
+    body: prepJson,
+  });
+  assert.deepEqual(prepBackstop.downloadEmailCalls, [{ leadId: 'lead_789', product: 'apartment_prep' }]);
+
+  // If the synchronous checkout path already recorded the purchase, the
+  // webhook must not send a duplicate download email.
+  const prepAlreadyHandled = loadHandler({
+    constructEvent: (payload) => JSON.parse(payload.toString()),
+    patchEntitlements: async () => ({}),
+    entitlements: { paid10: true, paid27: true, purchasedCategories: ['apartment_prep'] },
+  });
+  await prepAlreadyHandled.handler({
+    httpMethod: 'POST',
+    headers: { 'stripe-signature': 'test_sig' },
+    body: prepJson,
+  });
+  assert.deepEqual(prepAlreadyHandled.downloadEmailCalls, []);
 }
 
 run()

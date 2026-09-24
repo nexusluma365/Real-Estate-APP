@@ -14,9 +14,10 @@ for (const file of files) {
   assert.doesNotMatch(html, /<div class="country-field">United States<\/div>/);
 
   [
-    'See Where You Stand Before You Apply.',
+    'See Your Rental Approval Odds Before You Apply.',
+    'Don’t Waste Money on Applications.',
     'Your Personalized RentReady Check Is Ready',
-    'SEE WHERE I STAND — $10',
+    'Continue to Your Approval Odds',
     'Your Rental Readiness Check',
     'Personalized RentReady Check',
     'See Your Rental Readiness Outlook',

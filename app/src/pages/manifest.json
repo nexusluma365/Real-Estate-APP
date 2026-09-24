@@ -25,6 +25,15 @@
     ]
   },
   {
+    "slug": "ApartmentApprovalPreparationKit",
+    "routePath": "/apartment-approval-preparation-kit",
+    "title": "RentReady — Apartment Approval Preparation Kit",
+    "scriptCount": 1,
+    "externalSrcs": [
+      "/assets/checkout-client.js"
+    ]
+  },
+  {
     "slug": "RealEstateList",
     "routePath": "/real-estate-list",
     "title": "RentReady — Your Apartment Matches",
