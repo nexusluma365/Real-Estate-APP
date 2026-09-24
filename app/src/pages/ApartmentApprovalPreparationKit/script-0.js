@@ -13,7 +13,7 @@
 
     // ---- checkout flow -----------------------------------------------
     const UPSELL_PRODUCT = 'apartment_prep';
-    const STRIPE_PUBLISHABLE_KEY = 'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
+    const STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
     const START_URL = '/index.html';
 
     const learnMoreBtn = document.getElementById('learnMoreBtn');
