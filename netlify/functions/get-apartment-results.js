@@ -667,7 +667,7 @@ function isUsableCachedResult(cached, criteria) {
   return properties.every((property) => {
     const website = String(property.website || '');
     const phone = String(property.phone || '');
-    return property.source === 'Google Places' && property.propertyId && !website.includes('example.com') && !/555-0\d{3}|555\d{4}/.test(phone);
+    return property.source === 'Google Places' && property.propertyId && hasGooglePhotoName(property) && !website.includes('example.com') && !/555-0\d{3}|555\d{4}/.test(phone);
   });
 }
 
@@ -676,7 +676,11 @@ function isAnyUsableCachedResult(cached, criteria) {
   if (!cached.criteria || cached.criteria.city !== criteria.city) return false;
   if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
   const properties = Array.isArray(cached.properties) ? cached.properties : [];
-  return properties.some((property) => property && property.source === 'Google Places' && property.propertyId && property.name);
+  return properties.some((property) => property && property.source === 'Google Places' && property.propertyId && property.name && hasGooglePhotoName(property));
+}
+
+function hasGooglePhotoName(property) {
+  return /^places\/[^/]+\/photos\/[^/]+$/.test(String(property && property.photoName || '').trim());
 }
 
 function buildCriteria(lead, _category, requestCriteria) {

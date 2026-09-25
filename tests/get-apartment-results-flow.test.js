@@ -184,6 +184,7 @@ async function run() {
           name: `Paid Checkout Apartments ${i + 1}`,
           phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
           website: `https://paidcheckoutapartments${i + 1}.test`,
+          photoName: `places/paid_${i + 1}/photos/photo_1`,
           image: `/.netlify/functions/google-place-image?photoName=places/paid_${i + 1}/photos/photo_1`,
           source: 'Google Places',
         })),
@@ -338,6 +339,44 @@ async function run() {
     assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?photoName=/);
     assert.equal(denied.savedResults.length, 1);
     assert.equal(deniedCalls, 0);
+    assert.equal(newPlacesCalls, 6);
+
+    urls.length = 0;
+    newPlacesCalls = 0;
+    const staleNoPhotoCache = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: 'studio',
+      },
+      entitlements: {
+        paid27: true,
+        purchasedCategories: ['luxury'],
+      },
+      cached: {
+        provider: 'google_places',
+        criteria: { category: 'questionnaire', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 1600, bedrooms: 0 },
+        properties: Array.from({ length: 8 }, (_, i) => ({
+          propertyId: `stale_no_photo_${i + 1}`,
+          name: `Stale No Photo Apartments ${i + 1}`,
+          phone: `(704) 888-04${String(i + 1).padStart(2, '0')}`,
+          website: `https://stale-no-photo-${i + 1}.test`,
+          source: 'Google Places',
+        })),
+      },
+    });
+    const staleNoPhotoRes = await staleNoPhotoCache.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_123', category: 'luxury' },
+    });
+    const staleNoPhotoBody = JSON.parse(staleNoPhotoRes.body);
+
+    assert.equal(staleNoPhotoRes.statusCode, 200);
+    assert.equal(staleNoPhotoBody.properties.length, 8);
+    assert.equal(staleNoPhotoBody.properties[0].name, 'New API Concord Apartments 1');
+    assert.equal(staleNoPhotoBody.properties[0].photoName, 'places/place_new_api_1/photos/photo_1');
+    assert.match(staleNoPhotoBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?photoName=/);
+    assert.equal(staleNoPhotoCache.savedResults.length, 1);
     assert.equal(newPlacesCalls, 6);
 
     urls.length = 0;
