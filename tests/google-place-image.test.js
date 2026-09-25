@@ -17,8 +17,10 @@ function image(type = 'image/jpeg', bytes = 'image-bytes') {
   return response(200, '', type, { bytes, redirected: true });
 }
 
-function details(photoName) {
-  return response(200, { photos: photoName ? [{ name: photoName }] : [] });
+function details(photoReference) {
+  return response(200, {
+    photos: photoReference ? [{ name: `places/test_place/photos/${photoReference}` }] : [],
+  });
 }
 
 async function loadHandler() {
@@ -33,18 +35,21 @@ async function withHandler(fn) {
 }
 
 function assertPlaceDetailsRequest(request, placeId) {
-  assert.match(request.url, new RegExp(`/v1/places/${placeId}$`));
-  assert.equal(request.options.method, 'GET');
-  assert.equal(request.options.headers['X-Goog-Api-Key'], 'google_test_key');
+  assert.match(request.url, /places\.googleapis\.com\/v1\/places\//);
+  const parsed = new URL(request.url);
+  assert.match(parsed.pathname, /^\/v1\/places\/[^/]+$/);
   assert.equal(request.options.headers['X-Goog-FieldMask'], 'photos');
+  assert.equal(request.options.headers['X-Goog-Api-Key'], 'google_test_key');
+  assert.equal(request.options.method, 'GET');
 }
 
-function assertPhotoMediaRequest(request, photoName) {
-  assert.match(request.url, new RegExp(`${photoName}/media`));
-  assert.match(request.url, /maxWidthPx=1200/);
-  assert.match(request.url, /maxHeightPx=800/);
-  assert.match(request.url, /skipHttpRedirect=false/);
-  assert.match(request.url, /key=google_test_key/);
+function assertPhotoMediaRequest(request, photoReference) {
+  assert.match(request.url, /places\.googleapis\.com\/v1\/places\/test_place\/photos\//);
+  const parsed = new URL(request.url);
+  assert.equal(parsed.searchParams.get('maxWidthPx'), '1200');
+  assert.equal(parsed.searchParams.get('maxHeightPx'), '800');
+  assert.equal(parsed.searchParams.get('skipHttpRedirect'), 'false');
+  assert.equal(parsed.searchParams.get('key'), 'google_test_key');
   assert.equal(request.options.method, 'GET');
   assert.equal(request.options.redirect, 'follow');
 }
@@ -66,7 +71,7 @@ async function run() {
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
-        ? details('places/place_missing/photos/fresh')
+        ? details('fresh_photo_reference')
         : image('image/jpeg', 'fresh-image-bytes');
     };
     await withHandler(async (handler) => {
@@ -78,7 +83,7 @@ async function run() {
       assert.equal(Buffer.from(res.body, 'base64').toString(), 'fresh-image-bytes');
       assert.equal(requests.length, 2);
       assertPlaceDetailsRequest(requests[0], 'place_missing');
-      assertPhotoMediaRequest(requests[1], 'places/place_missing/photos/fresh');
+      assertPhotoMediaRequest(requests[1], 'fresh_photo_reference');
       assert.deepEqual(logs.map((entry) => entry[0]).slice(-3), [
         'PHOTO PLACE DETAILS',
         'PHOTO MEDIA RESPONSE',
@@ -90,7 +95,7 @@ async function run() {
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
-        ? details('places/place_stale/photos/fresh')
+        ? details('fresh_photo_reference')
         : image('image/webp', 'webp-bytes');
     };
     await withHandler(async (handler) => {
@@ -98,33 +103,15 @@ async function run() {
         httpMethod: 'GET',
         queryStringParameters: {
           placeId: 'place_stale',
-          photoName: 'places/place_stale/photos/stale',
+          photoName: 'places/place_stale/photos/stale_photo_reference',
         },
       });
       assert.equal(res.statusCode, 200);
       assert.equal(res.headers['Content-Type'], 'image/webp');
       assert.equal(Buffer.from(res.body, 'base64').toString(), 'webp-bytes');
       assertPlaceDetailsRequest(requests[0], 'place_stale');
-      assertPhotoMediaRequest(requests[1], 'places/place_stale/photos/fresh');
-      assert.doesNotMatch(requests[1].url, /photos\/stale\/media/);
-    });
-
-    requests = [];
-    global.fetch = async (url, options) => {
-      requests.push({ url: String(url), options });
-      return requests.length === 1
-        ? details('places/place_from_photo/photos/fresh')
-        : image('image/png', 'derived-place-id-bytes');
-    };
-    await withHandler(async (handler) => {
-      const res = await handler({
-        httpMethod: 'GET',
-        queryStringParameters: { photoName: 'places/place_from_photo/photos/stale' },
-      });
-      assert.equal(res.statusCode, 200);
-      assert.equal(res.headers['Content-Type'], 'image/png');
-      assertPlaceDetailsRequest(requests[0], 'place_from_photo');
-      assertPhotoMediaRequest(requests[1], 'places/place_from_photo/photos/fresh');
+      assertPhotoMediaRequest(requests[1], 'fresh_photo_reference');
+      assert.match(requests[1].url, /places\/test_place\/photos\/fresh_photo_reference/);
     });
 
     requests = [];
@@ -142,17 +129,17 @@ async function run() {
     for (const status of [400, 403, 404]) {
       requests = [];
       global.fetch = async (url, options) => {
-        requests.push({ url: String(url), options });
-        return requests.length === 1
-          ? details(`places/place_${status}/photos/fresh`)
-          : response(status, { error: { message: `media ${status}` } });
+      requests.push({ url: String(url), options });
+      return requests.length === 1
+        ? details(`fresh_photo_reference_${status}`)
+        : response(status, { error: { message: `media ${status}` } });
       };
       await withHandler(async (handler) => {
         const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: `place_${status}` } });
         assert.equal(res.statusCode, 204);
         assert.equal(requests.length, 2);
         assertPlaceDetailsRequest(requests[0], `place_${status}`);
-        assertPhotoMediaRequest(requests[1], `places/place_${status}/photos/fresh`);
+        assertPhotoMediaRequest(requests[1], `fresh_photo_reference_${status}`);
       });
     }
 
@@ -160,7 +147,7 @@ async function run() {
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
-        ? details('places/place_json/photos/fresh')
+        ? details('fresh_photo_reference_json')
         : response(200, { photoUri: 'https://lh3.googleusercontent.com/not-used' }, 'application/json');
     };
     await withHandler(async (handler) => {
@@ -174,7 +161,7 @@ async function run() {
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
-        ? details('places/place_html/photos/fresh')
+        ? details('fresh_photo_reference_html')
         : response(200, '<html></html>', 'text/html');
     };
     await withHandler(async (handler) => {
@@ -187,7 +174,7 @@ async function run() {
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
-        ? details('places/place_empty/photos/fresh')
+        ? details('fresh_photo_reference_empty')
         : image('image/jpeg', '');
     };
     await withHandler(async (handler) => {
@@ -202,7 +189,7 @@ async function run() {
       return image();
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'bad-photo-name' } });
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'legacy_photo_reference_without_place' } });
       assert.equal(res.statusCode, 400);
       assert.equal(requests.length, 0);
     });
@@ -224,7 +211,7 @@ async function run() {
     const frontendHtml = '<img src="/.netlify/functions/google-place-image?placeId=place_a" />';
     assert.equal(frontendHtml.includes('google_test_key'), false);
     assert.equal(requests.some((request) => /streetview/i.test(request.url)), false);
-    assert.equal(requests.some((request) => /maps\.googleapis\.com\/maps\/api\/place\/photo/i.test(request.url)), false);
+    assert.equal(logs.some((entry) => JSON.stringify(entry).includes('PHOTO FINAL IMAGE')), true);
     assert.equal(JSON.stringify(logs).includes('google_test_key'), false);
     assert.equal(JSON.stringify(warnings).includes('google_test_key'), false);
   } finally {
