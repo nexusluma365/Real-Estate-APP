@@ -184,7 +184,7 @@ async function run() {
           name: `Paid Checkout Apartments ${i + 1}`,
           phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
           website: `https://paidcheckoutapartments${i + 1}.test`,
-          image: `https://maps.googleapis.com/maps/api/streetview?location=paid${i + 1}`,
+          image: `/.netlify/functions/google-place-image?kind=photo&ref=paid_photo_${i + 1}`,
           source: 'Google Places',
         })),
       },
