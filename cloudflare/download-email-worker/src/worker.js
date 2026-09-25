@@ -153,8 +153,41 @@ function publicBaseUrl(request, env) {
   return String(env.PUBLIC_WORKER_URL || new URL(request.url).origin).replace(/\/+$/, '');
 }
 
+function cleanBaseUrl(value, fallback) {
+  const raw = String(value || fallback || '').trim().replace(/\/+$/, '');
+  try {
+    const url = new URL(raw);
+    if (url.protocol === 'https:') return raw;
+  } catch (_err) {
+    // Fall through to the known-good default below.
+  }
+  return 'https://flourishing-strudel-ba6d53.netlify.app';
+}
+
 function publicSiteUrl(env) {
-  return String(env.PUBLIC_SITE_URL || 'https://werentreadygo.com').replace(/\/+$/, '');
+  return cleanBaseUrl(env.PUBLIC_SITE_URL, 'https://flourishing-strudel-ba6d53.netlify.app');
+}
+
+function emailTemplateBaseUrl(env) {
+  return cleanBaseUrl(env.EMAIL_TEMPLATE_BASE_URL || env.PUBLIC_SITE_URL, 'https://flourishing-strudel-ba6d53.netlify.app');
+}
+
+function senderAddress(from) {
+  const value = String(from || '').trim();
+  const match = value.match(/<([^>]+)>/);
+  return normalizeEmail(match ? match[1] : value);
+}
+
+function supportEmail(env) {
+  const configured = normalizeEmail(env.EMAIL_REPLY_TO || env.SUPPORT_EMAIL);
+  if (isValidEmail(configured)) return configured;
+  const fromAddress = senderAddress(env.FROM_EMAIL);
+  if (isValidEmail(fromAddress)) return fromAddress;
+  return 'support@send.werentreadygo.com';
+}
+
+function unsubscribeUrl(env) {
+  return `mailto:${supportEmail(env)}?subject=Unsubscribe%20from%20RentReady%20emails`;
 }
 
 function authorized(request, env) {
@@ -179,33 +212,36 @@ async function fetchTemplate(url) {
 
 async function renderGuideEmail(env, { downloadUrl }) {
   const siteUrl = publicSiteUrl(env);
-  const template = await fetchTemplate(`${siteUrl}/rentready-emails/guide-ready-email.html`);
+  const templateBaseUrl = emailTemplateBaseUrl(env);
+  const template = await fetchTemplate(`${templateBaseUrl}/rentready-emails/guide-ready-email.html`);
   return renderTemplate(template, {
     DOWNLOAD_URL: downloadUrl,
-    BOOK_IMAGE_URL: `${siteUrl}/rentready-emails/rentready-guide-book.png`,
+    BOOK_IMAGE_URL: `${templateBaseUrl}/rentready-emails/rentready-guide-book.png`,
     INSTAGRAM_URL: siteUrl,
     FACEBOOK_URL: siteUrl,
     YOUTUBE_URL: siteUrl,
     LINKEDIN_URL: siteUrl,
     PRIVACY_URL: `${siteUrl}/privacy`,
     TERMS_URL: `${siteUrl}/terms`,
-    SUPPORT_URL: 'mailto:support@send.werentreadygo.com',
+    SUPPORT_URL: `mailto:${supportEmail(env)}`,
     YEAR: new Date().getFullYear(),
   });
 }
 
 async function renderWelcomeEmail(env, { resultsUrl }) {
   const siteUrl = publicSiteUrl(env);
-  const template = await fetchTemplate(`${siteUrl}/rentready-emails/welcome-email.html`);
+  const templateBaseUrl = emailTemplateBaseUrl(env);
+  const template = await fetchTemplate(`${templateBaseUrl}/rentready-emails/welcome-email.html`);
   return renderTemplate(template, {
     GET_STARTED_URL: resultsUrl || `${siteUrl}/after-payment-results/`,
-    HERO_IMAGE_URL: `${siteUrl}/hero-bg-optimized.jpg`,
+    HERO_IMAGE_URL: `${templateBaseUrl}/hero-bg-optimized.jpg`,
     INSTAGRAM_URL: siteUrl,
     LINKEDIN_URL: siteUrl,
     YOUTUBE_URL: siteUrl,
     HELP_URL: siteUrl,
     PRIVACY_URL: `${siteUrl}/privacy`,
-    UNSUBSCRIBE_URL: siteUrl,
+    SUPPORT_URL: `mailto:${supportEmail(env)}`,
+    UNSUBSCRIBE_URL: unsubscribeUrl(env),
     YEAR: new Date().getFullYear(),
   });
 }
@@ -224,6 +260,10 @@ async function sendRenderedEmailWithResend(env, { to, subject, text, html }) {
       from: env.FROM_EMAIL,
       to,
       subject,
+      reply_to: supportEmail(env),
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl(env)}>`,
+      },
       text,
       html,
     }),

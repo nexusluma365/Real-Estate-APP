@@ -11,6 +11,8 @@ const worker = fs.readFileSync(path.join(root, 'cloudflare/download-email-worker
 assert.match(welcomeTemplate, /WELCOME TO RENTREADY/);
 assert.match(welcomeTemplate, /Your next move starts here\./);
 assert.match(welcomeTemplate, /{{GET_STARTED_URL}}/);
+assert.match(welcomeTemplate, /{{SUPPORT_URL}}/);
+assert.match(welcomeTemplate, /{{UNSUBSCRIBE_URL}}/);
 assert.doesNotMatch(welcomeTemplate, /{{HERO_IMAGE_URL}}/);
 assert.match(welcomeTemplate, /class="cta-cell" align="center"/);
 assert.match(welcomeTemplate, /class="cta-table"[\s\S]*?align="center"[\s\S]*?style="margin:0 auto; float:none;"/);
@@ -32,6 +34,8 @@ assert.match(worker, /\/rentready-emails\/guide-ready-email\.html/);
 assert.match(worker, /\/rentready-emails\/welcome-email\.html/);
 assert.match(worker, /\/send-welcome/);
 assert.match(worker, /paid10 !== true/);
+assert.match(worker, /reply_to: supportEmail\(env\)/);
+assert.match(worker, /List-Unsubscribe/);
 assert.doesNotMatch(worker, /<p>\$\{greeting\}<\/p>/);
 
 console.log('email template integration test passed');

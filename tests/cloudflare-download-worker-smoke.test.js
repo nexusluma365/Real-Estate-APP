@@ -98,6 +98,10 @@ async function run() {
     assert.equal(sentEmails.length, 1);
     assert.equal(sentEmails[0].to, 'buyer@example.com');
     assert.equal(sentEmails[0].subject, 'Your RentReady Guide is Ready');
+    assert.equal(sentEmails[0].reply_to, 'support@example.com');
+    assert.deepEqual(sentEmails[0].headers, {
+      'List-Unsubscribe': '<mailto:support@example.com?subject=Unsubscribe%20from%20RentReady%20emails>',
+    });
     assert.match(sentEmails[0].text, /https:\/\/worker\.test\/download\?token=/);
     assert.match(sentEmails[0].html, /https:\/\/worker\.test\/download\?token=/);
 

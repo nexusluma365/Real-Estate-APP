@@ -17,6 +17,10 @@ const SUBJECT_BY_TYPE = {
   'apartment-results': 'Your RentReady Apartment Results',
 };
 
+function supportEmail() {
+  return process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || 'support@send.werentreadygo.com';
+}
+
 function cloudflareProduct(type, category) {
   if (type === 'apartment-results') return category;
   return type;
@@ -108,6 +112,7 @@ exports.handler = async (event) => {
         subject: SUBJECT_BY_TYPE[type],
         downloadUrl,
         templateBaseUrl: siteUrl,
+        supportEmail: supportEmail(),
       }),
     });
     const gasResult = await resp.json().catch(() => ({}));

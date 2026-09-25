@@ -116,7 +116,8 @@ function sendAssetEmail_(payload) {
 
   MailApp.sendEmail(to, subject, body, {
     htmlBody: htmlBody,
-    name: "RentReady"
+    name: "RentReady",
+    replyTo: supportEmail_(payload)
   });
 
   return { ok: true };
@@ -157,7 +158,8 @@ function sendWelcomeEmail_(payload) {
 
   MailApp.sendEmail(to, subject, body, {
     htmlBody: htmlBody,
-    name: "RentReady"
+    name: "RentReady",
+    replyTo: supportEmail_(payload)
   });
 
   return { ok: true };
@@ -166,6 +168,11 @@ function sendWelcomeEmail_(payload) {
 function templateBaseUrl_(payload) {
   const raw = String(payload.templateBaseUrl || payload.siteUrl || "https://werentreadygo.com").trim();
   return raw.replace(/\/+$/, "");
+}
+
+function supportEmail_(payload) {
+  const raw = String(payload.supportEmail || payload.replyTo || "support@send.werentreadygo.com").trim();
+  return raw.indexOf("@") === -1 ? "support@send.werentreadygo.com" : raw;
 }
 
 function fetchTemplate_(url) {

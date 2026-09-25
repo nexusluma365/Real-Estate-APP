@@ -10,6 +10,10 @@ function siteBaseUrl() {
   return siteUrl.replace(/\/+$/, '');
 }
 
+function supportEmail() {
+  return process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || 'support@send.werentreadygo.com';
+}
+
 function cloudflareWelcomeUrl() {
   const explicit = process.env.CLOUDFLARE_WELCOME_EMAIL_URL || '';
   if (explicit) return explicit;
@@ -60,6 +64,7 @@ async function sendWelcomeEmail(leadId) {
       subject: 'Welcome to RentReady — You’re All Set',
       resultsUrl,
       templateBaseUrl: baseUrl,
+      supportEmail: supportEmail(),
     }),
   });
   const data = await res.json().catch(() => ({}));
