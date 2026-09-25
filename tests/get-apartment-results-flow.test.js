@@ -56,61 +56,75 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
   return { handler: require('../netlify/functions/get-apartment-results').handler, savedResults, savedLeads, retrieveCalls };
 }
 
+function googleNewPlace({
+  id,
+  name,
+  address,
+  phone = '(704) 555-0199',
+  website = 'https://example.com/apartment',
+  mapsUrl,
+  rating = 4.7,
+  reviewCount = 91,
+  city = 'Concord',
+  state = 'NC',
+  photoName,
+}) {
+  return {
+    id,
+    displayName: { text: name },
+    formattedAddress: address,
+    addressComponents: [
+      { longText: city, shortText: city, types: ['locality', 'political'] },
+      { longText: state, shortText: state, types: ['administrative_area_level_1', 'political'] },
+    ],
+    nationalPhoneNumber: phone,
+    websiteUri: website,
+    googleMapsUri: mapsUrl || `https://maps.google.com/?cid=${encodeURIComponent(id)}`,
+    rating,
+    userRatingCount: reviewCount,
+    businessStatus: 'OPERATIONAL',
+    types: ['apartment_building', 'point_of_interest', 'establishment'],
+    photos: photoName ? [{ name: photoName }] : [],
+  };
+}
+
+async function googleSearchResponse(places) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ places }),
+  };
+}
+
+function textQueryFromRequest(options) {
+  return JSON.parse(options && options.body ? options.body : '{}').textQuery || '';
+}
+
 async function run() {
   const oldFetch = global.fetch;
   const oldGoogleKey = process.env.GOOGLE_PLACES_API_KEY;
   const oldOpenAIKey = process.env.OPENAI_API_KEY;
   const urls = [];
-  let textSearchCalls = 0;
+  let googleSearchCalls = 0;
   process.env.GOOGLE_PLACES_API_KEY = 'google_test_key';
   delete process.env.OPENAI_API_KEY;
 
-  global.fetch = async (url) => {
+  global.fetch = async (url, options) => {
     urls.push(String(url));
-    if (String(url).includes('/textsearch/')) {
-      textSearchCalls++;
-      const parsed = new URL(String(url));
-      const query = parsed.searchParams.get('query');
+    if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
+      googleSearchCalls++;
+      const query = textQueryFromRequest(options);
       assert.match(query, /apartment/i);
       assert.match(query, /concord/i);
-      // Regression guard: a `type` filter on Text Search is a hard
-      // restriction, not a relevance hint, and real apartment communities
-      // are almost never tagged `real_estate_agency` in Google's data.
-      assert.equal(parsed.searchParams.get('type'), null);
-      return {
-        json: async () => ({
-          results: [
-            {
-              place_id: 'place_concord_1',
-              name: 'Concord Reserve Apartments',
-              formatted_address: '1600 Concord Pkwy, Concord, NC',
-              rating: 4.6,
-              user_ratings_total: 88,
-              business_status: 'OPERATIONAL',
-            },
-          ],
+      return googleSearchResponse([
+        googleNewPlace({
+          id: 'place_concord_1',
+          name: 'Concord Reserve Apartments',
+          address: '1600 Concord Pkwy, Concord, NC',
+          website: 'https://example.com/concord-reserve',
+          mapsUrl: 'https://maps.google.com/?cid=concordreserve',
         }),
-      };
-    }
-    if (String(url).includes('/details/')) {
-      return {
-        json: async () => ({
-          result: {
-            name: 'Concord Reserve Apartments',
-            formatted_address: '1600 Concord Pkwy, Concord, NC',
-            formatted_phone_number: '(704) 555-0199',
-            website: 'https://example.com/concord-reserve',
-            url: 'https://maps.google.com/?cid=concordreserve',
-            rating: 4.7,
-            user_ratings_total: 91,
-            business_status: 'OPERATIONAL',
-            address_components: [
-              { long_name: 'Concord', types: ['locality', 'political'] },
-              { short_name: 'NC', types: ['administrative_area_level_1', 'political'] },
-            ],
-          },
-        }),
-      };
+      ]);
     }
     throw new Error(`Unexpected fetch URL: ${url}`);
   };
@@ -156,13 +170,15 @@ async function run() {
     assert.equal(body.properties[0].name, 'Concord Reserve Apartments');
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
-    assert.equal(body.properties[0].image, '');
+    assert.equal(body.properties[0].propertyId, 'place_concord_1');
+    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1');
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
-    assert.equal(textSearchCalls, 6);
-    assert(urls.some((url) => url.includes('/textsearch/')));
-    assert(urls.some((url) => url.includes('/details/')));
+    assert.equal(googleSearchCalls, 6);
+    assert(urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
+    assert(!urls.some((url) => url.includes('/textsearch/')));
+    assert(!urls.some((url) => url.includes('/details/')));
 
     const paidBaseCheckout = await loadHandler({
       lead: {
@@ -185,7 +201,7 @@ async function run() {
           phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
           website: `https://paidcheckoutapartments${i + 1}.test`,
           photoName: `places/paid_${i + 1}/photos/photo_1`,
-          image: `/.netlify/functions/google-place-image?photoName=places/paid_${i + 1}/photos/photo_1`,
+          image: `/.netlify/functions/google-place-image?placeId=paid10_cached_${i + 1}&photoName=places/paid_${i + 1}/photos/photo_1`,
           source: 'Google Places',
         })),
       },
@@ -235,7 +251,7 @@ async function run() {
     assert.equal(prepUnlockBody.category, 'questionnaire');
 
     urls.length = 0;
-    textSearchCalls = 0;
+    googleSearchCalls = 0;
     const recovery = await loadHandler({
       lead: {
         preferred_city: 'Concord, NC',
@@ -270,20 +286,9 @@ async function run() {
     assert.deepEqual(recovery.retrieveCalls, ['pi_modern_upsell']);
 
     urls.length = 0;
-    let deniedCalls = 0;
     let newPlacesCalls = 0;
     global.fetch = async (url) => {
       urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
-        deniedCalls++;
-        return {
-          json: async () => ({
-            status: 'REQUEST_DENIED',
-            error_message: 'This API key is not authorized to use this service or API.',
-            results: [],
-          }),
-        };
-      }
       if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
         newPlacesCalls++;
         return {
@@ -336,9 +341,8 @@ async function run() {
     assert.equal(deniedBody.properties[0].phone, '(704) 555-0301');
     assert.equal(deniedBody.properties[0].website, 'https://new-api-concord-1.test');
     assert.equal(deniedBody.properties[0].photoName, 'places/place_new_api_1/photos/photo_1');
-    assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?photoName=/);
+    assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_new_api_1&photoName=/);
     assert.equal(denied.savedResults.length, 1);
-    assert.equal(deniedCalls, 0);
     assert.equal(newPlacesCalls, 6);
 
     urls.length = 0;
@@ -375,54 +379,32 @@ async function run() {
     assert.equal(staleNoPhotoBody.properties.length, 8);
     assert.equal(staleNoPhotoBody.properties[0].name, 'New API Concord Apartments 1');
     assert.equal(staleNoPhotoBody.properties[0].photoName, 'places/place_new_api_1/photos/photo_1');
-    assert.match(staleNoPhotoBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?photoName=/);
+    assert.match(staleNoPhotoBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_new_api_1&photoName=/);
     assert.equal(staleNoPhotoCache.savedResults.length, 1);
     assert.equal(newPlacesCalls, 6);
 
     urls.length = 0;
     let broadSearchCalls = 0;
-    global.fetch = async (url) => {
+    global.fetch = async (url, options) => {
       urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
+      if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
         broadSearchCalls++;
-        return {
-          json: async () => ({
-            status: broadSearchCalls === 1 ? 'ZERO_RESULTS' : 'OK',
-            results:
-              broadSearchCalls === 1
-                ? []
-                : [
-                    {
-                      place_id: 'place_broader_1',
-                      name: 'Broad Concord Apartments',
-                      formatted_address: '10 Union St, Concord, NC',
-                      rating: 4.2,
-                      user_ratings_total: 42,
-                      business_status: 'OPERATIONAL',
-                    },
-                  ],
-          }),
-        };
-      }
-      if (String(url).includes('/details/')) {
-        return {
-          json: async () => ({
-            result: {
-              name: 'Broad Concord Apartments',
-              formatted_address: '10 Union St, Concord, NC',
-              formatted_phone_number: '(704) 555-0101',
-              website: 'https://example.com/broad-concord',
-              url: 'https://maps.google.com/?cid=broadconcord',
-              rating: 4.2,
-              user_ratings_total: 42,
-              business_status: 'OPERATIONAL',
-              address_components: [
-                { long_name: 'Downtown Concord', types: ['neighborhood', 'political'] },
-                { long_name: 'Concord', types: ['locality', 'political'] },
-              ],
-            },
-          }),
-        };
+        return googleSearchResponse(
+          broadSearchCalls === 1
+            ? []
+            : [
+                googleNewPlace({
+                  id: 'place_broader_1',
+                  name: 'Broad Concord Apartments',
+                  address: '10 Union St, Concord, NC',
+                  phone: '(704) 555-0101',
+                  website: 'https://example.com/broad-concord',
+                  mapsUrl: 'https://maps.google.com/?cid=broadconcord',
+                  rating: 4.2,
+                  reviewCount: 42,
+                }),
+              ]
+        );
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };
@@ -474,7 +456,8 @@ async function run() {
     assert.equal(emptyCacheRes.statusCode, 200);
     assert.equal(emptyCacheBody.properties.length, 1);
     assert.equal(emptyCacheBody.properties[0].name, 'Broad Concord Apartments');
-    assert(urls.some((url) => url.includes('/textsearch/')));
+    assert(urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
+    assert(!urls.some((url) => url.includes('/textsearch/')));
 
     // Regression: the results page calls this function with POST + a JSON
     // body. When no server-side lead exists, paid users should still get
@@ -483,41 +466,19 @@ async function run() {
     urls.length = 0;
     global.fetch = async (url) => {
       urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
-        return {
-          json: async () => ({
-            status: 'OK',
-            results: [
-              {
-                place_id: 'place_post_1',
-                name: 'POST Fallback Apartments',
-                formatted_address: '1 Postman Way, Concord, NC',
-                rating: 4.4,
-                user_ratings_total: 30,
-                business_status: 'OPERATIONAL',
-              },
-            ],
+      if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
+        return googleSearchResponse([
+          googleNewPlace({
+            id: 'place_post_1',
+            name: 'POST Fallback Apartments',
+            address: '1 Postman Way, Concord, NC',
+            phone: '(704) 555-0177',
+            website: 'https://example.com/post-fallback',
+            mapsUrl: 'https://maps.google.com/?cid=postfallback',
+            rating: 4.4,
+            reviewCount: 30,
           }),
-        };
-      }
-      if (String(url).includes('/details/')) {
-        return {
-          json: async () => ({
-            result: {
-              name: 'POST Fallback Apartments',
-              formatted_address: '1 Postman Way, Concord, NC',
-              formatted_phone_number: '(704) 555-0177',
-              website: 'https://example.com/post-fallback',
-              url: 'https://maps.google.com/?cid=postfallback',
-              rating: 4.4,
-              user_ratings_total: 30,
-              business_status: 'OPERATIONAL',
-              address_components: [
-                { long_name: 'Concord', types: ['locality', 'political'] },
-              ],
-            },
-          }),
-        };
+        ]);
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };
@@ -566,49 +527,26 @@ async function run() {
 
     urls.length = 0;
     const variedQueries = [];
-    global.fetch = async (url) => {
+    global.fetch = async (url, options) => {
       urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
-        const parsed = new URL(String(url));
-        const query = parsed.searchParams.get('query');
+      if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
+        const query = textQueryFromRequest(options);
         variedQueries.push(query);
         const cityMatch = query.match(/in (.+)$/);
         const searched = cityMatch ? cityMatch[1] : 'Unknown, US';
         const cityName = searched.split(',')[0];
-        return {
-          json: async () => ({
-            status: 'OK',
-            results: [
-              {
-                place_id: `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`,
-                name: `${cityName} Apartments`,
-                formatted_address: `1 Main St, ${searched}`,
-                rating: 4.3,
-                user_ratings_total: 25,
-                business_status: 'OPERATIONAL',
-              },
-            ],
+        const placeId = `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`;
+        return googleSearchResponse([
+          googleNewPlace({
+            id: placeId,
+            name: `${cityName} Apartments`,
+            address: `1 Main St, ${searched}`,
+            mapsUrl: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
+            rating: 4.3,
+            reviewCount: 25,
+            city: `${cityName} Center`,
           }),
-        };
-      }
-      if (String(url).includes('/details/')) {
-        const placeId = new URL(String(url)).searchParams.get('place_id');
-        const cityName = placeId.replace(/^place_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        return {
-          json: async () => ({
-            result: {
-              name: `${cityName} Apartments`,
-              formatted_address: `1 Main St, ${cityName}`,
-              url: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
-              rating: 4.3,
-              user_ratings_total: 25,
-              business_status: 'OPERATIONAL',
-              address_components: [
-                { long_name: `${cityName} Center`, types: ['neighborhood', 'political'] },
-              ],
-            },
-          }),
-        };
+        ]);
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };
@@ -636,7 +574,7 @@ async function run() {
       assert.equal(variedBody.criteria.city, 'Concord, NC');
       assert(variedBody.properties.length >= 1);
       assert.notEqual(variedBody.properties[0].name, 'Old Real Apartments');
-      assert.equal(variedBody.properties[0].image, '');
+      assert.match(variedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=/);
       assert.equal(varied.savedResults.length, 1);
     }
     assert(variedQueries.some((query) => query.includes('Concord, NC')));
@@ -646,49 +584,26 @@ async function run() {
 
     urls.length = 0;
     variedQueries.length = 0;
-    global.fetch = async (url) => {
+    global.fetch = async (url, options) => {
       urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
-        const parsed = new URL(String(url));
-        const query = parsed.searchParams.get('query');
+      if (String(url).includes('places.googleapis.com/v1/places:searchText')) {
+        const query = textQueryFromRequest(options);
         variedQueries.push(query);
         const cityMatch = query.match(/in (.+)$/);
         const searched = cityMatch ? cityMatch[1] : 'Unknown, US';
         const cityName = searched.split(',')[0];
-        return {
-          json: async () => ({
-            status: 'OK',
-            results: [
-              {
-                place_id: `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`,
-                name: `${cityName} Apartments`,
-                formatted_address: `1 Main St, ${searched}`,
-                rating: 4.3,
-                user_ratings_total: 25,
-                business_status: 'OPERATIONAL',
-              },
-            ],
+        const placeId = `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`;
+        return googleSearchResponse([
+          googleNewPlace({
+            id: placeId,
+            name: `${cityName} Apartments`,
+            address: `1 Main St, ${searched}`,
+            mapsUrl: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
+            rating: 4.3,
+            reviewCount: 25,
+            city: `${cityName} Center`,
           }),
-        };
-      }
-      if (String(url).includes('/details/')) {
-        const placeId = new URL(String(url)).searchParams.get('place_id');
-        const cityName = placeId.replace(/^place_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        return {
-          json: async () => ({
-            result: {
-              name: `${cityName} Apartments`,
-              formatted_address: `1 Main St, ${cityName}`,
-              url: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
-              rating: 4.3,
-              user_ratings_total: 25,
-              business_status: 'OPERATIONAL',
-              address_components: [
-                { long_name: `${cityName} Center`, types: ['neighborhood', 'political'] },
-              ],
-            },
-          }),
-        };
+        ]);
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };

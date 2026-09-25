@@ -208,6 +208,7 @@ exports.handler = async (event) => {
     const properties = (await rankWithOpenAI(rawProperties, criteria)).slice(0, MAX_RESULTS);
     const result = { provider: 'google_places', message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
     await saveApartmentResults(leadId, category, result);
+    listingLog('LISTINGS SAVED', { leadId, category, count: properties.length });
     return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result });
   } catch (err) {
     console.error('get-apartment-results error', err);
@@ -268,66 +269,18 @@ async function fetchGooglePlaces(criteria) {
   const key = googlePlacesApiKey();
   if (!key) throw new GooglePlacesError('Google Places API key is not configured.', 'MISSING_API_KEY');
 
-  try {
-    const newApiResults = await fetchGooglePlacesNew(criteria, key);
-    if (newApiResults.length >= MAX_RESULTS) return newApiResults.slice(0, MAX_RESULTS);
-    try {
-      const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
-      return combineGoogleResults(newApiResults, legacyResults).slice(0, MAX_RESULTS);
-    } catch (legacyError) {
-      if (newApiResults.length) return newApiResults.slice(0, MAX_RESULTS);
-      throw legacyError;
-    }
-  } catch (newApiError) {
-    try {
-      const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
-      return legacyResults.slice(0, MAX_RESULTS);
-    } catch (_legacyError) {
-      throw newApiError;
-    }
-  }
+  const results = await fetchGooglePlacesNew(criteria, key);
+  return results.slice(0, MAX_RESULTS);
 }
 
 function googlePlacesApiKey() {
   return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
 }
 
-async function fetchGooglePlacesLegacy(criteria, key) {
-  const resultsByPlaceId = new Map();
-  for (const query of googlePlaceQueries(criteria)) {
-    const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
-    url.searchParams.set('query', query);
-    // NOTE: intentionally no `type` param. Google's `type` filter is a hard
-    // restriction, not a relevance hint, and apartment communities are almost
-    // never tagged `real_estate_agency` (that type is for leasing/realtor
-    // offices). Setting it here silently filtered out nearly every real
-    // apartment complex. The query text itself ("apartments in <city>",
-    // "apartment communities in <city>") already steers Text Search toward
-    // the right category.
-    url.searchParams.set('key', key);
-
-    const resp = await fetchWithTimeout(url, undefined, GOOGLE_FETCH_TIMEOUT_MS);
-    const data = await resp.json().catch(() => ({}));
-    assertGooglePlacesResponse(data);
-    const results = Array.isArray(data.results) ? data.results : [];
-    results.forEach((place) => {
-      if (place.place_id && !resultsByPlaceId.has(place.place_id)) {
-        resultsByPlaceId.set(place.place_id, place);
-      }
-    });
-    if (resultsByPlaceId.size >= GOOGLE_CANDIDATE_LIMIT) break;
-  }
-
-  const results = Array.from(resultsByPlaceId.values())
-    .slice(0, GOOGLE_CANDIDATE_LIMIT);
-  const details = await Promise.all(results.map((p) => fetchPlaceDetails(p.place_id, key)));
-
-  return realApartmentResults(results.map((p, index) => normalizePlace(p, details[index], criteria, key))).slice(0, MAX_RESULTS);
-}
-
 async function fetchGooglePlacesNew(criteria, key) {
   const resultsByPlaceId = new Map();
   for (const query of googlePlaceQueries(criteria)) {
+    listingLog('LISTINGS GOOGLE SEARCH', { query, city: criteria.city, searchArea: criteria.searchArea, bedrooms: criteria.bedrooms });
     const resp = await fetchWithTimeout('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
@@ -358,6 +311,7 @@ async function fetchGooglePlacesNew(criteria, key) {
     const data = await resp.json().catch(() => ({}));
     assertGooglePlacesNewResponse(data, resp.status, resp.ok);
     const places = Array.isArray(data.places) ? data.places : [];
+    listingLog('LISTINGS GOOGLE RESULTS', { status: resp.status, count: places.length });
     places.forEach((place) => {
       if (place.id && !resultsByPlaceId.has(place.id)) {
         resultsByPlaceId.set(place.id, place);
@@ -366,10 +320,12 @@ async function fetchGooglePlacesNew(criteria, key) {
     if (resultsByPlaceId.size >= GOOGLE_CANDIDATE_LIMIT) break;
   }
 
-  return realApartmentResults(Array.from(resultsByPlaceId.values())
+  const normalized = realApartmentResults(Array.from(resultsByPlaceId.values())
     .slice(0, GOOGLE_CANDIDATE_LIMIT)
     .map((place) => normalizeNewPlace(place, criteria, key))
     .filter((place) => place.propertyId && place.name));
+  listingLog('LISTINGS NORMALIZED', { count: normalized.length });
+  return normalized;
 }
 
 function googlePlaceQueries(criteria) {
@@ -405,16 +361,6 @@ function realApartmentResults(properties) {
   });
 }
 
-function combineGoogleResults(...groups) {
-  const byId = new Map();
-  groups.flat().forEach((property) => {
-    if (property && property.propertyId && !byId.has(property.propertyId)) {
-      byId.set(property.propertyId, property);
-    }
-  });
-  return realApartmentResults(Array.from(byId.values()));
-}
-
 function usSearchLocation(location) {
   const value = clean(location);
   if (!value) return '';
@@ -435,17 +381,6 @@ function unique(values) {
   return Array.from(new Set(values));
 }
 
-function assertGooglePlacesResponse(data) {
-  const status = data && data.status;
-  if (!status || status === 'OK' || status === 'ZERO_RESULTS') return;
-
-  const googleMessage = data.error_message ? ` ${data.error_message}` : '';
-  const message = isGoogleSetupStatus(status)
-    ? `Google Places is not returning apartment results because of a Google Maps API setup issue: ${status}.${googleMessage}`
-    : `Google Places returned ${status}.${googleMessage}`;
-  throw new GooglePlacesError(message.trim(), status);
-}
-
 function assertGooglePlacesNewResponse(data, statusCode, ok) {
   if (ok && !data.error) return;
   const status = (data.error && (data.error.status || data.error.code)) || `HTTP_${statusCode || 500}`;
@@ -458,52 +393,6 @@ function assertGooglePlacesNewResponse(data, statusCode, ok) {
 
 function isGoogleSetupStatus(status) {
   return new Set(['REQUEST_DENIED', 'INVALID_REQUEST', 'OVER_QUERY_LIMIT', 'PERMISSION_DENIED', 'RESOURCE_EXHAUSTED']).has(String(status));
-}
-
-async function fetchPlaceDetails(placeId, key) {
-  if (!placeId) return null;
-  const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-  url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'name,formatted_address,address_components,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,types,business_status');
-  url.searchParams.set('key', key);
-
-  try {
-    const resp = await fetchWithTimeout(url, undefined, GOOGLE_FETCH_TIMEOUT_MS);
-    const data = await resp.json().catch(() => ({}));
-    return data && data.result ? data.result : null;
-  } catch (err) {
-    console.warn('place details lookup failed', err.message || err);
-    return null;
-  }
-}
-
-function normalizePlace(place, details, criteria, key) {
-  const source = details || {};
-  const address = source.formatted_address || place.formatted_address || '';
-  const property = {
-    propertyId: place.place_id || '',
-    name: source.name || place.name || '',
-    address,
-    area: addressArea(source.address_components || place.address_components, criteria),
-    phone: source.formatted_phone_number || source.international_phone_number || '',
-    website: source.website || '',
-    image: '',
-    rating: typeof source.rating === 'number' ? source.rating : typeof place.rating === 'number' ? place.rating : null,
-    reviewCount:
-      typeof source.user_ratings_total === 'number'
-        ? source.user_ratings_total
-        : typeof place.user_ratings_total === 'number'
-        ? place.user_ratings_total
-        : null,
-    directions:
-      source.url ||
-      (place.place_id ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}` : ''),
-    category: criteria.category,
-    businessStatus: source.business_status || place.business_status || '',
-    types: source.types || place.types || [],
-    source: 'Google Places',
-  };
-  return { ...property, ...scoreProperty(property, criteria) };
 }
 
 function normalizeNewPlace(place, criteria, key) {
@@ -553,10 +442,11 @@ function newAddressComponentsToLegacy(components) {
 
 function newPhotoUrl(name, placeId) {
   const value = clean(name);
-  if (!value) return '';
+  const id = clean(placeId);
+  if (!value && !id) return '';
   const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
-  url.searchParams.set('photoName', value);
-  if (placeId) url.searchParams.set('placeId', placeId);
+  if (id) url.searchParams.set('placeId', id);
+  if (value) url.searchParams.set('photoName', value);
   return localUrl(url);
 }
 
