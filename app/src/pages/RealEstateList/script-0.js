@@ -351,8 +351,20 @@ function listingFactsHtml(apt, crit){
   return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
 }
 function photoHtml(apt){
-  if (apt.photo) return `<img src="${apt.photo}" alt="${apt.name} exterior" loading="lazy">`;
+  if (apt.photo) return `<img src="${htmlEscape(apt.photo)}" alt="${htmlEscape(apt.name)} exterior" loading="lazy" onerror="listingImageFallback(this)">`;
+  return listingPhotoFallbackHtml();
+}
+function listingPhotoFallbackHtml(){
   return `<div class="photo-placeholder" role="img" aria-label="No property photo available">${ICONS.pin}</div>`;
+}
+function listingImageFallback(img){
+  if (!img || !img.parentNode) return;
+  const holder = document.createElement("div");
+  holder.className = "photo-placeholder";
+  holder.setAttribute("role", "img");
+  holder.setAttribute("aria-label", "No property photo available");
+  holder.innerHTML = ICONS.pin;
+  img.replaceWith(holder);
 }
 function callLineHtml(apt){
   if(apt.phone){

@@ -269,21 +269,22 @@ async function fetchGooglePlaces(criteria) {
   if (!key) throw new GooglePlacesError('Google Places API key is not configured.', 'MISSING_API_KEY');
 
   try {
-    const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
-    if (legacyResults.length >= MAX_RESULTS) return legacyResults;
+    const newApiResults = await fetchGooglePlacesNew(criteria, key);
+    if (newApiResults.length >= MAX_RESULTS) return newApiResults.slice(0, MAX_RESULTS);
     try {
-      const newApiResults = await fetchGooglePlacesNew(criteria, key);
-      return combineGoogleResults(legacyResults, newApiResults).slice(0, MAX_RESULTS);
-    } catch (newApiError) {
-      if (legacyResults.length) return legacyResults;
-      throw newApiError;
-    }
-  } catch (legacyError) {
-    if (!(legacyError instanceof GooglePlacesError) || !isGoogleSetupStatus(legacyError.status)) {
+      const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
+      return combineGoogleResults(newApiResults, legacyResults).slice(0, MAX_RESULTS);
+    } catch (legacyError) {
+      if (newApiResults.length) return newApiResults.slice(0, MAX_RESULTS);
       throw legacyError;
     }
-    const newApiResults = await fetchGooglePlacesNew(criteria, key);
-    return newApiResults.slice(0, MAX_RESULTS);
+  } catch (newApiError) {
+    try {
+      const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
+      return legacyResults.slice(0, MAX_RESULTS);
+    } catch (_legacyError) {
+      throw newApiError;
+    }
   }
 }
 

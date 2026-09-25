@@ -336,7 +336,7 @@ async function run() {
     assert.equal(deniedBody.properties[0].website, 'https://new-api-concord-1.test');
     assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=new-photo/);
     assert.equal(denied.savedResults.length, 1);
-    assert.equal(deniedCalls, 1);
+    assert.equal(deniedCalls, 0);
     assert.equal(newPlacesCalls, 6);
 
     urls.length = 0;
