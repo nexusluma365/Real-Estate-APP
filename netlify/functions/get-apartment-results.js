@@ -8,14 +8,16 @@
 //
 // Both GET (query string, plus a signed `token` for emailed links) and POST
 // (JSON body) are supported. The server-side lead record is the source of
-// truth for listing criteria whenever a leadId is present.
-const { getLead, getEntitlements, getApartmentResults, saveApartmentResults } = require('./_lib/store');
+// truth whenever it exists, with same-request questionnaire criteria as a
+// recovery path for paid users whose lead record has not synced yet.
+const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentResults } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
 
 const RESULTS_CATEGORY = 'questionnaire';
 const LEGACY_CATEGORIES = new Set(['modern', 'luxury', 'apartment_prep']);
 const MAX_RESULTS = 8;
+const GOOGLE_CANDIDATE_LIMIT = 24;
 const VALID_STATE_CODES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
   'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
@@ -72,6 +74,19 @@ function parseRequest(event) {
   let leadId = body.leadId || q.leadId;
   let category = normalizeResultsCategory(body.category || q.category);
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
+  const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
+  const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
+  const bodyRequestCriteria = body.requestCriteria && typeof body.requestCriteria === 'object' ? body.requestCriteria : null;
+  const queryRequestCriteria =
+    q.city || q.location || q.area || q.searchArea || q.rentBudget || q.budget || q.bedrooms || q.beds
+      ? {
+          city: q.city || q.location || '',
+          area: q.area || q.searchArea || '',
+          rentBudget: q.rentBudget || q.budget || '',
+          bedrooms: q.bedrooms || q.beds || '',
+        }
+      : null;
+  const requestCriteria = bodyRequestCriteria || queryRequestCriteria;
   const token = body.token || q.token;
 
   if (token) {
@@ -83,7 +98,7 @@ function parseRequest(event) {
     category = normalizeResultsCategory(data.category);
   }
 
-  return { leadId, category, upsellPaymentIntentId };
+  return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria };
 }
 
 function normalizeResultsCategory(value) {
@@ -98,7 +113,7 @@ exports.handler = async (event) => {
 
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
-  const { leadId, category, upsellPaymentIntentId } = parsed;
+  const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
 
   if (!leadId) {
     return errorResponse(400, 'LEAD_ID_MISSING', 'We could not find your listing session. Please return to your results and try again.');
@@ -122,9 +137,27 @@ exports.handler = async (event) => {
       listingWarn('supabase lead lookup failed', { leadId, message: err.message || String(err) });
       return errorResponse(502, 'SUPABASE_ERROR', 'We could not load your saved questionnaire right now. Please refresh in a moment.');
     }
+    if (!lead && answers && clientAnswersMatchLead(answers, leadId)) {
+      lead = { ...answers, lead_id: leadId };
+      try {
+        await saveLead(leadId, lead);
+      } catch (err) {
+        listingWarn('lead resync save failed', { leadId, message: err.message || String(err) });
+      }
+    }
+    if (!lead && fallbackCriteria) {
+      lead = leadFromFallbackCriteria(fallbackCriteria, leadId);
+      if (lead) {
+        try {
+          await saveLead(leadId, lead);
+        } catch (err) {
+          listingWarn('fallback lead save failed', { leadId, message: err.message || String(err) });
+        }
+      }
+    }
     if (!lead) return errorResponse(404, 'LEAD_NOT_FOUND', 'No saved questionnaire was found for this listing session.');
 
-    const criteria = buildCriteria(lead, category);
+    const criteria = buildCriteria(lead, category, requestCriteria || fallbackCriteria);
     if (!criteria.city) {
       return errorResponse(400, 'SEARCH_CRITERIA_MISSING', 'Please enter a U.S. city and state, like Austin, TX.');
     }
@@ -132,7 +165,7 @@ exports.handler = async (event) => {
     const cached = await getApartmentResults(leadId, category);
     if (isUsableCachedResult(cached, criteria)) return json(200, { ok: true, ...cached });
 
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
+    if (!googlePlacesApiKey()) {
       listingWarn('google places api key missing', { leadId, city: criteria.city });
       return errorResponse(503, 'GOOGLE_PLACES_CONFIG_ERROR', 'Apartment listings are temporarily unavailable while Google Places is being configured.');
     }
@@ -142,6 +175,15 @@ exports.handler = async (event) => {
       rawProperties = await fetchGooglePlaces(criteria);
     } catch (err) {
       if (err instanceof GooglePlacesError) {
+        if (isAnyUsableCachedResult(cached, criteria)) {
+          listingWarn('google places failed; returning cached google listings', { leadId, status: err.status, count: cached.properties.length });
+          return json(200, {
+            ok: true,
+            ...cached,
+            message: cached.message || 'Showing your latest verified Google apartment matches while fresh results reload.',
+            providerWarning: err.status,
+          });
+        }
         const code = isGoogleSetupStatus(err.status) ? 'GOOGLE_PLACES_CONFIG_ERROR' : 'GOOGLE_PLACES_ERROR';
         listingWarn('google places failed', { leadId, status: err.status, message: err.message });
         return errorResponse(502, code, 'Verified apartment listings are temporarily unavailable. Please refresh in a moment.', {
@@ -163,7 +205,7 @@ exports.handler = async (event) => {
       return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...empty });
     }
 
-    const properties = await rankWithOpenAI(rawProperties, criteria);
+    const properties = (await rankWithOpenAI(rawProperties, criteria)).slice(0, MAX_RESULTS);
     const result = { provider: 'google_places', message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
     await saveApartmentResults(leadId, category, result);
     return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result });
@@ -172,6 +214,28 @@ exports.handler = async (event) => {
     return json(500, { ok: false, error: 'Could not load apartment results right now.' });
   }
 };
+
+function clientAnswersMatchLead(answers, leadId) {
+  const answerLeadId = String(answers.lead_id || answers.leadId || '').trim();
+  return !answerLeadId || answerLeadId === leadId;
+}
+
+function leadFromFallbackCriteria(criteria, leadId) {
+  const preferredCity = clean(criteria.city || criteria.area || criteria.searchArea);
+  if (!preferredCity) return null;
+  return {
+    lead_id: leadId,
+    preferred_city: preferredCity,
+    rent_budget: Number(criteria.rentBudget || criteria.budgetMax || criteria.budget) || '',
+    beds_needed:
+      criteria.bedrooms === 0 || criteria.bedrooms
+        ? String(criteria.bedrooms)
+        : clean(criteria.bedroomsLabel || ''),
+    move_timeline: clean(criteria.moveTimeline),
+    move_reason: clean(criteria.moveReason),
+    recovered_from: 'apartment-list-fallback',
+  };
+}
 
 async function recoverApartmentEntitlement(leadId, category, paymentIntentId, current) {
   let pi;
@@ -201,7 +265,7 @@ async function recoverApartmentEntitlement(leadId, category, paymentIntentId, cu
 }
 
 async function fetchGooglePlaces(criteria) {
-  const key = process.env.GOOGLE_PLACES_API_KEY;
+  const key = googlePlacesApiKey();
   if (!key) throw new GooglePlacesError('Google Places API key is not configured.', 'MISSING_API_KEY');
 
   try {
@@ -221,6 +285,10 @@ async function fetchGooglePlaces(criteria) {
     const newApiResults = await fetchGooglePlacesNew(criteria, key);
     return newApiResults.slice(0, MAX_RESULTS);
   }
+}
+
+function googlePlacesApiKey() {
+  return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
 }
 
 async function fetchGooglePlacesLegacy(criteria, key) {
@@ -246,11 +314,11 @@ async function fetchGooglePlacesLegacy(criteria, key) {
         resultsByPlaceId.set(place.place_id, place);
       }
     });
-    if (resultsByPlaceId.size >= MAX_RESULTS) break;
+    if (resultsByPlaceId.size >= GOOGLE_CANDIDATE_LIMIT) break;
   }
 
   const results = Array.from(resultsByPlaceId.values())
-    .slice(0, MAX_RESULTS);
+    .slice(0, GOOGLE_CANDIDATE_LIMIT);
   const details = await Promise.all(results.map((p) => fetchPlaceDetails(p.place_id, key)));
 
   return realApartmentResults(results.map((p, index) => normalizePlace(p, details[index], criteria, key))).slice(0, MAX_RESULTS);
@@ -282,7 +350,7 @@ async function fetchGooglePlacesNew(criteria, key) {
       },
       body: JSON.stringify({
         textQuery: query,
-        pageSize: MAX_RESULTS,
+        pageSize: Math.min(GOOGLE_CANDIDATE_LIMIT, 20),
         regionCode: 'US',
       }),
     }, GOOGLE_FETCH_TIMEOUT_MS);
@@ -294,11 +362,11 @@ async function fetchGooglePlacesNew(criteria, key) {
         resultsByPlaceId.set(place.id, place);
       }
     });
-    if (resultsByPlaceId.size >= MAX_RESULTS) break;
+    if (resultsByPlaceId.size >= GOOGLE_CANDIDATE_LIMIT) break;
   }
 
   return realApartmentResults(Array.from(resultsByPlaceId.values())
-    .slice(0, MAX_RESULTS)
+    .slice(0, GOOGLE_CANDIDATE_LIMIT)
     .map((place) => normalizeNewPlace(place, criteria, key))
     .filter((place) => place.propertyId && place.name));
 }
@@ -610,12 +678,24 @@ function isUsableCachedResult(cached, criteria) {
   });
 }
 
-function buildCriteria(lead) {
+function isAnyUsableCachedResult(cached, criteria) {
+  if (!cached || cached.provider !== 'google_places') return false;
+  if (!cached.criteria || cached.criteria.city !== criteria.city) return false;
+  if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
+  const properties = Array.isArray(cached.properties) ? cached.properties : [];
+  return properties.some((property) => property && property.source === 'Google Places' && property.image && property.name);
+}
+
+function buildCriteria(lead, _category, requestCriteria) {
   const leadLocation = clean(lead.preferred_city || lead.city);
   const parsedLeadLocation = normalizeCityState(leadLocation);
-  const parsedLocation = parsedLeadLocation || leadLocation;
-  const rentBudget = Number(lead.rent_budget) || null;
-  const bedrooms = normalizeBedrooms(lead.beds_needed);
+  const requestCity = clean(requestCriteria && (requestCriteria.city || requestCriteria.location || requestCriteria.area || requestCriteria.searchArea));
+  const requestLocation = normalizeCityState(requestCity) || requestCity;
+  const parsedLocation = parsedLeadLocation || leadLocation || requestLocation;
+  const requestBudget = Number(requestCriteria && (requestCriteria.rentBudget || requestCriteria.budgetMax || requestCriteria.budget));
+  const rentBudget = Number(lead.rent_budget) || (Number.isFinite(requestBudget) && requestBudget > 0 ? requestBudget : null);
+  const requestBedrooms = requestCriteria && (requestCriteria.bedrooms === 0 || requestCriteria.bedrooms ? requestCriteria.bedrooms : requestCriteria.beds);
+  const bedrooms = normalizeBedrooms(lead.beds_needed || requestBedrooms);
   return {
     category: RESULTS_CATEGORY,
     city: parsedLocation,

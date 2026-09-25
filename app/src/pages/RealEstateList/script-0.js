@@ -187,7 +187,24 @@ async function loadVerifiedApartmentResults(){
   listingState = "loading";
   serverResults = [];
   try {
-    const payload = { leadId };
+    const payload = {
+      leadId,
+      answers,
+      requestCriteria: {
+        city: criteria.city,
+        area: criteria.area,
+        rentBudget: criteria.budgetMax,
+        bedrooms: criteria.bedrooms,
+        moveTimeline: answers.move_timeline || answers.moveTimeline || "",
+        moveReason: answers.move_reason || answers.moveReason || "",
+      },
+      fallbackCriteria: {
+        city: criteria.city || answers.preferred_city || answers.city || "",
+        area: criteria.area || criteria.city || answers.preferred_city || answers.city || "",
+        budgetMax: criteria.budgetMax,
+        bedrooms: criteria.bedrooms,
+      },
+    };
     if (upsellPaymentIntentId) payload.upsellPaymentIntentId = upsellPaymentIntentId;
     let res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
       method: "POST",

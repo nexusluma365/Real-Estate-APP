@@ -337,7 +337,7 @@ async function run() {
     assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=new-photo/);
     assert.equal(denied.savedResults.length, 1);
     assert.equal(deniedCalls, 1);
-    assert.equal(newPlacesCalls, 1);
+    assert.equal(newPlacesCalls, 6);
 
     urls.length = 0;
     let broadSearchCalls = 0;
@@ -494,9 +494,13 @@ async function run() {
     });
     const postBody = JSON.parse(postRes.body);
 
-    assert.equal(postRes.statusCode, 404);
-    assert.equal(postBody.error.code, 'LEAD_NOT_FOUND');
-    assert.equal(postFlow.savedLeads.length, 0);
+    assert.equal(postRes.statusCode, 200);
+    assert.equal(postBody.ok, true);
+    assert.equal(postBody.properties.length, 1);
+    assert.equal(postBody.properties[0].name, 'POST Fallback Apartments');
+    assert.equal(postFlow.savedLeads.length, 1);
+    assert.equal(postFlow.savedLeads[0].leadId, 'lead_post');
+    assert.equal(postFlow.savedLeads[0].answers.preferred_city, 'Concord, NC');
 
     const fallbackCriteriaFlow = await loadHandler({
       lead: null,
@@ -513,8 +517,12 @@ async function run() {
     });
     const fallbackCriteriaBody = JSON.parse(fallbackCriteriaRes.body);
 
-    assert.equal(fallbackCriteriaRes.statusCode, 404);
-    assert.equal(fallbackCriteriaBody.error.code, 'LEAD_NOT_FOUND');
+    assert.equal(fallbackCriteriaRes.statusCode, 200);
+    assert.equal(fallbackCriteriaBody.ok, true);
+    assert.equal(fallbackCriteriaBody.criteria.city, 'High Point, NC');
+    assert.equal(fallbackCriteriaBody.properties.length, 1);
+    assert.equal(fallbackCriteriaFlow.savedLeads.length, 1);
+    assert.equal(fallbackCriteriaFlow.savedLeads[0].answers.preferred_city, 'High Point, NC');
 
     urls.length = 0;
     const variedQueries = [];

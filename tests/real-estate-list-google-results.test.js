@@ -81,8 +81,14 @@ async function run() {
       getItem: () => null,
     },
     navigator: {},
-    fetch: async (url) => {
+    fetch: async (url, options = {}) => {
       assert.equal(url, '/.netlify/functions/get-apartment-results');
+      const payload = JSON.parse(options.body || '{}');
+      assert.equal(payload.leadId, 'lead_miami');
+      assert.equal(payload.answers.preferred_city, 'miami');
+      assert.equal(payload.requestCriteria.city, 'miami');
+      assert.equal(payload.requestCriteria.rentBudget, 2000);
+      assert.equal(payload.fallbackCriteria.bedrooms, 2);
       return {
         ok: true,
         status: 200,

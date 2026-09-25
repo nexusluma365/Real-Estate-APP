@@ -10,7 +10,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  const key = process.env.GOOGLE_PLACES_API_KEY;
+  const key = googlePlacesApiKey();
   if (!key) return text(503, 'Google imagery is not configured.');
 
   const q = event.queryStringParameters || {};
@@ -36,6 +36,10 @@ exports.handler = async (event) => {
     return text(502, 'Google image unavailable.');
   }
 };
+
+function googlePlacesApiKey() {
+  return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+}
 
 function googleImageUrl(q, key) {
   const kind = String(q.kind || '').toLowerCase();
