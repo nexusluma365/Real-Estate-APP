@@ -52,7 +52,7 @@
     if (continueListingsLink) {
       continueListingsLink.addEventListener('click', (e) => {
         e.preventDefault();
-        try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', category: listingCategory(), city: selectedCity() }); } catch (_e) {}
+        try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', city: selectedCity() }); } catch (_e) {}
         window.location.href = realEstateListUrl();
       });
     }
@@ -129,7 +129,7 @@
     }
 
     async function continueToRealEstateList() {
-      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-success', category: listingCategory(), city: selectedCity() }); } catch (_e) {}
+      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-success', city: selectedCity() }); } catch (_e) {}
       window.location.href = realEstateListUrl();
     }
 
@@ -161,7 +161,7 @@
 
     function showDeclinedPopup() {
       const city = selectedCity();
-      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', category: listingCategory(), city }); } catch (_e) {}
+      try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', city }); } catch (_e) {}
       sheetTitle.textContent = "We Couldn’t Complete Your Purchase Yet.";
       showSheetMessage(`You can continue to your RentReady listings for ${city} and try the Apartment Approval Preparation Kit again when you’re ready.`);
       sheetConfirm.textContent = originalConfirmText;
@@ -197,23 +197,12 @@
       }
     }
 
-    function listingCategory() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const fromUrl = String(params.get('category') || params.get('style') || '').toLowerCase();
-        if (fromUrl === 'modern') return 'modern';
-        if (fromUrl === 'luxury') return 'luxury';
-        const answers = JSON.parse(sessionStorage.getItem('rrn_answers_v1') || localStorage.getItem('rrn_answers_v1') || '{}') || {};
-        const fromAnswers = String(answers.apartment_style || answers.style || answers.preferred_style || '').toLowerCase();
-        return fromAnswers === 'modern' ? 'modern' : 'luxury';
-      } catch (_e) {
-        return 'luxury';
-      }
-    }
-
     function realEstateListUrl() {
-      const params = new URLSearchParams({ category: listingCategory(), city: selectedCity() });
+      const params = new URLSearchParams();
       const leadId = window.rrnLeadId ? rrnLeadId() : '';
       if (leadId) params.set('leadId', leadId);
-      return '/real-estate-list.html?' + params.toString();
+      const city = selectedCity();
+      if (city && city !== 'your selected area') params.set('city', city);
+      const query = params.toString();
+      return '/real-estate-list.html' + (query ? '?' + query : '');
     }

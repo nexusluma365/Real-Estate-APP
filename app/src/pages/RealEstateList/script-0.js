@@ -27,33 +27,10 @@ async function requireListingAccess(){
 }
 
 /* =====================================================================
-   RENTREADY — RESULTS EXPERIENCE (front-end prototype)
-   MOCK_APARTMENTS stands in for verified Google Places data (production
-   would fetch this server-side via googlePlacesProvider, keyed by the
-   searched area/style, and never fabricate a missing field). Each
-   listing's photo, address and phone belong to that specific property
-   record — changing the search changes which real records are shown,
-   never the images attached to them.
-   rankApartments() stands in for the AI ranking step (aiRankingService)
-   — it only reads facts already on each property object.
+   RENTREADY — RESULTS EXPERIENCE
+   Production listing cards are rendered only from server-side Google Places
+   results tied to the saved questionnaire lead.
    ===================================================================== */
-
-const MOCK_APARTMENTS = [
-  { id:"p1", name:"The Ellery at South Tryon", area:"Uptown Charlotte", address:"301 S Tryon St, Charlotte, NC", phone:"+17045550142", phoneDisplay:"(704) 555-0142", website:"https://example.com/the-ellery", mapsUrl:"https://maps.google.com/?q=The+Ellery+at+South+Tryon+Charlotte+NC", rating:4.6, reviewCount:212, photo:"https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=80", style:"Luxury", highRise:true, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:2400,max:3400} },
-  { id:"p2", name:"Skyline House Uptown", area:"Uptown Charlotte", address:"215 N College St, Charlotte, NC", phone:"+17045550188", phoneDisplay:"(704) 555-0188", website:"https://example.com/skyline-house", mapsUrl:"https://maps.google.com/?q=Skyline+House+Uptown+Charlotte+NC", rating:4.4, reviewCount:96, photo:"https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=80", style:"Luxury", highRise:true, bedroomsOffered:[0,1,2], pool:true, fitnessCenter:true, balcony:true, petFriendly:false, modern:true, estRent:{min:2100,max:3100} },
-  { id:"p3", name:"Vantage Point Apartments", area:"South End", address:"1420 South Blvd, Charlotte, NC", phone:"+17045550119", phoneDisplay:"(704) 555-0119", website:"https://example.com/vantage-point", mapsUrl:"https://maps.google.com/?q=Vantage+Point+Apartments+South+End+Charlotte+NC", rating:4.5, reviewCount:301, photo:"https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:false, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1900,max:2700} },
-  { id:"p4", name:"The Rowland NoDa", area:"NoDa", address:"3220 N Davidson St, Charlotte, NC", phone:null, phoneDisplay:null, website:"https://example.com/the-rowland", mapsUrl:"https://maps.google.com/?q=The+Rowland+NoDa+Charlotte+NC", rating:4.7, reviewCount:88, photo:"https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:false, bedroomsOffered:[1,2], pool:false, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1700,max:2300} },
-  { id:"p5", name:"Ballantyne Reserve", area:"Ballantyne", address:"14700 Ballantyne Village Way, Charlotte, NC", phone:"+17045550231", phoneDisplay:"(704) 555-0231", website:"https://example.com/ballantyne-reserve", mapsUrl:"https://maps.google.com/?q=Ballantyne+Reserve+Charlotte+NC", rating:4.3, reviewCount:154, photo:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=900&q=80", style:"Luxury", highRise:false, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:true, balcony:true, petFriendly:true, modern:false, estRent:{min:1900,max:2900} },
-  { id:"p6", name:"University Pointe Flats", area:"University City", address:"9601 Ridgeleaf Rd, Charlotte, NC", phone:"+17045550267", phoneDisplay:"(704) 555-0267", website:null, mapsUrl:"https://maps.google.com/?q=University+Pointe+Flats+Charlotte+NC", rating:4.1, reviewCount:67, photo:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=900&q=80", style:"Standard", highRise:false, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:false, balcony:false, petFriendly:true, modern:false, estRent:{min:1250,max:1750} },
-  { id:"p7", name:"Dilworth Row Residences", area:"Dilworth", address:"1500 East Blvd, Charlotte, NC", phone:"+17045550298", phoneDisplay:"(704) 555-0298", website:"https://example.com/dilworth-row", mapsUrl:"https://maps.google.com/?q=Dilworth+Row+Residences+Charlotte+NC", rating:4.6, reviewCount:120, photo:"https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:false, bedroomsOffered:[1,2], pool:false, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1800,max:2500} },
-  { id:"p8", name:"The Merrick at Uptown", area:"Uptown Charlotte", address:"433 W Trade St, Charlotte, NC", phone:"+17045550310", phoneDisplay:"(704) 555-0310", website:"https://example.com/the-merrick", mapsUrl:"https://maps.google.com/?q=The+Merrick+at+Uptown+Charlotte+NC", rating:4.8, reviewCount:174, photo:"https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80", style:"Luxury", highRise:true, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:2600,max:3800} },
-  { id:"p9", name:"Plaza Midwood Commons", area:"Plaza Midwood", address:"1815 Central Ave, Charlotte, NC", phone:"+17045550345", phoneDisplay:"(704) 555-0345", website:"https://example.com/plaza-midwood-commons", mapsUrl:"https://maps.google.com/?q=Plaza+Midwood+Commons+Charlotte+NC", rating:4.4, reviewCount:143, photo:"https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:false, bedroomsOffered:[0,1,2], pool:false, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1600,max:2200} },
-  { id:"p10", name:"South End Lofts on Camden", area:"South End", address:"1900 Camden Rd, Charlotte, NC", phone:"+17045550377", phoneDisplay:"(704) 555-0377", website:"https://example.com/south-end-lofts", mapsUrl:"https://maps.google.com/?q=South+End+Lofts+on+Camden+Charlotte+NC", rating:4.5, reviewCount:209, photo:"https://images.unsplash.com/photo-1560184897-ae75f418493e?auto=format&fit=crop&w=900&q=80", style:"Luxury", highRise:true, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:2300,max:3200} },
-  { id:"p11", name:"NoDa Arts District Flats", area:"NoDa", address:"2800 N Tryon St, Charlotte, NC", phone:null, phoneDisplay:null, website:"https://example.com/noda-arts-flats", mapsUrl:"https://maps.google.com/?q=NoDa+Arts+District+Flats+Charlotte+NC", rating:4.2, reviewCount:54, photo:"https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=900&q=80", style:"Standard", highRise:false, bedroomsOffered:[0,1,2], pool:false, fitnessCenter:false, balcony:true, petFriendly:true, modern:false, estRent:{min:1150,max:1600} },
-  { id:"p12", name:"University City Terrace", area:"University City", address:"8701 J.W. Clay Blvd, Charlotte, NC", phone:"+17045550402", phoneDisplay:"(704) 555-0402", website:"https://example.com/university-city-terrace", mapsUrl:"https://maps.google.com/?q=University+City+Terrace+Charlotte+NC", rating:4.0, reviewCount:81, photo:"https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=900&q=80", style:"Standard", highRise:false, bedroomsOffered:[1,2,3], pool:true, fitnessCenter:true, balcony:false, petFriendly:false, modern:false, estRent:{min:1300,max:1900} },
-  { id:"p13", name:"Ballantyne Grove", area:"Ballantyne", address:"15100 John J Delaney Dr, Charlotte, NC", phone:"+17045550419", phoneDisplay:"(704) 555-0419", website:"https://example.com/ballantyne-grove", mapsUrl:"https://maps.google.com/?q=Ballantyne+Grove+Charlotte+NC", rating:4.5, reviewCount:98, photo:"https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?auto=format&fit=crop&w=900&q=80", style:"Luxury", highRise:false, bedroomsOffered:[2,3], pool:true, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:2200,max:3300} },
-  { id:"p14", name:"Trade Street Modern", area:"Uptown Charlotte", address:"525 E Trade St, Charlotte, NC", phone:"+17045550455", phoneDisplay:"(704) 555-0455", website:"https://example.com/trade-street-modern", mapsUrl:"https://maps.google.com/?q=Trade+Street+Modern+Charlotte+NC", rating:4.3, reviewCount:62, photo:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?auto=format&fit=crop&w=900&q=80", style:"Modern", highRise:true, bedroomsOffered:[1,2], pool:false, fitnessCenter:true, balcony:true, petFriendly:true, modern:true, estRent:{min:1950,max:2650} },
-];
 
 const ALL_PREFS = ["Modern","Pool","Fitness Center","Balcony","High-Rise","Pet Friendly"];
 
@@ -69,6 +46,8 @@ let criteria = {
 let currentResults = [];
 let serverResults = null;
 let serverLoadMessage = "";
+let listingState = "idle";
+let listingErrorMessage = "";
 let nearbyAreas = [];
 let hasSavedLead = false;
 const bedroomLabel = n => n === 0 ? "Studio" : (n >= 4 ? "4+ Bedrooms" : n + (n===1?" Bedroom":" Bedrooms"));
@@ -176,15 +155,7 @@ function rankApartments(crit){
   if (Array.isArray(serverResults) && serverResults.length) {
     return serverResults;
   }
-  if (hasSavedLead) return [];
-  return MOCK_APARTMENTS
-    .map(apt => ({ verified: apt, rentReady: computeMatch(apt, crit) }))
-    .sort((a,b) => b.rentReady.matchScore - a.rentReady.matchScore)
-    .filter(r => r.rentReady.matchScore >= 45);
-}
-
-function currentCategory(){
-  return "questionnaire";
+  return [];
 }
 
 const APARTMENT_RESULTS_TIMEOUT_MS = 52000;
@@ -202,31 +173,37 @@ async function fetchWithTimeout(url, options, timeoutMs = APARTMENT_RESULTS_TIME
 async function loadVerifiedApartmentResults(){
   const answers = readAnswers();
   const urlParams = new URLSearchParams(window.location.search);
-  const leadId = answers.lead_id || urlParams.get("leadId") || "";
+  const leadId = urlParams.get("leadId") || answers.lead_id || answers.leadId || "";
+  const upsellPaymentIntentId = urlParams.get("upsellPaymentIntentId") || "";
   hasSavedLead = !!leadId;
+  listingErrorMessage = "";
   if (!leadId) {
-    serverResults = null;
+    listingState = "error";
+    serverResults = [];
     nearbyAreas = [];
-    serverLoadMessage = "Previewing sample apartment cards. Complete the questionnaire to search live Google Places results.";
+    serverLoadMessage = "We could not find your listing session. Please return to your results and try again.";
     return;
   }
+  listingState = "loading";
+  serverResults = [];
   try {
-    const params = new URLSearchParams({ leadId });
+    const payload = { leadId };
+    if (upsellPaymentIntentId) payload.upsellPaymentIntentId = upsellPaymentIntentId;
     let res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
+      body: JSON.stringify(payload),
     });
     let data = await res.json().catch(()=>({}));
-    if (res.status === 404 && data.error === "No saved questionnaire was found." && await resyncSavedQuestionnaire(answers)) {
+    if (res.status === 404 && errorCode(data) === "LEAD_NOT_FOUND" && await resyncSavedQuestionnaire(answers)) {
       res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...Object.fromEntries(params.entries()), answers, requestCriteria: criteria }),
+        body: JSON.stringify(payload),
       });
       data = await res.json().catch(()=>({}));
     }
-    if (!res.ok || !data.ok) throw new Error(data.error || "Could not load apartment results.");
+    if (!res.ok || !data.ok) throw new Error(errorMessage(data) || "Could not load apartment results.");
     if (data.criteria) {
       criteria.city = data.criteria.city || criteria.city;
       criteria.area = data.criteria.searchArea || data.criteria.city || criteria.area;
@@ -236,19 +213,32 @@ async function loadVerifiedApartmentResults(){
     }
     nearbyAreas = Array.isArray(data.nearbyAreas) ? data.nearbyAreas : [];
     const properties = Array.isArray(data.properties) ? data.properties : [];
-    serverResults = properties.length ? properties.map(serverPropertyToResult) : null;
+    serverResults = properties.map(serverPropertyToResult);
+    listingState = serverResults.length ? "success" : "empty";
     serverLoadMessage = data.message || "";
     if (data.message) {
       document.getElementById("heroSub").textContent = data.message;
     }
   } catch (err) {
     console.warn("Verified apartment results unavailable", err);
+    listingState = "error";
     nearbyAreas = [];
-    serverResults = null;
-    serverLoadMessage = err.name === "AbortError"
+    serverResults = [];
+    listingErrorMessage = err.name === "AbortError"
       ? "Apartment results are taking longer than expected. Refresh in a moment to reload your verified matches."
       : err.message || "Verified apartment results could not be loaded right now.";
+    serverLoadMessage = listingErrorMessage;
   }
+}
+
+function errorCode(data){
+  return data && data.error && typeof data.error === "object" ? data.error.code : "";
+}
+
+function errorMessage(data){
+  if (!data) return "";
+  if (data.error && typeof data.error === "object") return data.error.message || "";
+  return typeof data.error === "string" ? data.error : "";
 }
 
 async function resyncSavedQuestionnaire(answers){
@@ -409,14 +399,20 @@ function renderHeroAndSummary(){
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = "Up to " + money(criteria.budgetMax);
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = serverLoadMessage && !currentResults.length
-    ? serverLoadMessage
-    : criteria.city
-      ? `${matchText} matched what you're looking for — ${bedroomText}, ${cityName || criteria.city}. Confirm current pricing and availability directly with each property.`
-      : "Enter a city and state to search verified apartment communities.";
+  document.getElementById("heroSub").textContent = heroSubText(matchText, bedroomText, cityName);
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
     ? `Explore apartment communities near ${criteria.city}.`
     : `Nearby options will appear here when verified results are available.`;
+}
+
+function heroSubText(matchText, bedroomText, cityName){
+  if (listingState === "loading") return criteria.city
+    ? `Searching Google for apartment communities in ${cityName || criteria.city}.`
+    : "Loading your saved RentReady listing criteria.";
+  if ((listingState === "empty" || listingState === "error") && serverLoadMessage) return serverLoadMessage;
+  return criteria.city
+    ? `${matchText} matched what you're looking for — ${bedroomText}, ${cityName || criteria.city}. Confirm current pricing and availability directly with each property.`
+    : "Enter a city and state to search verified apartment communities.";
 }
 
 function levelWord(v){ return v >= 80 ? "Excellent" : v >= 60 ? "Strong" : v >= 40 ? "Good" : "Limited"; }
@@ -450,6 +446,7 @@ function renderResults(){
   if(!currentResults.length){
     listSection.style.display = "none";
     emptySection.style.display = "block";
+    renderEmptyState();
     return;
   }
   listSection.style.display = "block";
@@ -458,6 +455,24 @@ function renderResults(){
   document.getElementById("listingList").innerHTML = currentResults
     .map((r,i) => listingHtml(r, i, i < 3))
     .join("");
+}
+
+function renderEmptyState(){
+  const title = document.querySelector("#emptySection h3");
+  const copy = document.querySelector("#emptySection p");
+  if (!title || !copy) return;
+  if (listingState === "loading" || listingState === "idle") {
+    title.textContent = "We're preparing your apartment list.";
+    copy.textContent = "If results are still loading, refresh your apartment list in a moment.";
+    return;
+  }
+  if (listingState === "empty") {
+    title.textContent = "No Google apartment communities found yet.";
+    copy.textContent = serverLoadMessage || "Try refreshing, or broaden the city in your questionnaire and search again.";
+    return;
+  }
+  title.textContent = "Apartment listings could not load.";
+  copy.textContent = listingErrorMessage || serverLoadMessage || "Refresh your apartment list in a moment.";
 }
 
 function renderAreaPills(){

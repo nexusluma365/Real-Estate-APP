@@ -494,14 +494,9 @@ async function run() {
     });
     const postBody = JSON.parse(postRes.body);
 
-    assert.equal(postRes.statusCode, 200, `expected 200, got ${postRes.statusCode}: ${postRes.body}`);
-    assert.equal(postBody.ok, true);
-    assert.equal(postBody.criteria.city, 'Concord, NC');
-    assert.equal(postBody.properties.length, 1);
-    assert.equal(postBody.properties[0].name, 'POST Fallback Apartments');
-    assert.equal(postFlow.savedLeads.length, 1);
-    assert.equal(postFlow.savedLeads[0].leadId, 'lead_post');
-    assert.deepEqual(postFlow.savedLeads[0].answers, { ...postAnswers, lead_id: 'lead_post' });
+    assert.equal(postRes.statusCode, 404);
+    assert.equal(postBody.error.code, 'LEAD_NOT_FOUND');
+    assert.equal(postFlow.savedLeads.length, 0);
 
     const fallbackCriteriaFlow = await loadHandler({
       lead: null,
@@ -518,17 +513,8 @@ async function run() {
     });
     const fallbackCriteriaBody = JSON.parse(fallbackCriteriaRes.body);
 
-    assert.equal(
-      fallbackCriteriaRes.statusCode,
-      200,
-      `expected fallback criteria to avoid 404, got ${fallbackCriteriaRes.statusCode}: ${fallbackCriteriaRes.body}`
-    );
-    assert.equal(fallbackCriteriaBody.ok, true);
-    assert.equal(fallbackCriteriaBody.criteria.city, 'High Point, NC');
-    assert.equal(fallbackCriteriaBody.criteria.rentBudget, 2000);
-    assert.equal(fallbackCriteriaBody.criteria.bedrooms, 1);
-    assert.equal(fallbackCriteriaBody.properties.length, 1);
-    assert.equal(fallbackCriteriaBody.properties[0].name, 'POST Fallback Apartments');
+    assert.equal(fallbackCriteriaRes.statusCode, 404);
+    assert.equal(fallbackCriteriaBody.error.code, 'LEAD_NOT_FOUND');
 
     urls.length = 0;
     const variedQueries = [];
@@ -598,188 +584,17 @@ async function run() {
         }),
       });
       const variedBody = JSON.parse(variedRes.body);
-      assert.equal(variedRes.statusCode, 200, `expected ${city} to search successfully`);
-      assert.equal(variedBody.criteria.city, city);
+      assert.equal(variedRes.statusCode, 200, `expected ${city} override to be ignored and Supabase city to search successfully`);
+      assert.equal(variedBody.criteria.city, 'Concord, NC');
       assert(variedBody.properties.length >= 1);
       assert.notEqual(variedBody.properties[0].name, 'Old Real Apartments');
       assert.match(variedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=streetview/);
       assert.equal(varied.savedResults.length, 1);
     }
-    assert(variedQueries.some((query) => query.includes('Austin, TX')));
-    assert(variedQueries.some((query) => query.includes('New York, NY')));
-    assert(variedQueries.some((query) => query.includes('Mount Vernon, WA')));
-
-    urls.length = 0;
-    variedQueries.length = 0;
-    const bridgeFallback = await loadHandler({
-      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategories: ['modern'] },
-    });
-    const bridgeFallbackRes = await bridgeFallback.handler({
-      httpMethod: 'POST',
-      queryStringParameters: null,
-      body: JSON.stringify({
-        leadId: 'lead_bridge',
-        category: 'modern',
-        requestCriteria: { city: 'Downtown Austin', area: 'Downtown Austin', rentBudget: 2100, bedrooms: 2 },
-      }),
-    });
-    const bridgeFallbackBody = JSON.parse(bridgeFallbackRes.body);
-    assert.equal(bridgeFallbackRes.statusCode, 200);
-    assert.equal(bridgeFallbackBody.criteria.city, 'Downtown Austin');
-    assert.match(bridgeFallbackBody.criteria.locationWarning, /not normalized/i);
-    assert(variedQueries.some((query) => query.includes('Downtown Austin')));
-
-    urls.length = 0;
-    variedQueries.length = 0;
-    const rawCitySearch = await loadHandler({
-      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategories: ['modern'] },
-    });
-    const rawCitySearchRes = await rawCitySearch.handler({
-      httpMethod: 'POST',
-      queryStringParameters: null,
-      body: JSON.stringify({
-        leadId: 'lead_raw_city',
-        category: 'modern',
-        requestCriteria: { city: 'Miami', area: 'Miami', rentBudget: 2100, bedrooms: 2 },
-      }),
-    });
-    const rawCitySearchBody = JSON.parse(rawCitySearchRes.body);
-    assert.equal(rawCitySearchRes.statusCode, 200);
-    assert.equal(rawCitySearchBody.criteria.city, 'Miami');
-    assert.match(rawCitySearchBody.criteria.locationWarning, /not normalized/i);
-    assert(variedQueries.some((query) => query.includes('Miami')));
-
-    urls.length = 0;
-    variedQueries.length = 0;
-    let areaFallbackCalls = 0;
-    global.fetch = async (url) => {
-      urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
-        const parsed = new URL(String(url));
-        const query = parsed.searchParams.get('query');
-        variedQueries.push(query);
-        areaFallbackCalls++;
-        const isBroadCityQuery = query.includes('Austin, TX') && !query.includes('Tiny Test District');
-        return {
-          json: async () => ({
-            status: isBroadCityQuery ? 'OK' : 'ZERO_RESULTS',
-            results: isBroadCityQuery
-              ? [
-                  {
-                    place_id: 'place_austin_broad',
-                    name: 'Austin Broad Apartments',
-                    formatted_address: '7 Congress Ave, Austin, TX',
-                    rating: 4.4,
-                    user_ratings_total: 31,
-                    business_status: 'OPERATIONAL',
-                  },
-                ]
-              : [],
-          }),
-        };
-      }
-      if (String(url).includes('/details/')) {
-        return {
-          json: async () => ({
-            result: {
-              name: 'Austin Broad Apartments',
-              formatted_address: '7 Congress Ave, Austin, TX',
-              url: 'https://maps.google.com/?cid=austinbroad',
-              rating: 4.4,
-              user_ratings_total: 31,
-              business_status: 'OPERATIONAL',
-              address_components: [
-                { long_name: 'Downtown Austin', types: ['neighborhood', 'political'] },
-              ],
-            },
-          }),
-        };
-      }
-      throw new Error(`Unexpected fetch URL: ${url}`);
-    };
-    const areaFallback = await loadHandler({
-      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategories: ['modern'] },
-    });
-    const areaFallbackRes = await areaFallback.handler({
-      httpMethod: 'POST',
-      queryStringParameters: null,
-      body: JSON.stringify({
-        leadId: 'lead_area_fallback',
-        category: 'modern',
-        requestCriteria: { city: 'Austin, TX', area: 'Tiny Test District', rentBudget: 2100, bedrooms: 2 },
-      }),
-    });
-    const areaFallbackBody = JSON.parse(areaFallbackRes.body);
-    assert.equal(areaFallbackRes.statusCode, 200);
-    assert.equal(areaFallbackBody.properties[0].name, 'Austin Broad Apartments');
-    assert(variedQueries.some((query) => query.includes('Tiny Test District, Austin, TX')));
-    assert(variedQueries.some((query) => query.includes('Austin, TX') && !query.includes('Tiny Test District')));
-    assert(areaFallbackCalls > 4);
-
-    urls.length = 0;
-    variedQueries.length = 0;
-    global.fetch = async (url) => {
-      urls.push(String(url));
-      if (String(url).includes('/textsearch/')) {
-        const parsed = new URL(String(url));
-        const query = parsed.searchParams.get('query');
-        variedQueries.push(query);
-        return {
-          json: async () => ({
-            status: 'OK',
-            results: [
-              {
-                place_id: 'place_specific_area',
-                name: 'Specific Area Apartments',
-                formatted_address: '9 Main St, Austin, TX',
-                rating: 4.5,
-                user_ratings_total: 44,
-                business_status: 'OPERATIONAL',
-              },
-            ],
-          }),
-        };
-      }
-      if (String(url).includes('/details/')) {
-        return {
-          json: async () => ({
-            result: {
-              name: 'Specific Area Apartments',
-              formatted_address: '9 Main St, Austin, TX',
-              url: 'https://maps.google.com/?cid=specificarea',
-              rating: 4.5,
-              user_ratings_total: 44,
-              business_status: 'OPERATIONAL',
-              address_components: [
-                { long_name: 'Downtown Austin', types: ['neighborhood', 'political'] },
-              ],
-            },
-          }),
-        };
-      }
-      throw new Error(`Unexpected fetch URL: ${url}`);
-    };
-    const specificArea = await loadHandler({
-      lead: { preferred_city: 'Austin, TX', rent_budget: 2100, beds_needed: '2' },
-      entitlements: { paid27: true, purchasedCategories: ['modern'] },
-    });
-    const specificAreaRes = await specificArea.handler({
-      httpMethod: 'POST',
-      queryStringParameters: null,
-      body: JSON.stringify({
-        leadId: 'lead_specific_area',
-        category: 'modern',
-        requestCriteria: { city: 'Austin, TX', area: 'Downtown Austin, Austin, TX', rentBudget: 2100, bedrooms: 2 },
-      }),
-    });
-    const specificAreaBody = JSON.parse(specificAreaRes.body);
-    assert.equal(specificAreaRes.statusCode, 200);
-    assert.deepEqual(specificAreaBody.nearbyAreas, ['Downtown Austin, Austin, TX']);
-    assert(variedQueries.some((query) => query.includes('Downtown Austin, Austin, TX')));
-    assert(!variedQueries.some((query) => query.includes('Downtown Austin, Austin, TX, Austin, TX')));
+    assert(variedQueries.some((query) => query.includes('Concord, NC')));
+    assert(!variedQueries.some((query) => query.includes('Austin, TX')));
+    assert(!variedQueries.some((query) => query.includes('New York, NY')));
+    assert(!variedQueries.some((query) => query.includes('Mount Vernon, WA')));
 
     urls.length = 0;
     variedQueries.length = 0;
@@ -839,8 +654,9 @@ async function run() {
     });
     const fullStateBody = JSON.parse(fullStateRes.body);
     assert.equal(fullStateRes.statusCode, 200);
-    assert.equal(fullStateBody.criteria.city, 'Austin, TX');
-    assert(variedQueries.some((query) => query.includes('Austin, TX')));
+    assert.equal(fullStateBody.criteria.city, 'Concord, NC');
+    assert(variedQueries.some((query) => query.includes('Concord, NC')));
+    assert(!variedQueries.some((query) => query.includes('Austin, TX')));
 
     urls.length = 0;
     variedQueries.length = 0;

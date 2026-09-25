@@ -7,11 +7,9 @@
 // properties; it never creates property facts.
 //
 // Both GET (query string, plus a signed `token` for emailed links) and POST
-// (JSON body) are supported. The results page sends POST with the user's
-// saved answers included in the body. If the server-side lead record can't
-// be found, those answers are used as a same-request fallback and saved
-// server-side so the page doesn't need a separate resync round trip.
-const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentResults } = require('./_lib/store');
+// (JSON body) are supported. The server-side lead record is the source of
+// truth for listing criteria whenever a leadId is present.
+const { getLead, getEntitlements, getApartmentResults, saveApartmentResults } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
 
@@ -34,6 +32,31 @@ class GooglePlacesError extends Error {
   }
 }
 
+function listingLog(message, detail) {
+  console.log('get-apartment-results', message, sanitizeLogDetail(detail));
+}
+
+function listingWarn(message, detail) {
+  console.warn('get-apartment-results', message, sanitizeLogDetail(detail));
+}
+
+function sanitizeLogDetail(detail) {
+  if (!detail || typeof detail !== 'object') return detail || {};
+  const safe = { ...detail };
+  delete safe.token;
+  delete safe.apiKey;
+  return safe;
+}
+
+function errorResponse(statusCode, code, message, extra) {
+  return json(statusCode, {
+    ok: false,
+    success: false,
+    error: { code, message },
+    ...(extra || {}),
+  });
+}
+
 function parseRequest(event) {
   const q = event.queryStringParameters || {};
   let body = {};
@@ -49,19 +72,6 @@ function parseRequest(event) {
   let leadId = body.leadId || q.leadId;
   let category = normalizeResultsCategory(body.category || q.category);
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
-  const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
-  const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
-  const bodyRequestCriteria = body.requestCriteria && typeof body.requestCriteria === 'object' ? body.requestCriteria : null;
-  const queryRequestCriteria =
-    q.city || q.location || q.area || q.searchArea || q.rentBudget || q.budget || q.bedrooms || q.beds
-      ? {
-          city: q.city || q.location || '',
-          area: q.area || q.searchArea || '',
-          rentBudget: q.rentBudget || q.budget || '',
-          bedrooms: q.bedrooms || q.beds || '',
-        }
-      : null;
-  const requestCriteria = bodyRequestCriteria || queryRequestCriteria;
   const token = body.token || q.token;
 
   if (token) {
@@ -73,7 +83,7 @@ function parseRequest(event) {
     category = normalizeResultsCategory(data.category);
   }
 
-  return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria };
+  return { leadId, category, upsellPaymentIntentId };
 }
 
 function normalizeResultsCategory(value) {
@@ -88,85 +98,68 @@ exports.handler = async (event) => {
 
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
-  const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
+  const { leadId, category, upsellPaymentIntentId } = parsed;
 
   if (!leadId) {
-    return json(400, { ok: false, error: 'Missing lead ID.' });
+    return errorResponse(400, 'LEAD_ID_MISSING', 'We could not find your listing session. Please return to your results and try again.');
   }
 
   try {
+    listingLog('request', { leadId, method: event.httpMethod, category });
     let entitlements = await getEntitlements(leadId);
     const hasListingAccess = (e) => !!(e && (e.paid10 || e.paid27));
     if (!hasListingAccess(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
     if (!hasListingAccess(entitlements)) {
-      return json(403, { ok: false, error: 'This apartment list is not unlocked yet.' });
+      return errorResponse(403, 'LISTING_ACCESS_DENIED', 'This apartment list is not unlocked yet.');
     }
 
-    let lead = await getLead(leadId);
-    if (!lead && answers && clientAnswersMatchLead(answers, leadId)) {
-      lead = { ...answers, lead_id: leadId };
-      try {
-        await saveLead(leadId, lead);
-      } catch (err) {
-        console.warn('lead resync save failed', err);
-      }
+    let lead;
+    try {
+      lead = await getLead(leadId);
+    } catch (err) {
+      listingWarn('supabase lead lookup failed', { leadId, message: err.message || String(err) });
+      return errorResponse(502, 'SUPABASE_ERROR', 'We could not load your saved questionnaire right now. Please refresh in a moment.');
     }
-    if (!lead && fallbackCriteria) {
-      lead = leadFromFallbackCriteria(fallbackCriteria, leadId);
-      if (lead) {
-        try {
-          await saveLead(leadId, lead);
-        } catch (err) {
-          console.warn('fallback lead save failed', err);
-        }
-      }
-    }
-    if (!lead) return json(404, { ok: false, error: 'No saved questionnaire was found.' });
+    if (!lead) return errorResponse(404, 'LEAD_NOT_FOUND', 'No saved questionnaire was found for this listing session.');
 
-    const criteria = buildCriteria(lead, category, requestCriteria || fallbackCriteria);
+    const criteria = buildCriteria(lead, category);
     if (!criteria.city) {
-      return json(400, {
-        ok: false,
-        error: 'Please enter a U.S. city and state, like Austin, TX.',
-      });
+      return errorResponse(400, 'SEARCH_CRITERIA_MISSING', 'Please enter a U.S. city and state, like Austin, TX.');
     }
+    listingLog('criteria', { leadId, city: criteria.city, searchArea: criteria.searchArea, rentBudget: criteria.rentBudget, bedrooms: criteria.bedrooms });
     const cached = await getApartmentResults(leadId, category);
     if (isUsableCachedResult(cached, criteria)) return json(200, { ok: true, ...cached });
+
+    if (!process.env.GOOGLE_PLACES_API_KEY) {
+      listingWarn('google places api key missing', { leadId, city: criteria.city });
+      return errorResponse(503, 'GOOGLE_PLACES_CONFIG_ERROR', 'Apartment listings are temporarily unavailable while Google Places is being configured.');
+    }
 
     let rawProperties;
     try {
       rawProperties = await fetchGooglePlaces(criteria);
     } catch (err) {
       if (err instanceof GooglePlacesError) {
-        return json(200, {
-          ok: true,
-          leadId,
-          category,
-          generatedAt: new Date().toISOString(),
+        const code = isGoogleSetupStatus(err.status) ? 'GOOGLE_PLACES_CONFIG_ERROR' : 'GOOGLE_PLACES_ERROR';
+        listingWarn('google places failed', { leadId, status: err.status, message: err.message });
+        return errorResponse(502, code, 'Verified apartment listings are temporarily unavailable. Please refresh in a moment.', {
           provider: 'google_places',
           googleStatus: err.status,
           criteria,
-          nearbyAreas: [],
-          message: 'Verified apartment results are temporarily unavailable. You can still browse the listing page and continue your rental plan.',
-          providerMessage: err.message,
-          properties: [],
         });
       }
       throw err;
     }
     if (!rawProperties.length) {
       const empty = {
-        provider: process.env.GOOGLE_PLACES_API_KEY ? 'google_places' : 'not_configured',
+        provider: 'google_places',
         criteria,
         nearbyAreas: [],
-        message: process.env.GOOGLE_PLACES_API_KEY
-          ? 'No verified apartment communities were returned for this search. Try a broader city or contact RentReady support.'
-          : 'Google Places is not configured yet, so RentReady cannot generate verified apartment recommendations.',
+        message: "We couldn't find apartment communities for this search yet. Try a broader nearby city or refresh in a moment.",
         properties: [],
       };
-      await saveApartmentResults(leadId, category, empty);
       return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...empty });
     }
 
@@ -179,28 +172,6 @@ exports.handler = async (event) => {
     return json(500, { ok: false, error: 'Could not load apartment results right now.' });
   }
 };
-
-function clientAnswersMatchLead(answers, leadId) {
-  const answerLeadId = String(answers.lead_id || answers.leadId || '').trim();
-  return !answerLeadId || answerLeadId === leadId;
-}
-
-function leadFromFallbackCriteria(criteria, leadId) {
-  const preferredCity = clean(criteria.city || criteria.area);
-  if (!preferredCity) return null;
-  return {
-    lead_id: leadId,
-    preferred_city: preferredCity,
-    rent_budget: Number(criteria.rentBudget || criteria.budgetMax) || '',
-    beds_needed:
-      criteria.bedrooms === 0 || criteria.bedrooms
-        ? String(criteria.bedrooms)
-        : clean(criteria.bedroomsLabel || ''),
-    move_timeline: clean(criteria.moveTimeline),
-    move_reason: clean(criteria.moveReason),
-    recovered_from: 'apartment-list-fallback',
-  };
-}
 
 async function recoverApartmentEntitlement(leadId, category, paymentIntentId, current) {
   let pi;
@@ -231,7 +202,7 @@ async function recoverApartmentEntitlement(leadId, category, paymentIntentId, cu
 
 async function fetchGooglePlaces(criteria) {
   const key = process.env.GOOGLE_PLACES_API_KEY;
-  if (!key) return [];
+  if (!key) throw new GooglePlacesError('Google Places API key is not configured.', 'MISSING_API_KEY');
 
   try {
     const legacyResults = await fetchGooglePlacesLegacy(criteria, key);
@@ -639,36 +610,23 @@ function isUsableCachedResult(cached, criteria) {
   });
 }
 
-function buildCriteria(lead, category, overrideCriteria) {
-  const override = overrideCriteria && typeof overrideCriteria === 'object' ? overrideCriteria : {};
-  const requestedCity = clean(override.city || override.location);
+function buildCriteria(lead) {
   const leadLocation = clean(lead.preferred_city || lead.city);
-  const requestedArea = clean(override.searchArea || override.area);
-  const parsedRequestedLocation = normalizeCityState(requestedCity);
   const parsedLeadLocation = normalizeCityState(leadLocation);
-  const explicitLocation = requestedCity || requestedArea;
-  const unnormalizedLocation = explicitLocation || leadLocation;
-  const parsedLocation = parsedRequestedLocation || explicitLocation || parsedLeadLocation || leadLocation;
-  const searchArea =
-    requestedArea && parsedRequestedLocation
-      ? requestedArea
-      : requestedArea && parsedLeadLocation && !requestedCity
-      ? requestedArea
-      : parsedLocation;
+  const parsedLocation = parsedLeadLocation || leadLocation;
   const rentBudget = Number(lead.rent_budget) || null;
   const bedrooms = normalizeBedrooms(lead.beds_needed);
-  const overrideBedrooms = normalizeBedrooms(override.bedrooms);
   return {
     category: RESULTS_CATEGORY,
     city: parsedLocation,
-    searchArea,
+    searchArea: parsedLocation,
     locationWarning:
-      parsedLocation && unnormalizedLocation && parsedLocation === unnormalizedLocation && !normalizeCityState(unnormalizedLocation)
+      parsedLocation && leadLocation && parsedLocation === leadLocation && !normalizeCityState(leadLocation)
         ? 'City/state was not normalized; Google Places will interpret the saved location text.'
         : null,
-    rentBudget: Number(override.rentBudget || override.budgetMax) || rentBudget,
-    bedrooms: overrideBedrooms === null ? bedrooms : overrideBedrooms,
-    bedroomsLabel: bedroomLabel(overrideBedrooms === null ? bedrooms : overrideBedrooms),
+    rentBudget,
+    bedrooms,
+    bedroomsLabel: bedroomLabel(bedrooms),
     moveTimeline: clean(lead.move_timeline),
     moveReason: clean(lead.move_reason),
   };
@@ -734,7 +692,7 @@ function scoreProperty(property, criteria) {
   if (property.phone) score += 4;
   if (property.website) score += 4;
   if (property.businessStatus === 'OPERATIONAL') score += 3;
-  if (criteria.rentBudget && criteria.rentBudget < 1800) score += text.includes('luxury') ? 1 : 4;
+  if (criteria.rentBudget && criteria.rentBudget < 1800) score += 4;
   score = Math.max(55, Math.min(98, Math.round(score)));
 
   const matchReasons = [

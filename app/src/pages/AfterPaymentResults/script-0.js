@@ -195,25 +195,16 @@
     return '';
   }
 
-  function listingCategory(){
-    var raw = String(queryParam('category') || queryParam('style') || '').toLowerCase();
-    if (raw === 'modern') return 'modern';
-    if (raw === 'luxury') return 'luxury';
-    var answers = readAnswers();
-    raw = String(answers.apartment_style || answers.style || answers.preferred_style || '').toLowerCase();
-    return raw === 'modern' ? 'modern' : 'luxury';
-  }
-
   function renterSearchParams(){
     var answers = readAnswers();
     var next = new URLSearchParams(window.location.search || '');
-    var category = listingCategory();
     var city = answers.preferred_city || answers.city || queryParam('city') || queryParam('location') || '';
     var rentBudget = answers.rent_budget || queryParam('rentBudget') || queryParam('budget') || '';
     var bedrooms = answers.beds_needed || answers.bedrooms || queryParam('bedrooms') || queryParam('beds') || '';
     var leadId = answers.lead_id || answers.leadId || queryParam('leadId') || '';
 
-    next.set('category', category);
+    next.delete('category');
+    next.delete('style');
     if (city) next.set('city', city);
     if (rentBudget) next.set('rentBudget', rentBudget);
     if (bedrooms) next.set('bedrooms', Array.isArray(bedrooms) ? bedrooms.join(',') : bedrooms);
@@ -235,7 +226,6 @@
         try {
           rrnGrantFlowAccess('apartment-list', {
             status: 'upsell-skipped',
-            category: params.get('category') || 'luxury',
             city: params.get('city') || null,
           });
         } catch (_e) {}

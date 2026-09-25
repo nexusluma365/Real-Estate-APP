@@ -105,12 +105,13 @@ async function runDeclineCase({ scriptPath, category, city }) {
   assert.deepEqual(grants, [
     {
       step: 'apartment-list',
-      details: { status: 'upsell-declined', category, city },
+      details: { status: 'upsell-declined', city },
     },
   ]);
   assert.match(elements.sheetConfirm.dataset.target, /^\/real-estate-list\.html\?/);
   assert.match(hrefs[hrefs.length - 1], /^\/real-estate-list\.html\?/);
-  assert.match(hrefs[hrefs.length - 1], new RegExp(`category=${category}`));
+  assert.doesNotMatch(hrefs[hrefs.length - 1], /category=/);
+  assert.match(hrefs[hrefs.length - 1], /leadId=lead_123/);
 }
 
 async function run() {
