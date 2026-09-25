@@ -689,7 +689,7 @@ function isAnyUsableCachedResult(cached, criteria) {
 
 function isServableListingImage(image) {
   const value = String(image || '');
-  return value.startsWith('/.netlify/functions/google-place-image?') && !value.includes('kind=streetview');
+  return value.startsWith('/.netlify/functions/google-place-image?');
 }
 
 function buildCriteria(lead, _category, requestCriteria) {
