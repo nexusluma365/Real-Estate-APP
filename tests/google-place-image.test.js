@@ -32,146 +32,173 @@ async function withHandler(fn) {
   return fn(handler);
 }
 
+function assertPlaceDetailsRequest(request, placeId) {
+  assert.match(request.url, new RegExp(`/v1/places/${placeId}$`));
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.headers['X-Goog-Api-Key'], 'google_test_key');
+  assert.equal(request.options.headers['X-Goog-FieldMask'], 'photos');
+}
+
+function assertPhotoMediaRequest(request, photoName) {
+  assert.match(request.url, new RegExp(`${photoName}/media`));
+  assert.match(request.url, /maxWidthPx=1200/);
+  assert.match(request.url, /maxHeightPx=800/);
+  assert.match(request.url, /skipHttpRedirect=false/);
+  assert.match(request.url, /key=google_test_key/);
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.redirect, 'follow');
+}
+
 async function run() {
   const oldFetch = global.fetch;
   const oldKey = process.env.GOOGLE_PLACES_API_KEY;
+  const oldLog = console.log;
+  const oldWarn = console.warn;
   process.env.GOOGLE_PLACES_API_KEY = 'google_test_key';
+
+  const logs = [];
+  const warnings = [];
+  console.log = (...args) => logs.push(args);
+  console.warn = (...args) => warnings.push(args);
 
   try {
     let requests = [];
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
-      return image('image/jpeg');
+      return requests.length === 1
+        ? details('places/place_missing/photos/fresh')
+        : image('image/jpeg', 'fresh-image-bytes');
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_a/photos/photo_1', placeId: 'place_a' } });
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_missing' } });
       assert.equal(res.statusCode, 200);
       assert.equal(res.headers['Content-Type'], 'image/jpeg');
+      assert.equal(res.headers['Cache-Control'], 'public, max-age=86400');
       assert.equal(res.isBase64Encoded, true);
-      assert.equal(Buffer.from(res.body, 'base64').toString(), 'image-bytes');
-      assert.equal(requests.length, 1);
-      assert.match(requests[0].url, /places\/place_a\/photos\/photo_1\/media/);
-      assert.match(requests[0].url, /maxWidthPx=1200/);
-      assert.match(requests[0].url, /maxHeightPx=800/);
-      assert.match(requests[0].url, /skipHttpRedirect=false/);
-      assert.match(requests[0].url, /key=google_test_key/);
-      assert.equal(requests[0].options.method, 'GET');
-      assert.equal(requests[0].options.redirect, 'follow');
+      assert.equal(Buffer.from(res.body, 'base64').toString(), 'fresh-image-bytes');
+      assert.equal(requests.length, 2);
+      assertPlaceDetailsRequest(requests[0], 'place_missing');
+      assertPhotoMediaRequest(requests[1], 'places/place_missing/photos/fresh');
+      assert.deepEqual(logs.map((entry) => entry[0]).slice(-3), [
+        'PHOTO PLACE DETAILS',
+        'PHOTO MEDIA RESPONSE',
+        'PHOTO FINAL IMAGE',
+      ]);
     });
 
     requests = [];
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
-      return image('image/webp', 'webp-bytes');
+      return requests.length === 1
+        ? details('places/place_stale/photos/fresh')
+        : image('image/webp', 'webp-bytes');
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_webp/photos/photo_1', placeId: 'place_webp' } });
+      const res = await handler({
+        httpMethod: 'GET',
+        queryStringParameters: {
+          placeId: 'place_stale',
+          photoName: 'places/place_stale/photos/stale',
+        },
+      });
       assert.equal(res.statusCode, 200);
       assert.equal(res.headers['Content-Type'], 'image/webp');
       assert.equal(Buffer.from(res.body, 'base64').toString(), 'webp-bytes');
+      assertPlaceDetailsRequest(requests[0], 'place_stale');
+      assertPhotoMediaRequest(requests[1], 'places/place_stale/photos/fresh');
+      assert.doesNotMatch(requests[1].url, /photos\/stale\/media/);
     });
 
     requests = [];
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
-      if (requests.length === 1) return response(403, { error: { message: 'expired photo' } });
-      if (requests.length === 2) return details('places/place_b/photos/fresh');
-      return image('image/jpeg', 'fresh-bytes');
+      return requests.length === 1
+        ? details('places/place_from_photo/photos/fresh')
+        : image('image/png', 'derived-place-id-bytes');
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_b/photos/expired', placeId: 'place_b' } });
+      const res = await handler({
+        httpMethod: 'GET',
+        queryStringParameters: { photoName: 'places/place_from_photo/photos/stale' },
+      });
       assert.equal(res.statusCode, 200);
-      assert.equal(Buffer.from(res.body, 'base64').toString(), 'fresh-bytes');
-      assert.equal(requests.length, 3);
-      assert.match(requests[1].url, /\/v1\/places\/place_b$/);
-      assert.equal(requests[1].options.headers['X-Goog-FieldMask'], 'photos');
-      assert.match(requests[2].url, /places\/place_b\/photos\/fresh\/media/);
+      assert.equal(res.headers['Content-Type'], 'image/png');
+      assertPlaceDetailsRequest(requests[0], 'place_from_photo');
+      assertPhotoMediaRequest(requests[1], 'places/place_from_photo/photos/fresh');
     });
 
     requests = [];
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
-      return requests.length === 1 ? details('places/place_c/photos/fresh') : image();
-    };
-    await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_c' } });
-      assert.equal(res.statusCode, 200);
-      assert.equal(requests.length, 2);
-    });
-
-    requests = [];
-    global.fetch = async (url) => {
-      requests.push(String(url));
       return details('');
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_d' } });
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_no_photos' } });
       assert.equal(res.statusCode, 204);
       assert.equal(requests.length, 1);
+      assertPlaceDetailsRequest(requests[0], 'place_no_photos');
     });
 
     for (const status of [400, 403, 404]) {
       requests = [];
-      global.fetch = async (url) => {
-        requests.push(String(url));
-        return response(status, { error: { message: `media ${status}` } });
+      global.fetch = async (url, options) => {
+        requests.push({ url: String(url), options });
+        return requests.length === 1
+          ? details(`places/place_${status}/photos/fresh`)
+          : response(status, { error: { message: `media ${status}` } });
       };
       await withHandler(async (handler) => {
-        const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: `places/place_${status}/photos/bad` } });
+        const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: `place_${status}` } });
         assert.equal(res.statusCode, 204);
         assert.equal(requests.length, 2);
+        assertPlaceDetailsRequest(requests[0], `place_${status}`);
+        assertPhotoMediaRequest(requests[1], `places/place_${status}/photos/fresh`);
       });
     }
 
     requests = [];
-    global.fetch = async (url) => {
-      requests.push(String(url));
-      return response(200, { message: 'not an image' }, 'application/json');
+    global.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
+      return requests.length === 1
+        ? details('places/place_json/photos/fresh')
+        : response(200, { photoUri: 'https://lh3.googleusercontent.com/not-used' }, 'application/json');
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_json/photos/photo_1' } });
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_json' } });
+      assert.equal(res.statusCode, 204);
+      assert.equal(requests.length, 2);
+      assert.equal(requests.some((request) => /lh3\.googleusercontent\.com/.test(request.url)), false);
+    });
+
+    requests = [];
+    global.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
+      return requests.length === 1
+        ? details('places/place_html/photos/fresh')
+        : response(200, '<html></html>', 'text/html');
+    };
+    await withHandler(async (handler) => {
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_html' } });
       assert.equal(res.statusCode, 204);
       assert.equal(requests.length, 2);
     });
 
     requests = [];
-    global.fetch = async (url) => {
-      requests.push(String(url));
+    global.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
       return requests.length === 1
-        ? response(200, { photoUri: 'https://lh3.googleusercontent.com/photo-test' }, 'application/json')
-        : image('image/jpeg', 'photo-uri-bytes');
+        ? details('places/place_empty/photos/fresh')
+        : image('image/jpeg', '');
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_uri/photos/photo_1' } });
-      assert.equal(res.statusCode, 200);
-      assert.equal(Buffer.from(res.body, 'base64').toString(), 'photo-uri-bytes');
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_empty' } });
+      assert.equal(res.statusCode, 204);
       assert.equal(requests.length, 2);
-      assert.match(requests[1], /^https:\/\/lh3\.googleusercontent\.com\/photo-test/);
-    });
-
-    requests = [];
-    global.fetch = async (url) => {
-      requests.push(String(url));
-      return requests.length === 1
-        ? response(200, { photoUri: 'https://lh3.googleusercontent.com/photo-test' }, 'application/json')
-        : response(200, 'html', 'text/html');
-    };
-    await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_bad_uri/photos/photo_1' } });
-      assert.equal(res.statusCode, 204);
-      assert.equal(requests.length, 3);
-    });
-
-    requests = [];
-    global.fetch = async () => image('image/jpeg', '');
-    await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_empty/photos/photo_1' } });
-      assert.equal(res.statusCode, 204);
     });
 
     requests = [];
     global.fetch = async () => {
-      requests.push('should-not-run');
+      requests.push({ url: 'should-not-run', options: {} });
       return image();
     };
     await withHandler(async (handler) => {
@@ -183,8 +210,9 @@ async function run() {
     const savedKey = process.env.GOOGLE_PLACES_API_KEY;
     delete process.env.GOOGLE_PLACES_API_KEY;
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_no_key/photos/photo_1' } });
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_no_key' } });
       assert.equal(res.statusCode, 503);
+      assert.equal(res.body.includes('google_test_key'), false);
     });
     process.env.GOOGLE_PLACES_API_KEY = savedKey;
 
@@ -193,26 +221,15 @@ async function run() {
       assert.equal(res.statusCode, 400);
     });
 
-    requests = [];
-    global.fetch = async (url) => {
-      requests.push(String(url));
-      if (requests.length === 1) return response(404, { error: { message: 'expired cached photo name' } });
-      if (requests.length === 2) return details('places/place_heal/photos/fresh');
-      return image('image/png', 'healed-bytes');
-    };
-    await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_heal/photos/expired', placeId: 'place_heal' } });
-      assert.equal(res.statusCode, 200);
-      assert.equal(res.headers['Content-Type'], 'image/png');
-      assert.equal(Buffer.from(res.body, 'base64').toString(), 'healed-bytes');
-      assert.match(requests[2], /places\/place_heal\/photos\/fresh\/media/);
-    });
-
-    const frontendHtml = '<img src="/.netlify/functions/google-place-image?placeId=place_a&photoName=places%2Fplace_a%2Fphotos%2Fphoto_1" />';
+    const frontendHtml = '<img src="/.netlify/functions/google-place-image?placeId=place_a" />';
     assert.equal(frontendHtml.includes('google_test_key'), false);
-    assert.equal(requests.some((url) => /streetview/i.test(url)), false);
-    assert.equal(requests.some((url) => /maps\.googleapis\.com\/maps\/api\/place\/photo/i.test(url)), false);
+    assert.equal(requests.some((request) => /streetview/i.test(request.url)), false);
+    assert.equal(requests.some((request) => /maps\.googleapis\.com\/maps\/api\/place\/photo/i.test(request.url)), false);
+    assert.equal(JSON.stringify(logs).includes('google_test_key'), false);
+    assert.equal(JSON.stringify(warnings).includes('google_test_key'), false);
   } finally {
+    console.log = oldLog;
+    console.warn = oldWarn;
     global.fetch = oldFetch;
     if (oldKey === undefined) delete process.env.GOOGLE_PLACES_API_KEY;
     else process.env.GOOGLE_PLACES_API_KEY = oldKey;

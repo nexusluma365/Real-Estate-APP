@@ -1,4 +1,4 @@
-// GET /.netlify/functions/google-place-image?photoName=places/.../photos/...&placeId=...
+// GET /.netlify/functions/google-place-image?placeId=...
 //
 // Server-side proxy for Google Places (New) photos. The browser never receives
 // the Google API key; it only receives a binary image response or a controlled
@@ -14,7 +14,7 @@ exports.handler = async (event) => {
 
   const key = googlePlacesApiKey();
   if (!key) {
-    logFailure('', 'config', 503, '', 'missing_api_key');
+    logFailure('', 'config', 503, 'missing_api_key');
     return text(503, 'Google imagery is not configured.');
   }
 
@@ -22,43 +22,20 @@ exports.handler = async (event) => {
   const inputPhotoName = validPhotoName(q.photoName) ? cleanName(q.photoName) : '';
   const placeId = clean(q.placeId) || placeIdFromPhotoName(inputPhotoName);
 
-  console.log('PHOTO PIPELINE 1 - REQUEST', {
-    placeId,
-    hasPhotoName: !!inputPhotoName,
-  });
-
-  if (!inputPhotoName && !placeId) {
-    logFailure('', 'request', 400, '', 'missing_photoName_and_placeId');
-    return noPhotoResponse(400);
-  }
-
-  if (q.photoName && !inputPhotoName && !placeId) {
-    logFailure('', 'request', 400, '', 'invalid_photoName');
-    return noPhotoResponse(400);
-  }
-
-  const attempted = new Set();
-  let photoName = inputPhotoName;
-
-  if (photoName) {
-    const image = await fetchPhotoMedia(photoName, key, placeId, attempted);
-    if (image.ok) return imageResponse(image, placeId);
-  }
-
   if (!placeId) {
-    logFailure('', 'place_details', 204, '', 'placeId_unavailable_for_refresh');
-    return noPhotoResponse();
+    logFailure('', 'request', 400, 'missing_placeId');
+    return noPhotoResponse(400);
+  }
+
+  if (q.photoName && !inputPhotoName) {
+    logFailure(placeId, 'request', 400, 'invalid_photoName');
+    return noPhotoResponse(400);
   }
 
   const freshPhotoName = await fetchFreshPhotoName(placeId, key);
   if (!freshPhotoName) return noPhotoResponse();
 
-  if (freshPhotoName === photoName && attempted.has(freshPhotoName)) {
-    logFailure(placeId, 'media_retry', 204, '', 'fresh_photoName_already_attempted');
-    return noPhotoResponse();
-  }
-
-  const freshImage = await fetchPhotoMedia(freshPhotoName, key, placeId, attempted);
+  const freshImage = await fetchPhotoMedia(freshPhotoName, key, placeId);
   if (freshImage.ok) return imageResponse(freshImage, placeId);
 
   return noPhotoResponse();
@@ -85,44 +62,35 @@ async function fetchFreshPhotoName(placeId, key) {
     const fresh = photos.find((photo) => validPhotoName(photo && photo.name));
     const freshPhotoName = fresh ? cleanName(fresh.name) : '';
 
-    console.log('PHOTO PIPELINE 2 - PLACE DETAILS', {
+    console.log('PHOTO PLACE DETAILS', {
       placeId,
       status: resp.status,
-      contentType,
       photoCount: photos.length,
-      hasFreshPhotoName: !!freshPhotoName,
     });
 
     if (!resp.ok) {
-      logFailure(placeId, 'place_details', resp.status, contentType, googleErrorReason(data));
+      logFailure(placeId, 'place_details', resp.status, googleErrorReason(data));
       return '';
     }
 
     if (!freshPhotoName) {
-      console.warn('PHOTO PIPELINE - NO GOOGLE PHOTOS', { placeId });
+      logFailure(placeId, 'place_details', resp.status, 'no_google_photos');
       return '';
     }
 
     return freshPhotoName;
   } catch (err) {
-    logFailure(placeId, 'place_details', 'FETCH_ERROR', '', err.message || String(err));
+    logFailure(placeId, 'place_details', 'FETCH_ERROR', err.message || String(err));
     return '';
   }
 }
 
-async function fetchPhotoMedia(photoName, key, placeId, attempted) {
+async function fetchPhotoMedia(photoName, key, placeId) {
   const safeName = cleanName(photoName);
   if (!validPhotoName(safeName)) {
-    logFailure(placeId, 'media_request', 400, '', 'invalid_photoName');
+    logFailure(placeId, 'media_request', 400, 'invalid_photoName');
     return { ok: false };
   }
-
-  attempted.add(safeName);
-
-  console.log('PHOTO PIPELINE 3 - MEDIA REQUEST', {
-    placeId,
-    hasPhotoName: true,
-  });
 
   const mediaUrl = new URL(`https://places.googleapis.com/v1/${safeName}/media`);
   mediaUrl.searchParams.set('maxWidthPx', PHOTO_MAX_WIDTH);
@@ -134,7 +102,7 @@ async function fetchPhotoMedia(photoName, key, placeId, attempted) {
     const resp = await fetch(mediaUrl, { method: 'GET', redirect: 'follow' });
     const contentType = cleanContentType(resp.headers.get('content-type'));
 
-    console.log('PHOTO PIPELINE 4 - MEDIA RESPONSE', {
+    console.log('PHOTO MEDIA RESPONSE', {
       placeId,
       status: resp.status,
       contentType,
@@ -145,7 +113,7 @@ async function fetchPhotoMedia(photoName, key, placeId, attempted) {
       const reason = contentType.includes('application/json')
         ? googleErrorReason(await resp.json().catch(() => ({})))
         : 'media_not_ok';
-      logFailure(placeId, 'media_response', resp.status, contentType, reason);
+      logFailure(placeId, 'media_response', resp.status, reason);
       return { ok: false };
     }
 
@@ -153,55 +121,10 @@ async function fetchPhotoMedia(photoName, key, placeId, attempted) {
       return imageFromResponse(resp, placeId, contentType);
     }
 
-    if (contentType.includes('application/json')) {
-      const data = await resp.json().catch(() => ({}));
-      if (data && data.photoUri) {
-        return fetchPhotoUri(data.photoUri, placeId);
-      }
-      logFailure(placeId, 'media_json', resp.status, contentType, 'json_without_photoUri');
-      return { ok: false };
-    }
-
-    logFailure(placeId, 'media_response', resp.status, contentType, 'non_image_response');
+    logFailure(placeId, 'media_response', resp.status, 'non_image_response');
     return { ok: false };
   } catch (err) {
-    logFailure(placeId, 'media_response', 'FETCH_ERROR', '', err.message || String(err));
-    return { ok: false };
-  }
-}
-
-async function fetchPhotoUri(photoUri, placeId) {
-  let url;
-  try {
-    url = new URL(String(photoUri || ''));
-  } catch (_err) {
-    logFailure(placeId, 'photoUri', 400, '', 'invalid_photoUri');
-    return { ok: false };
-  }
-
-  try {
-    const resp = await fetch(url, { method: 'GET', redirect: 'follow' });
-    const contentType = cleanContentType(resp.headers.get('content-type'));
-
-    console.log('PHOTO PIPELINE 4 - MEDIA RESPONSE', {
-      placeId,
-      status: resp.status,
-      contentType,
-      redirected: !!resp.redirected,
-    });
-
-    if (!resp.ok) {
-      logFailure(placeId, 'photoUri', resp.status, contentType, 'photoUri_not_ok');
-      return { ok: false };
-    }
-    if (!contentType.startsWith('image/')) {
-      logFailure(placeId, 'photoUri', resp.status, contentType, 'photoUri_non_image_response');
-      return { ok: false };
-    }
-
-    return imageFromResponse(resp, placeId, contentType);
-  } catch (err) {
-    logFailure(placeId, 'photoUri', 'FETCH_ERROR', '', err.message || String(err));
+    logFailure(placeId, 'media_response', 'FETCH_ERROR', err.message || String(err));
     return { ok: false };
   }
 }
@@ -209,7 +132,7 @@ async function fetchPhotoUri(photoUri, placeId) {
 async function imageFromResponse(resp, placeId, contentType) {
   const buffer = Buffer.from(await resp.arrayBuffer());
   if (!buffer.length) {
-    logFailure(placeId, 'final_image', resp.status, contentType, 'empty_image_body');
+    logFailure(placeId, 'final_image', resp.status, 'empty_image_body');
     return { ok: false };
   }
 
@@ -217,9 +140,8 @@ async function imageFromResponse(resp, placeId, contentType) {
 }
 
 function imageResponse(image, placeId) {
-  console.log('PHOTO PIPELINE 5 - FINAL IMAGE', {
+  console.log('PHOTO FINAL IMAGE', {
     placeId,
-    status: image.status || 200,
     contentType: image.contentType,
     bytes: image.buffer.length,
   });
@@ -251,12 +173,11 @@ function text(statusCode, body) {
   };
 }
 
-function logFailure(placeId, stage, status, contentType, reason) {
-  console.warn('PHOTO PIPELINE FAILED', {
+function logFailure(placeId, stage, status, reason) {
+  console.warn('PHOTO FAILED', {
     placeId,
     stage,
     status,
-    contentType: contentType || '',
     reason: String(reason || 'unknown'),
   });
 }

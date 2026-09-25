@@ -352,12 +352,23 @@ function listingFactsHtml(apt, crit){
   if (!facts.length) return "";
   return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
 }
-function photoHtml(apt){
-  if (apt.photoName) {
-    const photoUrl = `/.netlify/functions/google-place-image?placeId=${encodeURIComponent(apt.id)}&photoName=${encodeURIComponent(apt.photoName)}`;
+function photoHtml(apt) {
+  if (apt.id) {
+    const params = new URLSearchParams({
+      placeId: apt.id,
+    });
+
+    if (apt.photoName) {
+      params.set("photoName", apt.photoName);
+    }
+
+    const photoUrl =
+      `/.netlify/functions/google-place-image?${params.toString()}`;
+
     const attribution = photoAttributionHtml(apt);
     return `<img src="${photoUrl}" alt="${htmlEscape(apt.name)} exterior" loading="lazy" onerror="listingImageFallback(this)">${attribution}`;
   }
+
   return listingPhotoFallbackHtml();
 }
 function photoAttributionHtml(apt){
