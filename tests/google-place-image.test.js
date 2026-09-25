@@ -32,33 +32,14 @@ async function run() {
     const fresh = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_a/photos/photo_1', placeId: 'place_a' } });
     assert.equal(fresh.statusCode, 200);
     assert.equal(requests.length, 1);
-    assert.match(requests[0].url, /maxWidthPx=1200&maxHeightPx=800/);
-    assert.equal(requests[0].options.headers['X-Goog-Api-Key'], 'google_test_key');
+    assert.match(requests[0].url, /maxWidthPx=1200/);
+    assert.match(requests[0].url, /maxHeightPx=800/);
+    assert.match(requests[0].url, /skipHttpRedirect=false/);
+    assert.match(requests[0].url, /key=google_test_key/);
+    assert.equal(requests[0].options.method, 'GET');
+    assert.equal(requests[0].options.redirect, 'follow');
 
     requests = [];
-    global.fetch = async (url, options) => {
-      requests.push({ url: String(url), options });
-      return requests.length === 1
-        ? response(200, { photoUri: 'https://lh5.googleusercontent.test/property.jpg' })
-        : response(200, '', 'image/jpeg');
-    };
-    handler = await loadHandler();
-    const metadataPhoto = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_uri/photos/photo_1', placeId: 'place_uri' } });
-    assert.equal(metadataPhoto.statusCode, 200);
-    assert.equal(metadataPhoto.isBase64Encoded, true);
-    assert.equal(requests.length, 2);
-    assert.equal(requests[1].url, 'https://lh5.googleusercontent.test/property.jpg');
-    assert.match(metadataPhoto.headers['Content-Type'], /^image\//);
-
-    requests = [];
-    global.fetch = async (url) => {
-      requests.push(String(url));
-      return response(200, { unexpected: 'metadata' });
-    };
-    handler = await loadHandler();
-    const missingUri = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_missing/photos/photo_1' } });
-    assert.equal(missingUri.statusCode, 204);
-    assert.equal(requests.length, 2);
 
     requests = [];
     global.fetch = async (url) => {

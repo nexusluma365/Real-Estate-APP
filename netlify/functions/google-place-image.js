@@ -39,56 +39,80 @@ function googlePlacesApiKey() {
 
 async function fetchPlacePhoto(photoName, key, placeId) {
   const safeName = String(photoName || '').replace(/^\/+/, '');
-  if (!safeName.startsWith('places/')) return { ok: false, status: 400 };
-  const imageUrl = new URL(`https://places.googleapis.com/v1/${safeName}/media`);
+
+  if (!safeName.startsWith('places/')) {
+    console.warn('google-place-image invalid photo name', {
+      placeId,
+      photoNamePrefix: safeName.slice(0, 80),
+    });
+
+    return { ok: false, status: 400 };
+  }
+
+  const imageUrl = new URL(
+    `https://places.googleapis.com/v1/${safeName}/media`
+  );
+
   imageUrl.searchParams.set('maxWidthPx', '1200');
   imageUrl.searchParams.set('maxHeightPx', '800');
+  imageUrl.searchParams.set('key', key);
+  imageUrl.searchParams.set('skipHttpRedirect', 'false');
+
   try {
+    console.log('PHOTO DEBUG - requesting Google photo', {
+      placeId,
+      photoNamePrefix: safeName.slice(0, 80),
+    });
+
     const resp = await fetch(imageUrl, {
-      headers: { 'X-Goog-Api-Key': key },
+      method: 'GET',
       redirect: 'follow',
     });
-    const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
-    console.log('google-place-image media metadata', { placeId, status: resp.status, contentType });
-    if (!resp.ok) {
-      await logGoogleError('google-place-image Google error', placeId, resp);
-      return { ok: false, status: resp.status };
-    }
-    if (contentType.startsWith('image/')) {
-      return { ok: true, contentType, buffer: Buffer.from(await resp.arrayBuffer()) };
-    }
-    if (contentType.includes('application/json')) {
-      const data = await resp.json().catch(() => ({}));
-      const photoUri = typeof data.photoUri === 'string' ? data.photoUri : '';
-      console.log('google-place-image photoUri received', { placeId, hasPhotoUri: !!photoUri });
-      if (!photoUri) {
-        console.warn('google-place-image Google error', { placeId, status: resp.status, errorMessage: 'Google Place Photo returned JSON without photoUri' });
-        return { ok: false, status: resp.status };
-      }
-      return await fetchPhotoUri(photoUri, placeId);
-    }
-    console.warn('google-place-image Google error', { placeId, status: resp.status, errorMessage: `Expected Google property image but received ${contentType || 'unknown content type'}` });
-    return { ok: false, status: resp.status };
-  } catch (err) {
-    console.warn('google-place-image Google error', { placeId, status: 'FETCH_ERROR', errorMessage: err.message || String(err) });
-    return { ok: false, status: 0 };
-  }
-}
 
-async function fetchPhotoUri(photoUri, placeId) {
-  try {
-    const resp = await fetch(photoUri, { redirect: 'follow' });
     const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
+
+    console.log('PHOTO DEBUG - Google photo response', {
+      placeId,
+      status: resp.status,
+      contentType,
+      redirected: resp.redirected,
+    });
+
     if (!resp.ok) {
       await logGoogleError('google-place-image Google error', placeId, resp);
       return { ok: false, status: resp.status };
     }
+
     if (!contentType.startsWith('image/')) {
-      console.warn('google-place-image Google error', { placeId, status: resp.status, errorMessage: `Expected Google property image but received ${contentType || 'unknown content type'}` });
+      let responsePreview = '';
+      try {
+        responsePreview = (await resp.text()).slice(0, 300);
+      } catch (_) {}
+
+      console.warn('PHOTO DEBUG - expected image but received something else', {
+        placeId,
+        status: resp.status,
+        contentType,
+        responsePreview,
+      });
+
       return { ok: false, status: resp.status };
     }
+
     const buffer = Buffer.from(await resp.arrayBuffer());
-    console.log('google-place-image final image', { placeId, status: resp.status, contentType, bytes: buffer.length });
+
+    if (!buffer.length) {
+      console.warn('PHOTO DEBUG - empty image', { placeId });
+      return { ok: false, status: 502 };
+    }
+
+    console.log('PHOTO DEBUG - FINAL IMAGE', {
+      placeId,
+      status: resp.status,
+      contentType,
+      bytes: buffer.length,
+    });
+
     return { ok: true, contentType, buffer };
   } catch (err) {
     console.warn('google-place-image Google error', { placeId, status: 'FETCH_ERROR', errorMessage: err.message || String(err) });
