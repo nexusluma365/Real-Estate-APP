@@ -38,6 +38,41 @@ async function run() {
     requests = [];
     global.fetch = async (url, options) => {
       requests.push({ url: String(url), options });
+      return requests.length === 1
+        ? response(200, { photoUri: 'https://lh5.googleusercontent.test/property.jpg' })
+        : response(200, '', 'image/jpeg');
+    };
+    handler = await loadHandler();
+    const metadataPhoto = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_uri/photos/photo_1', placeId: 'place_uri' } });
+    assert.equal(metadataPhoto.statusCode, 200);
+    assert.equal(metadataPhoto.isBase64Encoded, true);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[1].url, 'https://lh5.googleusercontent.test/property.jpg');
+    assert.match(metadataPhoto.headers['Content-Type'], /^image\//);
+
+    requests = [];
+    global.fetch = async (url) => {
+      requests.push(String(url));
+      return response(200, { unexpected: 'metadata' });
+    };
+    handler = await loadHandler();
+    const missingUri = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_missing/photos/photo_1' } });
+    assert.equal(missingUri.statusCode, 204);
+    assert.equal(requests.length, 2);
+
+    requests = [];
+    global.fetch = async (url) => {
+      requests.push(String(url));
+      return response(200, '', 'application/json');
+    };
+    handler = await loadHandler();
+    const nonImage = await handler({ httpMethod: 'GET', queryStringParameters: { photoName: 'places/place_non_image/photos/photo_1' } });
+    assert.equal(nonImage.statusCode, 204);
+    assert.equal(requests.length, 2);
+
+    requests = [];
+    global.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
       if (requests.length === 1) return response(403, { error: { message: 'expired photo' } });
       if (requests.length === 2) return response(200, { photos: [{ name: 'places/place_b/photos/fresh' }] });
       return response(200, '', 'image/jpeg');

@@ -18,7 +18,7 @@ exports.handler = async (event) => {
   logRequest(placeId, photoName, attemptedFreshLookup);
 
   let image = photoName ? await fetchPlacePhoto(photoName, key, placeId) : { ok: false, status: 0 };
-  if (image.ok) return imageResponse(image);
+  if (image.ok) return imageResponse(image, placeId);
 
   if (placeId) {
     attemptedFreshLookup = true;
@@ -26,7 +26,7 @@ exports.handler = async (event) => {
     photoName = await fetchFreshPlacePhoto(placeId, key);
     if (photoName) {
       image = await fetchPlacePhoto(photoName, key, placeId);
-      if (image.ok) return imageResponse(image);
+      if (image.ok) return imageResponse(image, placeId);
     }
   }
 
@@ -48,13 +48,48 @@ async function fetchPlacePhoto(photoName, key, placeId) {
       headers: { 'X-Goog-Api-Key': key },
       redirect: 'follow',
     });
-    const contentType = resp.headers.get('content-type') || '';
-    console.log('google-place-image response', { placeId, status: resp.status, contentType });
+    const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
+    console.log('google-place-image media metadata', { placeId, status: resp.status, contentType });
     if (!resp.ok) {
       await logGoogleError('google-place-image Google error', placeId, resp);
       return { ok: false, status: resp.status };
     }
-    return { ok: true, contentType: contentType || 'image/jpeg', buffer: Buffer.from(await resp.arrayBuffer()) };
+    if (contentType.startsWith('image/')) {
+      return { ok: true, contentType, buffer: Buffer.from(await resp.arrayBuffer()) };
+    }
+    if (contentType.includes('application/json')) {
+      const data = await resp.json().catch(() => ({}));
+      const photoUri = typeof data.photoUri === 'string' ? data.photoUri : '';
+      console.log('google-place-image photoUri received', { placeId, hasPhotoUri: !!photoUri });
+      if (!photoUri) {
+        console.warn('google-place-image Google error', { placeId, status: resp.status, errorMessage: 'Google Place Photo returned JSON without photoUri' });
+        return { ok: false, status: resp.status };
+      }
+      return await fetchPhotoUri(photoUri, placeId);
+    }
+    console.warn('google-place-image Google error', { placeId, status: resp.status, errorMessage: `Expected Google property image but received ${contentType || 'unknown content type'}` });
+    return { ok: false, status: resp.status };
+  } catch (err) {
+    console.warn('google-place-image Google error', { placeId, status: 'FETCH_ERROR', errorMessage: err.message || String(err) });
+    return { ok: false, status: 0 };
+  }
+}
+
+async function fetchPhotoUri(photoUri, placeId) {
+  try {
+    const resp = await fetch(photoUri, { redirect: 'follow' });
+    const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
+    if (!resp.ok) {
+      await logGoogleError('google-place-image Google error', placeId, resp);
+      return { ok: false, status: resp.status };
+    }
+    if (!contentType.startsWith('image/')) {
+      console.warn('google-place-image Google error', { placeId, status: resp.status, errorMessage: `Expected Google property image but received ${contentType || 'unknown content type'}` });
+      return { ok: false, status: resp.status };
+    }
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    console.log('google-place-image final image', { placeId, status: resp.status, contentType, bytes: buffer.length });
+    return { ok: true, contentType, buffer };
   } catch (err) {
     console.warn('google-place-image Google error', { placeId, status: 'FETCH_ERROR', errorMessage: err.message || String(err) });
     return { ok: false, status: 0 };
@@ -83,7 +118,8 @@ async function fetchFreshPlacePhoto(placeId, key) {
   }
 }
 
-function imageResponse(image) {
+function imageResponse(image, placeId) {
+  console.log('google-place-image final image', { placeId, status: 200, contentType: image.contentType, bytes: image.buffer.length });
   return {
     statusCode: 200,
     headers: { 'Content-Type': image.contentType, 'Cache-Control': 'public, max-age=86400' },
