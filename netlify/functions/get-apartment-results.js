@@ -667,8 +667,7 @@ function isUsableCachedResult(cached, criteria) {
   return properties.every((property) => {
     const website = String(property.website || '');
     const phone = String(property.phone || '');
-    const image = String(property.image || '');
-    return property.source === 'Google Places' && isServableListingImage(image) && !website.includes('example.com') && !/555-0\d{3}|555\d{4}/.test(phone);
+    return property.source === 'Google Places' && property.propertyId && !website.includes('example.com') && !/555-0\d{3}|555\d{4}/.test(phone);
   });
 }
 
@@ -677,15 +676,7 @@ function isAnyUsableCachedResult(cached, criteria) {
   if (!cached.criteria || cached.criteria.city !== criteria.city) return false;
   if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
   const properties = Array.isArray(cached.properties) ? cached.properties : [];
-  return properties.some((property) => property && property.source === 'Google Places' && isServableListingImage(property.image) && property.name);
-}
-
-function isServableListingImage(image) {
-  const value = String(image || '');
-  return !value || (
-    value.startsWith('/.netlify/functions/google-place-image?') &&
-    value.includes('photoName=')
-  );
+  return properties.some((property) => property && property.source === 'Google Places' && property.propertyId && property.name);
 }
 
 function buildCriteria(lead, _category, requestCriteria) {

@@ -125,8 +125,8 @@ async function run() {
   assert.equal(getElementById('listSection').style.display, 'block');
   assert.equal(getElementById('resultCount').textContent, '8 matches');
   assert.equal((html.match(/<article class="listing/g) || []).length, 8);
-  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?photoName=/g) || []).length, 7);
-  assert.equal((html.match(/photo-placeholder/g) || []).length, 1);
+  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?placeId=.*photoName=/g) || []).length, 7);
+  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?placeId=/g) || []).length, 8);
   assert.doesNotMatch(html, /Apartment search/);
 }
 

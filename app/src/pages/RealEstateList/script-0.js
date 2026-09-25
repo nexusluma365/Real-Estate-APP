@@ -353,8 +353,9 @@ function listingFactsHtml(apt, crit){
   return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
 }
 function photoHtml(apt){
-  if (apt.photoName) {
-    const photoUrl = `/.netlify/functions/google-place-image?photoName=${encodeURIComponent(apt.photoName)}${apt.id ? `&placeId=${encodeURIComponent(apt.id)}` : ""}`;
+  if (apt.photoName || apt.id) {
+    const photoName = apt.photoName ? `&photoName=${encodeURIComponent(apt.photoName)}` : "";
+    const photoUrl = `/.netlify/functions/google-place-image?placeId=${encodeURIComponent(apt.id)}${photoName}`;
     const attribution = photoAttributionHtml(apt);
     return `<img src="${photoUrl}" alt="${htmlEscape(apt.name)} exterior" loading="lazy" onerror="listingImageFallback(this)">${attribution}`;
   }
