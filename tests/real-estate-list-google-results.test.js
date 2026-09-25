@@ -43,7 +43,8 @@ async function run() {
     directions: `https://maps.google.com/?cid=miamigoogle${i + 1}`,
     rating: 4.4,
     reviewCount: 50 + i,
-    image: i === 7 ? '' : `/.netlify/functions/google-place-image?kind=new-photo&name=places/google_miami_${i + 1}/photos/photo_1`,
+    photoName: i === 7 ? '' : `places/google_miami_${i + 1}/photos/photo_1`,
+    authorAttributions: i === 0 ? [{ displayName: 'Google contributor', uri: 'https://example.com/attribution' }] : [],
     source: 'Google Places',
     matchScore: 88 - i,
     matchReasons: ['Searched for apartments in miami', 'Contact details found through Google Places'],
@@ -124,7 +125,7 @@ async function run() {
   assert.equal(getElementById('listSection').style.display, 'block');
   assert.equal(getElementById('resultCount').textContent, '8 matches');
   assert.equal((html.match(/<article class="listing/g) || []).length, 8);
-  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?kind=new-photo/g) || []).length, 7);
+  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?photoName=/g) || []).length, 7);
   assert.equal((html.match(/photo-placeholder/g) || []).length, 1);
   assert.doesNotMatch(html, /Apartment search/);
 }

@@ -23,15 +23,14 @@ async function run() {
     const response = await handler({
       httpMethod: 'GET',
       queryStringParameters: {
-        kind: 'new-photo',
-        name: 'places/place_miami/photos/photo_1',
+        photoName: 'places/place_miami/photos/photo_1',
         placeId: 'place_miami',
       },
     });
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.isBase64Encoded, true);
-    assert.match(requests[0].url, /^https:\/\/places\.googleapis\.com\/v1\/places\/place_miami\/photos\/photo_1\/media\?maxWidthPx=900$/);
+    assert.match(requests[0].url, /^https:\/\/places\.googleapis\.com\/v1\/places\/place_miami\/photos\/photo_1\/media\?maxWidthPx=1200&maxHeightPx=800$/);
     assert.equal(requests[0].options.headers['X-Goog-Api-Key'], 'google_test_key');
     assert.doesNotMatch(requests[0].url, /street/i);
 

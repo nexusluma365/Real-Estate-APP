@@ -507,8 +507,20 @@ function normalizePlace(place, details, criteria, key) {
 }
 
 function normalizeNewPlace(place, criteria, key) {
-  const photoName = place.photos && place.photos[0] && place.photos[0].name;
+  const photos = Array.isArray(place.photos) ? place.photos : [];
+  const selectedPhoto = photos.find((photo) => photo && typeof photo.name === 'string' && photo.name.startsWith('places/')) || null;
+  const photoName = selectedPhoto ? selectedPhoto.name : null;
+  const authorAttributions = selectedPhoto && Array.isArray(selectedPhoto.authorAttributions)
+    ? selectedPhoto.authorAttributions
+    : [];
   const address = place.formattedAddress || '';
+  listingLog('Google Places property photo', {
+    property: (place.displayName && place.displayName.text) || '',
+    placeId: place.id || '',
+    hasPhotos: photos.length > 0,
+    photoCount: photos.length,
+    firstPhotoResource: photoName,
+  });
   const property = {
     propertyId: place.id || '',
     name: (place.displayName && place.displayName.text) || '',
@@ -516,6 +528,8 @@ function normalizeNewPlace(place, criteria, key) {
     area: addressArea(newAddressComponentsToLegacy(place.addressComponents), criteria),
     phone: place.nationalPhoneNumber || place.internationalPhoneNumber || '',
     website: place.websiteUri || '',
+    photoName,
+    authorAttributions,
     image: newPhotoUrl(photoName, place.id),
     rating: typeof place.rating === 'number' ? place.rating : null,
     reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
@@ -541,8 +555,7 @@ function newPhotoUrl(name, placeId) {
   const value = clean(name);
   if (!value) return '';
   const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
-  url.searchParams.set('kind', 'new-photo');
-  url.searchParams.set('name', value);
+  url.searchParams.set('photoName', value);
   if (placeId) url.searchParams.set('placeId', placeId);
   return localUrl(url);
 }
@@ -671,7 +684,7 @@ function isServableListingImage(image) {
   const value = String(image || '');
   return !value || (
     value.startsWith('/.netlify/functions/google-place-image?') &&
-    value.includes('kind=new-photo')
+    value.includes('photoName=')
   );
 }
 

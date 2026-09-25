@@ -283,6 +283,8 @@ function serverPropertyToResult(property){
     phoneDisplay: phone,
     website: property.website || "",
     mapsUrl: property.directions || "",
+    photoName: property.photoName || "",
+    authorAttributions: Array.isArray(property.authorAttributions) ? property.authorAttributions : [],
     rating: typeof property.rating === "number" ? property.rating : null,
     reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : null,
     photo: property.image || "",
@@ -351,8 +353,21 @@ function listingFactsHtml(apt, crit){
   return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
 }
 function photoHtml(apt){
-  if (apt.photo) return `<img src="${htmlEscape(apt.photo)}" alt="${htmlEscape(apt.name)} exterior" loading="lazy" onerror="listingImageFallback(this)">`;
+  if (apt.photoName) {
+    const photoUrl = `/.netlify/functions/google-place-image?photoName=${encodeURIComponent(apt.photoName)}${apt.id ? `&placeId=${encodeURIComponent(apt.id)}` : ""}`;
+    const attribution = photoAttributionHtml(apt);
+    return `<img src="${photoUrl}" alt="${htmlEscape(apt.name)} exterior" loading="lazy" onerror="listingImageFallback(this)">${attribution}`;
+  }
   return listingPhotoFallbackHtml();
+}
+function photoAttributionHtml(apt){
+  const attribution = Array.isArray(apt.authorAttributions) ? apt.authorAttributions[0] : null;
+  if (!attribution) return "";
+  const label = htmlEscape(attribution.displayName || "Google contributor");
+  const href = htmlEscape(attribution.uri || "");
+  return href
+    ? `<a class="photo-attribution" href="${href}" target="_blank" rel="noopener" aria-label="Photo attribution">${label}</a>`
+    : `<span class="photo-attribution">${label}</span>`;
 }
 function listingPhotoFallbackHtml(){
   return `<div class="photo-placeholder" role="img" aria-label="No property photo available">${ICONS.pin}</div>`;

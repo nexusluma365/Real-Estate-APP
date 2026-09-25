@@ -184,7 +184,7 @@ async function run() {
           name: `Paid Checkout Apartments ${i + 1}`,
           phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
           website: `https://paidcheckoutapartments${i + 1}.test`,
-          image: `/.netlify/functions/google-place-image?kind=new-photo&name=places/paid_${i + 1}/photos/photo_1`,
+          image: `/.netlify/functions/google-place-image?photoName=places/paid_${i + 1}/photos/photo_1`,
           source: 'Google Places',
         })),
       },
@@ -334,7 +334,8 @@ async function run() {
     assert.equal(deniedBody.properties[0].name, 'New API Concord Apartments 1');
     assert.equal(deniedBody.properties[0].phone, '(704) 555-0301');
     assert.equal(deniedBody.properties[0].website, 'https://new-api-concord-1.test');
-    assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=new-photo/);
+    assert.equal(deniedBody.properties[0].photoName, 'places/place_new_api_1/photos/photo_1');
+    assert.match(deniedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?photoName=/);
     assert.equal(denied.savedResults.length, 1);
     assert.equal(deniedCalls, 0);
     assert.equal(newPlacesCalls, 6);

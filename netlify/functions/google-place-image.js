@@ -1,4 +1,4 @@
-// GET /.netlify/functions/google-place-image?kind=new-photo&name=places/.../photos/...
+// GET /.netlify/functions/google-place-image?photoName=places/.../photos/...
 //
 // Proxies Google-hosted listing imagery through the server so the browser
 // does not need direct access to the Google API key.
@@ -19,8 +19,8 @@ exports.handler = async (event) => {
     const resp = await fetch(url.url, { headers: url.headers, redirect: 'follow' });
     if (!resp.ok) {
       console.warn('google-place-image fetch failed', {
-        placeId: q.placeId || placeIdFromPhotoName(q.name),
-        hasPhotoReference: !!(q.ref || q.name),
+        placeId: q.placeId || placeIdFromPhotoName(q.photoName),
+        hasPhotoReference: !!q.photoName,
         status: resp.status,
       });
       return text(resp.status, 'Google image unavailable.');
@@ -38,8 +38,8 @@ exports.handler = async (event) => {
     };
   } catch (err) {
     console.warn('google-place-image fetch error', {
-      placeId: q.placeId || placeIdFromPhotoName(q.name),
-      hasPhotoReference: !!(q.ref || q.name),
+      placeId: q.placeId || placeIdFromPhotoName(q.photoName),
+      hasPhotoReference: !!q.photoName,
       status: 'FETCH_ERROR',
       message: err.message || String(err),
     });
@@ -53,11 +53,12 @@ function googlePlacesApiKey() {
 
 function googleImageUrl(q, key) {
   const kind = String(q.kind || '').toLowerCase();
-  if (kind === 'new-photo' && q.name) {
-    const safeName = String(q.name).replace(/^\/+/, '');
+  if (q.photoName) {
+    const safeName = String(q.photoName).replace(/^\/+/, '');
     if (!safeName.startsWith('places/')) return '';
     const imageUrl = new URL(`https://places.googleapis.com/v1/${safeName}/media`);
-    imageUrl.searchParams.set('maxWidthPx', '900');
+    imageUrl.searchParams.set('maxWidthPx', '1200');
+    imageUrl.searchParams.set('maxHeightPx', '800');
     return { url: imageUrl.toString(), headers: { 'X-Goog-Api-Key': key } };
   }
   return '';
