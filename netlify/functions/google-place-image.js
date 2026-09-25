@@ -1,6 +1,4 @@
-// GET /.netlify/functions/google-place-image?kind=photo&ref=...
 // GET /.netlify/functions/google-place-image?kind=new-photo&name=places/.../photos/...
-// GET /.netlify/functions/google-place-image?kind=streetview&location=...
 //
 // Proxies Google-hosted listing imagery through the server so the browser
 // does not need direct access to the Google API key.
@@ -18,8 +16,15 @@ exports.handler = async (event) => {
   if (!url) return text(400, 'Missing image parameters.');
 
   try {
-    const resp = await fetch(url, { redirect: 'follow' });
-    if (!resp.ok) return text(resp.status, 'Google image unavailable.');
+    const resp = await fetch(url.url, { headers: url.headers, redirect: 'follow' });
+    if (!resp.ok) {
+      console.warn('google-place-image fetch failed', {
+        placeId: q.placeId || placeIdFromPhotoName(q.name),
+        hasPhotoReference: !!(q.ref || q.name),
+        status: resp.status,
+      });
+      return text(resp.status, 'Google image unavailable.');
+    }
     const contentType = resp.headers.get('content-type') || 'image/jpeg';
     const buffer = Buffer.from(await resp.arrayBuffer());
     return {
@@ -32,7 +37,12 @@ exports.handler = async (event) => {
       body: buffer.toString('base64'),
     };
   } catch (err) {
-    console.error('google-place-image error', err);
+    console.warn('google-place-image fetch error', {
+      placeId: q.placeId || placeIdFromPhotoName(q.name),
+      hasPhotoReference: !!(q.ref || q.name),
+      status: 'FETCH_ERROR',
+      message: err.message || String(err),
+    });
     return text(502, 'Google image unavailable.');
   }
 };
@@ -43,30 +53,19 @@ function googlePlacesApiKey() {
 
 function googleImageUrl(q, key) {
   const kind = String(q.kind || '').toLowerCase();
-  if (kind === 'photo' && q.ref) {
-    const url = new URL('https://maps.googleapis.com/maps/api/place/photo');
-    url.searchParams.set('maxwidth', '900');
-    url.searchParams.set('photo_reference', q.ref);
-    url.searchParams.set('key', key);
-    return url.toString();
-  }
   if (kind === 'new-photo' && q.name) {
     const safeName = String(q.name).replace(/^\/+/, '');
     if (!safeName.startsWith('places/')) return '';
-    const url = new URL(`https://places.googleapis.com/v1/${safeName}/media`);
-    url.searchParams.set('maxWidthPx', '900');
-    url.searchParams.set('key', key);
-    return url.toString();
-  }
-  if (kind === 'streetview' && q.location) {
-    const url = new URL('https://maps.googleapis.com/maps/api/streetview');
-    url.searchParams.set('size', '900x520');
-    url.searchParams.set('source', 'outdoor');
-    url.searchParams.set('location', q.location);
-    url.searchParams.set('key', key);
-    return url.toString();
+    const imageUrl = new URL(`https://places.googleapis.com/v1/${safeName}/media`);
+    imageUrl.searchParams.set('maxWidthPx', '900');
+    return { url: imageUrl.toString(), headers: { 'X-Goog-Api-Key': key } };
   }
   return '';
+}
+
+function placeIdFromPhotoName(name) {
+  const match = String(name || '').match(/^places\/([^/]+)\/photos\//);
+  return match ? match[1] : '';
 }
 
 function text(statusCode, body) {

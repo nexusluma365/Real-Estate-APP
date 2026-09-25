@@ -156,7 +156,7 @@ async function run() {
     assert.equal(body.properties[0].name, 'Concord Reserve Apartments');
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
-    assert.match(body.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=streetview/);
+    assert.equal(body.properties[0].image, '');
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
@@ -184,7 +184,7 @@ async function run() {
           name: `Paid Checkout Apartments ${i + 1}`,
           phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
           website: `https://paidcheckoutapartments${i + 1}.test`,
-          image: `/.netlify/functions/google-place-image?kind=photo&ref=paid_photo_${i + 1}`,
+          image: `/.netlify/functions/google-place-image?kind=new-photo&name=places/paid_${i + 1}/photos/photo_1`,
           source: 'Google Places',
         })),
       },
@@ -596,7 +596,7 @@ async function run() {
       assert.equal(variedBody.criteria.city, 'Concord, NC');
       assert(variedBody.properties.length >= 1);
       assert.notEqual(variedBody.properties[0].name, 'Old Real Apartments');
-      assert.match(variedBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?kind=streetview/);
+      assert.equal(variedBody.properties[0].image, '');
       assert.equal(varied.savedResults.length, 1);
     }
     assert(variedQueries.some((query) => query.includes('Concord, NC')));

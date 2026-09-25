@@ -396,7 +396,6 @@ function realApartmentResults(properties) {
 
   return properties.filter((property) => {
     if (!property || !property.propertyId || !property.name) return false;
-    if (!property.image) return false;
     if (seen.has(property.propertyId)) return false;
     seen.add(property.propertyId);
     const types = Array.isArray(property.types) ? property.types.join(' ') : '';
@@ -465,7 +464,7 @@ async function fetchPlaceDetails(placeId, key) {
   if (!placeId) return null;
   const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
   url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'name,formatted_address,address_components,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,photos,types,business_status');
+  url.searchParams.set('fields', 'name,formatted_address,address_components,formatted_phone_number,international_phone_number,website,url,rating,user_ratings_total,types,business_status');
   url.searchParams.set('key', key);
 
   try {
@@ -480,9 +479,6 @@ async function fetchPlaceDetails(placeId, key) {
 
 function normalizePlace(place, details, criteria, key) {
   const source = details || {};
-  const photoRef =
-    (source.photos && source.photos[0] && source.photos[0].photo_reference) ||
-    (place.photos && place.photos[0] && place.photos[0].photo_reference);
   const address = source.formatted_address || place.formatted_address || '';
   const property = {
     propertyId: place.place_id || '',
@@ -491,7 +487,7 @@ function normalizePlace(place, details, criteria, key) {
     area: addressArea(source.address_components || place.address_components, criteria),
     phone: source.formatted_phone_number || source.international_phone_number || '',
     website: source.website || '',
-    image: photoUrl(photoRef) || streetViewUrl(address || source.name || place.name || criteria.city),
+    image: '',
     rating: typeof source.rating === 'number' ? source.rating : typeof place.rating === 'number' ? place.rating : null,
     reviewCount:
       typeof source.user_ratings_total === 'number'
@@ -520,7 +516,7 @@ function normalizeNewPlace(place, criteria, key) {
     area: addressArea(newAddressComponentsToLegacy(place.addressComponents), criteria),
     phone: place.nationalPhoneNumber || place.internationalPhoneNumber || '',
     website: place.websiteUri || '',
-    image: newPhotoUrl(photoName) || streetViewUrl(address || (place.displayName && place.displayName.text) || criteria.city),
+    image: newPhotoUrl(photoName, place.id),
     rating: typeof place.rating === 'number' ? place.rating : null,
     reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
     directions: place.googleMapsUri || (place.id ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.id)}` : ''),
@@ -541,29 +537,13 @@ function newAddressComponentsToLegacy(components) {
   }));
 }
 
-function photoUrl(ref) {
-  if (!ref) return '';
-  const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
-  url.searchParams.set('kind', 'photo');
-  url.searchParams.set('ref', ref);
-  return localUrl(url);
-}
-
-function newPhotoUrl(name) {
+function newPhotoUrl(name, placeId) {
   const value = clean(name);
   if (!value) return '';
   const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
   url.searchParams.set('kind', 'new-photo');
   url.searchParams.set('name', value);
-  return localUrl(url);
-}
-
-function streetViewUrl(location) {
-  const value = clean(location);
-  if (!value) return '';
-  const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
-  url.searchParams.set('kind', 'streetview');
-  url.searchParams.set('location', value);
+  if (placeId) url.searchParams.set('placeId', placeId);
   return localUrl(url);
 }
 
@@ -689,7 +669,10 @@ function isAnyUsableCachedResult(cached, criteria) {
 
 function isServableListingImage(image) {
   const value = String(image || '');
-  return value.startsWith('/.netlify/functions/google-place-image?');
+  return !value || (
+    value.startsWith('/.netlify/functions/google-place-image?') &&
+    value.includes('kind=new-photo')
+  );
 }
 
 function buildCriteria(lead, _category, requestCriteria) {
