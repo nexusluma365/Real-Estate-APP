@@ -1696,6 +1696,12 @@
     font-size:14px;
     line-height:1.55;
     color:rgba(255,255,255,.7);
+    margin:0 0 10px;
+  }
+  .outlook-email-note{
+    font-size:14px;
+    line-height:1.55;
+    color:rgba(255,255,255,.7);
     margin:0 0 22px;
   }
   .result-score-row{
@@ -1975,6 +1981,9 @@
   .analysis-summary .analysis-intro{
     color:rgba(255,255,255,.86);
     font-weight:650;
+  }
+  .analysis-summary .results-email-note{
+    margin-top:10px;
   }
   .analysis-score-panel{
     margin:24px 0;
