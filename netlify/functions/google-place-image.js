@@ -1,6 +1,6 @@
 // GET /.netlify/functions/google-place-image?placeId=...
 //
-// Server-side proxy for Google Places photos. The browser never receives
+// Server-side proxy for Google Places (New) photos. The browser never receives
 // the Google API key; it only receives a binary image response or a controlled
 // no-photo response.
 
@@ -19,7 +19,7 @@ exports.handler = async (event) => {
   }
 
   const q = event.queryStringParameters || {};
-  const inputPhotoReference = clean(q.photoName);
+  const inputPhotoName = validPhotoName(q.photoName) ? cleanName(q.photoName) : '';
   const placeId = clean(q.placeId);
 
   if (!placeId) {
@@ -27,12 +27,23 @@ exports.handler = async (event) => {
     return noPhotoResponse(400);
   }
 
-  const freshPhotoReference = await fetchFreshPhotoReference(placeId, key);
-  const photoReference = freshPhotoReference || inputPhotoReference;
-  if (!photoReference) return noPhotoResponse();
+  if (q.photoName && !inputPhotoName) {
+    logFailure(placeId, 'request', 400, 'invalid_photoName');
+    return noPhotoResponse(400);
+  }
 
-  const freshImage = await fetchPhotoMedia(photoReference, key, placeId);
-  if (freshImage.ok) return imageResponse(freshImage, placeId);
+  if (inputPhotoName) {
+    const suppliedImage = await fetchPhotoMedia(inputPhotoName, key, placeId);
+    if (suppliedImage.ok) return imageResponse(suppliedImage, placeId);
+  }
+
+  const freshPhotoName = await fetchFreshPhotoName(placeId, key);
+  if (!freshPhotoName) return noPhotoResponse();
+
+  if (freshPhotoName !== inputPhotoName) {
+    const freshImage = await fetchPhotoMedia(freshPhotoName, key, placeId);
+    if (freshImage.ok) return imageResponse(freshImage, placeId);
+  }
 
   return noPhotoResponse();
 };
@@ -41,19 +52,22 @@ function googlePlacesApiKey() {
   return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
 }
 
-async function fetchFreshPhotoReference(placeId, key) {
-  const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-  url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'photos');
-  url.searchParams.set('key', key);
+async function fetchFreshPhotoName(placeId, key) {
+  const url = new URL(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`);
 
   try {
-    const resp = await fetch(url, { method: 'GET' });
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'photos',
+      },
+    });
     const contentType = cleanContentType(resp.headers.get('content-type'));
     const data = contentType.includes('application/json') ? await resp.json().catch(() => ({})) : {};
-    const photos = data && data.result && Array.isArray(data.result.photos) ? data.result.photos : [];
-    const fresh = photos.find((photo) => photo && typeof photo.photo_reference === 'string' && photo.photo_reference.trim());
-    const freshPhotoReference = fresh ? clean(fresh.photo_reference) : '';
+    const photos = Array.isArray(data.photos) ? data.photos : [];
+    const fresh = photos.find((photo) => validPhotoName(photo && photo.name));
+    const freshPhotoName = fresh ? cleanName(fresh.name) : '';
 
     console.log('PHOTO PLACE DETAILS', {
       placeId,
@@ -66,29 +80,29 @@ async function fetchFreshPhotoReference(placeId, key) {
       return '';
     }
 
-    if (!freshPhotoReference) {
+    if (!freshPhotoName) {
       logFailure(placeId, 'place_details', resp.status, 'no_google_photos');
       return '';
     }
 
-    return freshPhotoReference;
+    return freshPhotoName;
   } catch (err) {
     logFailure(placeId, 'place_details', 'FETCH_ERROR', err.message || String(err));
     return '';
   }
 }
 
-async function fetchPhotoMedia(photoReference, key, placeId) {
-  const safeReference = clean(photoReference);
-  if (!safeReference) {
-    logFailure(placeId, 'media_request', 400, 'invalid_photoReference');
+async function fetchPhotoMedia(photoName, key, placeId) {
+  const safeName = cleanName(photoName);
+  if (!validPhotoName(safeName)) {
+    logFailure(placeId, 'media_request', 400, 'invalid_photoName');
     return { ok: false };
   }
 
-  const mediaUrl = new URL('https://maps.googleapis.com/maps/api/place/photo');
-  mediaUrl.searchParams.set('maxwidth', PHOTO_MAX_WIDTH);
-  mediaUrl.searchParams.set('maxheight', PHOTO_MAX_HEIGHT);
-  mediaUrl.searchParams.set('photoreference', safeReference);
+  const mediaUrl = new URL(`https://places.googleapis.com/v1/${safeName}/media`);
+  mediaUrl.searchParams.set('maxWidthPx', PHOTO_MAX_WIDTH);
+  mediaUrl.searchParams.set('maxHeightPx', PHOTO_MAX_HEIGHT);
+  mediaUrl.searchParams.set('skipHttpRedirect', 'false');
   mediaUrl.searchParams.set('key', key);
 
   try {
@@ -176,7 +190,7 @@ function logFailure(placeId, stage, status, reason) {
 }
 
 function googleErrorReason(data) {
-  return (data && data.error_message) || (data && data.error && (data.error.message || data.error.status || data.error.code)) || 'google_error';
+  return (data && data.error && (data.error.message || data.error.status || data.error.code)) || 'google_error';
 }
 
 function cleanContentType(value) {
@@ -185,4 +199,12 @@ function cleanContentType(value) {
 
 function clean(value) {
   return String(value || '').trim();
+}
+
+function cleanName(value) {
+  return clean(value).replace(/^\/+/, '');
+}
+
+function validPhotoName(value) {
+  return /^places\/[^/]+\/photos\/[^/]+$/.test(cleanName(value));
 }

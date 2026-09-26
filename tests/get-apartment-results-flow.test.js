@@ -56,27 +56,7 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
   return { handler: require('../netlify/functions/get-apartment-results').handler, savedResults, savedLeads, retrieveCalls };
 }
 
-function legacySearchResult({
-  id,
-  name,
-  address,
-  rating = 4.7,
-  reviewCount = 91,
-  photoReference,
-}) {
-  return {
-    place_id: id,
-    name,
-    formatted_address: address,
-    rating,
-    user_ratings_total: reviewCount,
-    business_status: 'OPERATIONAL',
-    types: ['apartment_building', 'point_of_interest', 'establishment'],
-    photos: photoReference ? [{ photo_reference: photoReference }] : [],
-  };
-}
-
-function legacyDetail({
+function newPlace({
   id,
   name,
   address,
@@ -85,64 +65,52 @@ function legacyDetail({
   mapsUrl,
   rating = 4.7,
   reviewCount = 91,
+  photoName,
   city = 'Concord',
   state = 'NC',
-  photoReference,
 }) {
   return {
-    name,
-    formatted_address: address,
-    formatted_phone_number: phone,
-    website,
-    url: mapsUrl || `https://maps.google.com/?cid=${encodeURIComponent(id)}`,
-    rating,
-    user_ratings_total: reviewCount,
-    business_status: 'OPERATIONAL',
-    types: ['apartment_building', 'point_of_interest', 'establishment'],
-    address_components: [
-      { long_name: city, short_name: city, types: ['locality', 'political'] },
-      { long_name: state, short_name: state, types: ['administrative_area_level_1', 'political'] },
+    id,
+    displayName: { text: name },
+    formattedAddress: address,
+    addressComponents: [
+      { longText: city, shortText: city, types: ['locality', 'political'] },
+      { longText: state, shortText: state, types: ['administrative_area_level_1', 'political'] },
     ],
-    photos: photoReference
-      ? [{ photo_reference: photoReference, html_attributions: ['<a href="https://maps.google.com/contributor">Google contributor</a>'] }]
-      : [],
+    nationalPhoneNumber: phone,
+    websiteUri: website,
+    googleMapsUri: mapsUrl || `https://maps.google.com/?cid=${encodeURIComponent(id)}`,
+    rating,
+    userRatingCount: reviewCount,
+    businessStatus: 'OPERATIONAL',
+    types: ['apartment_building', 'point_of_interest', 'establishment'],
+    photos: photoName ? [{ name: photoName }] : [],
   };
 }
 
-function legacySearchResponse(results) {
-  return { ok: true, status: 200, json: async () => ({ status: 'OK', results }) };
+function newSearchResponse(places) {
+  return { ok: true, status: 200, json: async () => ({ places }) };
 }
 
-function legacyDetailsResponse(result) {
-  return { ok: true, status: 200, json: async () => ({ status: 'OK', result }) };
-}
-
-function installLegacyGoogleMock(urls, places, options = {}) {
+function installNewGoogleMock(urls, places, options = {}) {
   let searchCalls = 0;
-  let detailCalls = 0;
-  global.fetch = async (url) => {
+  global.fetch = async (url, requestOptions) => {
     const value = String(url);
     urls.push(value);
-    if (value.includes('/maps/api/place/textsearch/json')) {
+    if (value.includes('places.googleapis.com/v1/places:searchText')) {
       searchCalls++;
-      const parsed = new URL(value);
-      const query = parsed.searchParams.get('query');
+      const body = JSON.parse(requestOptions && requestOptions.body ? requestOptions.body : '{}');
+      const query = body.textQuery || '';
       assert.match(query, /apartment/i);
-      assert.equal(parsed.searchParams.get('type'), null);
-      if (options.firstSearchEmpty && searchCalls === 1) return legacySearchResponse([]);
-      return legacySearchResponse(places.map((place) => legacySearchResult(place)));
-    }
-    if (value.includes('/maps/api/place/details/json')) {
-      detailCalls++;
-      const parsed = new URL(value);
-      const placeId = parsed.searchParams.get('place_id');
-      const place = places.find((item) => item.id === placeId);
-      if (!place) throw new Error(`Unexpected details place_id: ${placeId}`);
-      return legacyDetailsResponse(legacyDetail(place));
+      assert.equal(requestOptions.method, 'POST');
+      assert.equal(requestOptions.headers['X-Goog-Api-Key'], 'google_test_key');
+      assert.match(requestOptions.headers['X-Goog-FieldMask'], /places\.id/);
+      if (options.firstSearchEmpty && searchCalls === 1) return newSearchResponse([]);
+      return newSearchResponse(places.map((place) => newPlace(place)));
     }
     throw new Error(`Unexpected fetch URL: ${url}`);
   };
-  return { get searchCalls() { return searchCalls; }, get detailCalls() { return detailCalls; } };
+  return { get searchCalls() { return searchCalls; } };
 }
 
 async function run() {
@@ -161,10 +129,10 @@ async function run() {
         address: '1600 Concord Pkwy, Concord, NC',
         website: 'https://example.com/concord-reserve',
         mapsUrl: 'https://maps.google.com/?cid=concordreserve',
-        photoReference: 'legacy_photo_ref_concord_1',
+        photoName: 'places/place_concord_1/photos/photo_concord_1',
       },
     ];
-    const google = installLegacyGoogleMock(urls, concordPlaces);
+    const google = installNewGoogleMock(urls, concordPlaces);
 
     const { handler, savedResults } = await loadHandler({
       lead: {
@@ -207,16 +175,15 @@ async function run() {
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
     assert.equal(body.properties[0].propertyId, 'place_concord_1');
-    assert.equal(body.properties[0].photoName, 'legacy_photo_ref_concord_1');
-    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1&photoName=legacy_photo_ref_concord_1');
+    assert.equal(body.properties[0].photoName, 'places/place_concord_1/photos/photo_concord_1');
+    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1&photoName=places%2Fplace_concord_1%2Fphotos%2Fphoto_concord_1');
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
     assert.equal(google.searchCalls, 6);
-    assert.equal(google.detailCalls, 1);
-    assert(urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
-    assert(urls.some((url) => url.includes('/maps/api/place/details/json')));
-    assert(!urls.some((url) => url.includes('places.googleapis.com/v1')));
+    assert(urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
+    assert(!urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
+    assert(!urls.some((url) => url.includes('/maps/api/place/details/json')));
 
     const paidBaseCheckout = await loadHandler({
       lead: {
@@ -238,8 +205,8 @@ async function run() {
           name: `Paid Checkout Apartments ${i + 1}`,
           phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
           website: `https://paidcheckoutapartments${i + 1}.test`,
-          photoName: `legacy_cached_photo_${i + 1}`,
-          image: `/.netlify/functions/google-place-image?placeId=paid10_cached_${i + 1}&photoName=legacy_cached_photo_${i + 1}`,
+          photoName: `places/paid10_cached_${i + 1}/photos/cached_photo_${i + 1}`,
+          image: `/.netlify/functions/google-place-image?placeId=paid10_cached_${i + 1}&photoName=places%2Fpaid10_cached_${i + 1}%2Fphotos%2Fcached_photo_${i + 1}`,
           source: 'Google Places',
         })),
       },
@@ -289,7 +256,7 @@ async function run() {
     assert.equal(prepUnlockBody.category, 'questionnaire');
 
     urls.length = 0;
-    installLegacyGoogleMock(urls, concordPlaces);
+    installNewGoogleMock(urls, concordPlaces);
     const recovery = await loadHandler({
       lead: {
         preferred_city: 'Concord, NC',
@@ -325,17 +292,17 @@ async function run() {
 
     urls.length = 0;
     const eightPlaces = Array.from({ length: 8 }, (_, i) => ({
-      id: `place_legacy_${i + 1}`,
-      name: `Legacy Concord Apartments ${i + 1}`,
-      address: `${33 + i} Legacy Blvd, Concord, NC`,
+      id: `place_new_${i + 1}`,
+      name: `New Concord Apartments ${i + 1}`,
+      address: `${33 + i} New API Blvd, Concord, NC`,
       phone: `(704) 555-03${String(i + 1).padStart(2, '0')}`,
-      website: `https://legacy-concord-${i + 1}.test`,
-      mapsUrl: `https://maps.google.com/?cid=legacyconcord${i + 1}`,
+      website: `https://new-concord-${i + 1}.test`,
+      mapsUrl: `https://maps.google.com/?cid=newconcord${i + 1}`,
       rating: 4.8,
       reviewCount: 75 + i,
-      photoReference: `legacy_photo_ref_${i + 1}`,
+      photoName: `places/place_new_${i + 1}/photos/photo_${i + 1}`,
     }));
-    const legacy = installLegacyGoogleMock(urls, eightPlaces);
+    const newApi = installNewGoogleMock(urls, eightPlaces);
     const fresh = await loadHandler({
       lead: {
         preferred_city: 'Concord, NC',
@@ -356,16 +323,16 @@ async function run() {
     assert.equal(freshRes.statusCode, 200);
     assert.equal(freshBody.ok, true);
     assert.equal(freshBody.properties.length, 8);
-    assert.equal(freshBody.properties[0].name, 'Legacy Concord Apartments 1');
+    assert.equal(freshBody.properties[0].name, 'New Concord Apartments 1');
     assert.equal(freshBody.properties[0].phone, '(704) 555-0301');
-    assert.equal(freshBody.properties[0].website, 'https://legacy-concord-1.test');
-    assert.equal(freshBody.properties[0].photoName, 'legacy_photo_ref_1');
-    assert.match(freshBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_legacy_1&photoName=/);
+    assert.equal(freshBody.properties[0].website, 'https://new-concord-1.test');
+    assert.equal(freshBody.properties[0].photoName, 'places/place_new_1/photos/photo_1');
+    assert.match(freshBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_new_1&photoName=/);
     assert.equal(fresh.savedResults.length, 1);
-    assert.equal(legacy.searchCalls, 6);
+    assert.equal(newApi.searchCalls, 6);
 
     urls.length = 0;
-    const broad = installLegacyGoogleMock(urls, [
+    const broad = installNewGoogleMock(urls, [
       {
         id: 'place_broader_1',
         name: 'Broad Concord Apartments',
@@ -397,7 +364,7 @@ async function run() {
     assert.equal(broad.searchCalls, 6);
 
     urls.length = 0;
-    installLegacyGoogleMock(urls, concordPlaces);
+    installNewGoogleMock(urls, concordPlaces);
     const postFlow = await loadHandler({
       lead: null,
       entitlements: { paid27: true, purchasedCategories: ['luxury'] },
@@ -419,38 +386,25 @@ async function run() {
 
     urls.length = 0;
     const variedQueries = [];
-    global.fetch = async (url) => {
+    global.fetch = async (url, requestOptions) => {
       const value = String(url);
       urls.push(value);
-      if (value.includes('/maps/api/place/textsearch/json')) {
-        const query = new URL(value).searchParams.get('query') || '';
+      if (value.includes('places.googleapis.com/v1/places:searchText')) {
+        const body = JSON.parse(requestOptions && requestOptions.body ? requestOptions.body : '{}');
+        const query = body.textQuery || '';
         variedQueries.push(query);
         const cityMatch = query.match(/in (.+)$/);
         const searched = cityMatch ? cityMatch[1] : 'Unknown, US';
         const cityName = searched.split(',')[0];
         const placeId = `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`;
-        return legacySearchResponse([legacySearchResult({
+        return newSearchResponse([newPlace({
           id: placeId,
           name: `${cityName} Apartments`,
           address: `1 Main St, ${searched}`,
           rating: 4.3,
           reviewCount: 25,
-          photoReference: `legacy_${placeId}`,
+          photoName: `places/${placeId}/photos/photo_1`,
         })]);
-      }
-      if (value.includes('/maps/api/place/details/json')) {
-        const placeId = new URL(value).searchParams.get('place_id');
-        const cityName = placeId.replace(/^place_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        return legacyDetailsResponse(legacyDetail({
-          id: placeId,
-          name: `${cityName} Apartments`,
-          address: `1 Main St, ${cityName}`,
-          mapsUrl: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
-          rating: 4.3,
-          reviewCount: 25,
-          city: `${cityName} Center`,
-          photoReference: `legacy_${placeId}`,
-        }));
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };
