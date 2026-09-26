@@ -55,9 +55,11 @@ function assertPhotoMediaRequest(request, photoName) {
 async function run() {
   const oldFetch = global.fetch;
   const oldKey = process.env.GOOGLE_PLACES_API_KEY;
+  const oldEnabled = process.env.ENABLE_GOOGLE_PLACE_PHOTOS;
   const oldLog = console.log;
   const oldWarn = console.warn;
   process.env.GOOGLE_PLACES_API_KEY = 'google_test_key';
+  process.env.ENABLE_GOOGLE_PLACE_PHOTOS = 'true';
 
   const logs = [];
   const warnings = [];
@@ -88,6 +90,19 @@ async function run() {
         'PHOTO FINAL IMAGE',
       ]);
     });
+
+    process.env.ENABLE_GOOGLE_PLACE_PHOTOS = 'false';
+    requests = [];
+    global.fetch = async () => {
+      requests.push({ url: 'should-not-run', options: {} });
+      return image();
+    };
+    await withHandler(async (handler) => {
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_disabled' } });
+      assert.equal(res.statusCode, 503);
+      assert.equal(requests.length, 0);
+    });
+    process.env.ENABLE_GOOGLE_PLACE_PHOTOS = 'true';
 
     requests = [];
     global.fetch = async (url, options) => {
@@ -239,6 +254,8 @@ async function run() {
     global.fetch = oldFetch;
     if (oldKey === undefined) delete process.env.GOOGLE_PLACES_API_KEY;
     else process.env.GOOGLE_PLACES_API_KEY = oldKey;
+    if (oldEnabled === undefined) delete process.env.ENABLE_GOOGLE_PLACE_PHOTOS;
+    else process.env.ENABLE_GOOGLE_PLACE_PHOTOS = oldEnabled;
   }
 }
 

@@ -354,19 +354,7 @@ function listingFactsHtml(apt, crit){
 }
 function photoHtml(apt) {
   if (apt.id) {
-    const params = new URLSearchParams({
-      placeId: apt.id,
-    });
-
-    if (apt.photoName) {
-      params.set("photoName", apt.photoName);
-    }
-
-    const photoUrl =
-      `/.netlify/functions/google-place-image?${params.toString()}`;
-
-    const attribution = photoAttributionHtml(apt);
-    return `<img src="${photoUrl}" alt="${htmlEscape(apt.name)} exterior" loading="lazy" onerror="listingImageFallback(this)">${attribution}`;
+    return listingPhotoFallbackHtml(apt);
   }
 
   return listingPhotoFallbackHtml();
@@ -380,7 +368,16 @@ function photoAttributionHtml(apt){
     ? `<a class="photo-attribution" href="${href}" target="_blank" rel="noopener" aria-label="Photo attribution">${label}</a>`
     : `<span class="photo-attribution">${label}</span>`;
 }
-function listingPhotoFallbackHtml(){
+function listingPhotoFallbackHtml(apt){
+  if (apt && apt.id) {
+    return `<div class="photo-placeholder"
+      role="img"
+      aria-label="No property photo available"
+      data-property-id="${htmlEscape(apt.id)}"
+      data-property-name="${htmlEscape(apt.name || "")}"
+      data-property-address="${htmlEscape(apt.address || "")}"
+      data-property-website="${htmlEscape(apt.website || "")}">${ICONS.pin}</div>`;
+  }
   return `<div class="photo-placeholder" role="img" aria-label="No property photo available">${ICONS.pin}</div>`;
 }
 function listingImageFallback(img){
@@ -391,6 +388,65 @@ function listingImageFallback(img){
   holder.setAttribute("aria-label", "No property photo available");
   holder.innerHTML = ICONS.pin;
   img.replaceWith(holder);
+}
+const imageResolutionQueue = [];
+const imageResolutionActive = new Set();
+const imageResolutionDone = new Set();
+const MAX_IMAGE_RESOLUTION_CONCURRENCY = 2;
+let imageResolutionRunning = 0;
+
+function queueListingImageResolution(node){
+  if (!node || !node.dataset || !node.dataset.propertyId) return;
+  const key = `${node.dataset.propertyId}|${node.dataset.propertyName}|${node.dataset.propertyAddress}`;
+  if (imageResolutionDone.has(key) || imageResolutionActive.has(key)) return;
+  imageResolutionActive.add(key);
+  imageResolutionQueue.push({ key, node });
+  runImageResolutionQueue();
+}
+
+function resolveListingImages(root){
+  const scope = root || document;
+  if (!scope.querySelectorAll) return;
+  scope.querySelectorAll(".photo-placeholder[data-property-id]").forEach(queueListingImageResolution);
+}
+
+function runImageResolutionQueue(){
+  while (imageResolutionRunning < MAX_IMAGE_RESOLUTION_CONCURRENCY && imageResolutionQueue.length) {
+    const job = imageResolutionQueue.shift();
+    imageResolutionRunning += 1;
+    resolveListingImage(job)
+      .catch(() => {})
+      .finally(() => {
+        imageResolutionRunning -= 1;
+        imageResolutionActive.delete(job.key);
+        imageResolutionDone.add(job.key);
+        runImageResolutionQueue();
+      });
+  }
+}
+
+async function resolveListingImage(job){
+  const node = job && job.node;
+  if (!node || !node.parentNode || !node.dataset) return;
+  const payload = {
+    propertyId: node.dataset.propertyId || "",
+    name: node.dataset.propertyName || "",
+    address: node.dataset.propertyAddress || "",
+    website: node.dataset.propertyWebsite || "",
+  };
+  const res = await fetchWithTimeout("/.netlify/functions/resolve-property-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, 14000);
+  const data = await res.json().catch(()=>null);
+  if (!res.ok || !data || data.ok !== true || !data.imageUrl) return;
+  const img = document.createElement("img");
+  img.src = data.imageUrl;
+  img.alt = `${payload.name || "Apartment community"} exterior`;
+  img.loading = "lazy";
+  img.onerror = function(){ listingImageFallback(this); };
+  node.replaceWith(img);
 }
 function callLineHtml(apt){
   if(apt.phone){
@@ -510,6 +566,7 @@ function renderResults(){
   document.getElementById("listingList").innerHTML = currentResults
     .map((r,i) => listingHtml(r, i, i < 3))
     .join("");
+  resolveListingImages(document.getElementById("listingList"));
 }
 
 function renderEmptyState(){
@@ -693,6 +750,7 @@ function openPropertyModal(id){
     </div>
   `;
   modalOverlay.classList.add("open");
+  resolveListingImages(document.getElementById("modalContent"));
 }
 function closePropertyModal(){ modalOverlay.classList.remove("open"); }
 modalOverlay.addEventListener("click", e => { if(e.target === modalOverlay) closePropertyModal(); });

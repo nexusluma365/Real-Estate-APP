@@ -80,6 +80,9 @@ function apartmentResultsStore() {
 function waitingListStore() {
   return createStore('rrn-waiting-list');
 }
+function propertyImageCacheStore() {
+  return createStore('rrn-property-image-cache');
+}
 
 function supabaseConfig() {
   const url = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
@@ -526,6 +529,75 @@ async function getApartmentResults(leadId, category) {
   return apartmentResultsStore().get(`${leadId}:${category}`, { type: 'json' });
 }
 
+function imageCacheFromRecord(record) {
+  if (!record) return null;
+  const raw = record.raw_cache && typeof record.raw_cache === 'object' ? record.raw_cache : {};
+  return {
+    ...raw,
+    cacheKey: record.id || raw.cacheKey,
+    propertyId: record.property_id || raw.propertyId || '',
+    propertyName: record.property_name || raw.propertyName || '',
+    propertyAddress: record.property_address || raw.propertyAddress || '',
+    officialWebsite: record.official_website || raw.officialWebsite || '',
+    imageUrl: record.image_url || raw.imageUrl || '',
+    sourcePageUrl: record.source_page_url || raw.sourcePageUrl || '',
+    sourceDomain: record.source_domain || raw.sourceDomain || '',
+    sourceType: record.source_type || raw.sourceType || '',
+    verificationStatus: record.verification_status || raw.verificationStatus || '',
+    verificationReason: record.verification_reason || raw.verificationReason || '',
+    createdAt: record.created_at || raw.createdAt || '',
+    updatedAt: record.updated_at || raw.updatedAt || '',
+    lastVerifiedAt: record.last_verified_at || raw.lastVerifiedAt || '',
+  };
+}
+
+async function getPropertyImageCache(cacheKey) {
+  if (!cacheKey) return null;
+  if (supabaseConfig()) {
+    const res = await supabaseRequest(`property_image_cache?id=eq.${encodeURIComponent(cacheKey)}&select=*&limit=1`);
+    const rows = await res.json();
+    return imageCacheFromRecord(rows[0]);
+  }
+  return propertyImageCacheStore().get(cacheKey, { type: 'json' });
+}
+
+async function savePropertyImageCache(cacheKey, entry) {
+  if (!cacheKey) return null;
+  const now = new Date().toISOString();
+  const next = {
+    ...entry,
+    cacheKey,
+    updatedAt: now,
+    lastVerifiedAt: entry.lastVerifiedAt || now,
+    createdAt: entry.createdAt || now,
+  };
+  if (supabaseConfig()) {
+    await supabaseRequest('property_image_cache?on_conflict=id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({
+        id: cacheKey,
+        property_id: next.propertyId || null,
+        property_name: next.propertyName || null,
+        property_address: next.propertyAddress || null,
+        official_website: next.officialWebsite || null,
+        image_url: next.imageUrl || null,
+        source_page_url: next.sourcePageUrl || null,
+        source_domain: next.sourceDomain || null,
+        source_type: next.sourceType || null,
+        verification_status: next.verificationStatus || null,
+        verification_reason: next.verificationReason || null,
+        raw_cache: next,
+        updated_at: now,
+        last_verified_at: next.lastVerifiedAt,
+      }),
+    });
+    return next;
+  }
+  await propertyImageCacheStore().setJSON(cacheKey, next);
+  return next;
+}
+
 async function saveWaitingListEntry(entry) {
   if (supabaseConfig()) {
     const res = await supabaseRequest('waiting_list', {
@@ -560,5 +632,7 @@ module.exports = {
   getProtectedFile,
   saveApartmentResults,
   getApartmentResults,
+  getPropertyImageCache,
+  savePropertyImageCache,
   saveWaitingListEntry,
 };

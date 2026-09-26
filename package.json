@@ -2,7 +2,7 @@
   "name": "rentready-network",
   "private": true,
   "version": "1.0.0",
-  "description": "RentReady Network \u2014 static site + Netlify Functions backend for the paid funnel (Stripe, entitlements, secure downloads, email delivery).",
+  "description": "RentReady Network - static site + Netlify Functions backend for the paid funnel (Stripe, entitlements, secure downloads, email delivery).",
   "scripts": {
     "dev": "netlify dev",
     "dev:preview": "npm run dev --prefix app -- --host 127.0.0.1 --port 5177",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
+    "openai": "^6.49.0",
     "pdf-lib": "^1.17.1",
     "stripe": "^16.8.0"
   },

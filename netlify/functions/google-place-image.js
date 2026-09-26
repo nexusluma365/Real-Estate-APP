@@ -12,6 +12,11 @@ exports.handler = async (event) => {
     return text(405, 'Method Not Allowed');
   }
 
+  if (!googlePlacePhotosEnabled()) {
+    logFailure('', 'config', 503, 'google_place_photos_disabled');
+    return noPhotoResponse(503);
+  }
+
   const key = googlePlacesApiKey();
   if (!key) {
     logFailure('', 'config', 503, 'missing_api_key');
@@ -50,6 +55,10 @@ exports.handler = async (event) => {
 
 function googlePlacesApiKey() {
   return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+}
+
+function googlePlacePhotosEnabled() {
+  return String(process.env.ENABLE_GOOGLE_PLACE_PHOTOS || '').trim().toLowerCase() === 'true';
 }
 
 async function fetchFreshPhotoName(placeId, key) {
