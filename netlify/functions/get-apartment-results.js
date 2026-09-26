@@ -269,7 +269,7 @@ async function fetchGooglePlaces(criteria) {
   const key = googlePlacesApiKey();
   if (!key) throw new GooglePlacesError('Google Places API key is not configured.', 'MISSING_API_KEY');
 
-  const results = await fetchGooglePlacesNew(criteria, key);
+  const results = await fetchGooglePlacesLegacy(criteria, key);
   return results.slice(0, MAX_RESULTS);
 }
 
@@ -277,55 +277,69 @@ function googlePlacesApiKey() {
   return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
 }
 
-async function fetchGooglePlacesNew(criteria, key) {
+async function fetchGooglePlacesLegacy(criteria, key) {
   const resultsByPlaceId = new Map();
   for (const query of googlePlaceQueries(criteria)) {
     listingLog('LISTINGS GOOGLE SEARCH', { query, city: criteria.city, searchArea: criteria.searchArea, bedrooms: criteria.bedrooms });
-    const resp = await fetchWithTimeout('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': key,
-        'X-Goog-FieldMask': [
-          'places.id',
-          'places.displayName',
-          'places.formattedAddress',
-          'places.addressComponents',
-          'places.nationalPhoneNumber',
-          'places.internationalPhoneNumber',
-          'places.websiteUri',
-          'places.googleMapsUri',
-          'places.rating',
-          'places.userRatingCount',
-          'places.photos',
-          'places.types',
-          'places.businessStatus',
-        ].join(','),
-      },
-      body: JSON.stringify({
-        textQuery: query,
-        pageSize: Math.min(GOOGLE_CANDIDATE_LIMIT, 20),
-        regionCode: 'US',
-      }),
-    }, GOOGLE_FETCH_TIMEOUT_MS);
+    const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+    url.searchParams.set('query', query);
+    url.searchParams.set('type', 'apartment');
+    url.searchParams.set('region', 'us');
+    url.searchParams.set('key', key);
+    const resp = await fetchWithTimeout(url.toString(), { method: 'GET' }, GOOGLE_FETCH_TIMEOUT_MS);
     const data = await resp.json().catch(() => ({}));
     assertGooglePlacesResponse(data, resp.status, resp.ok);
-    const places = Array.isArray(data.places) ? data.places : [];
+    const places = Array.isArray(data.results) ? data.results : [];
     listingLog('LISTINGS GOOGLE RESULTS', { status: resp.status, count: places.length });
     places.forEach((place) => {
-      if (place.id && !resultsByPlaceId.has(place.id)) {
-        resultsByPlaceId.set(place.id, place);
+      if (place.place_id && !resultsByPlaceId.has(place.place_id)) {
+        resultsByPlaceId.set(place.place_id, place);
       }
     });
     if (resultsByPlaceId.size >= GOOGLE_CANDIDATE_LIMIT) break;
   }
 
-  const normalized = realApartmentResults(Array.from(resultsByPlaceId.values())
-    .slice(0, GOOGLE_CANDIDATE_LIMIT)
-    .map((place) => normalizePlace(place, criteria))
-    .filter((place) => place.propertyId && place.name));
+  const detailedPlaces = [];
+  for (const place of Array.from(resultsByPlaceId.values()).slice(0, GOOGLE_CANDIDATE_LIMIT)) {
+    detailedPlaces.push(await fetchLegacyPlaceDetails(place, key));
+  }
+  const normalized = realApartmentResults(detailedPlaces.map((place) => normalizePlace(place, criteria)).filter((place) => place.propertyId && place.name));
   listingLog('LISTINGS NORMALIZED', { count: normalized.length });
   return normalized;
+}
+
+async function fetchLegacyPlaceDetails(searchPlace, key) {
+  const placeId = clean(searchPlace && searchPlace.place_id);
+  if (!placeId) return searchPlace || {};
+  const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+  url.searchParams.set('place_id', placeId);
+  url.searchParams.set('fields', [
+    'place_id',
+    'name',
+    'formatted_address',
+    'address_component',
+    'formatted_phone_number',
+    'international_phone_number',
+    'website',
+    'url',
+    'rating',
+    'user_ratings_total',
+    'type',
+    'business_status',
+  ].join(','));
+  url.searchParams.set('key', key);
+
+  try {
+    const resp = await fetchWithTimeout(url.toString(), { method: 'GET' }, GOOGLE_FETCH_TIMEOUT_MS);
+    const data = await resp.json().catch(() => ({}));
+    assertGooglePlacesResponse(data, resp.status, resp.ok);
+    const detail = data && data.result && typeof data.result === 'object' ? data.result : {};
+    return { ...searchPlace, ...detail, place_id: detail.place_id || placeId };
+  } catch (err) {
+    if (err instanceof GooglePlacesError && isGoogleSetupStatus(err.status)) throw err;
+    listingWarn('google place details failed; using search result', { placeId, status: err.status || 'ERROR', message: err.message || String(err) });
+    return searchPlace;
+  }
 }
 
 function googlePlaceQueries(criteria) {
@@ -382,12 +396,15 @@ function unique(values) {
 }
 
 function assertGooglePlacesResponse(data, statusCode, ok) {
-  if (ok && !data.error) return;
-  const errorStatus = (data.error && (data.error.status || data.error.code)) || `HTTP_${statusCode || 500}`;
-  const googleMessage = data.error && data.error.message ? ` ${data.error.message}` : '';
+  const legacyStatus = data && typeof data.status === 'string' ? data.status : '';
+  if (ok && !data.error && (!legacyStatus || legacyStatus === 'OK' || legacyStatus === 'ZERO_RESULTS')) return;
+  const errorStatus = legacyStatus && legacyStatus !== 'OK'
+    ? legacyStatus
+    : (data.error && (data.error.status || data.error.code)) || `HTTP_${statusCode || 500}`;
+  const googleMessage = (data.error_message || (data.error && data.error.message) || '').trim();
   const message = isGoogleSetupStatus(errorStatus)
-    ? `Google Places API (New) is not returning apartment results because of a Google Maps API setup issue: ${errorStatus}.${googleMessage}`
-    : `Google Places API (New) returned ${errorStatus}.${googleMessage}`;
+    ? `Google Places API is not returning apartment results because of a Google Maps API setup issue: ${errorStatus}.${googleMessage ? ` ${googleMessage}` : ''}`
+    : `Google Places API returned ${errorStatus}.${googleMessage ? ` ${googleMessage}` : ''}`;
   throw new GooglePlacesError(message.trim(), errorStatus);
 }
 
@@ -397,34 +414,34 @@ function isGoogleSetupStatus(status) {
 
 function normalizePlace(place, criteria) {
   const photos = Array.isArray(place.photos) ? place.photos : [];
-  const selectedPhoto = photos.find((photo) => photo && typeof photo.name === 'string' && photo.name.startsWith('places/')) || null;
-  const photoName = selectedPhoto ? selectedPhoto.name : null;
-  const authorAttributions = selectedPhoto && Array.isArray(selectedPhoto.authorAttributions)
-    ? selectedPhoto.authorAttributions
-    : [];
-  const address = place.formattedAddress || '';
+  const selectedPhoto = photos.find((photo) => photo && (typeof photo.name === 'string' || typeof photo.photo_reference === 'string')) || null;
+  const photoName = selectedPhoto && typeof selectedPhoto.name === 'string' && selectedPhoto.name.startsWith('places/') ? selectedPhoto.name : null;
+  const authorAttributions = selectedPhoto && Array.isArray(selectedPhoto.authorAttributions) ? selectedPhoto.authorAttributions : [];
+  const placeId = place.id || place.place_id || '';
+  const name = (place.displayName && place.displayName.text) || place.name || '';
+  const address = place.formattedAddress || place.formatted_address || '';
   listingLog('Google Places property photo', {
-    property: (place.displayName && place.displayName.text) || '',
-    placeId: place.id || '',
+    property: name,
+    placeId,
     hasPhotos: photos.length > 0,
     photoCount: photos.length,
     firstPhotoResource: photoName,
   });
   const property = {
-    propertyId: place.id || '',
-    name: (place.displayName && place.displayName.text) || '',
+    propertyId: placeId,
+    name,
     address,
-    area: addressArea(newAddressComponentsToLegacy(place.addressComponents), criteria),
-    phone: place.nationalPhoneNumber || place.internationalPhoneNumber || '',
-    website: place.websiteUri || '',
+    area: addressArea(newAddressComponentsToLegacy(place.addressComponents || place.address_components), criteria),
+    phone: place.nationalPhoneNumber || place.internationalPhoneNumber || place.formatted_phone_number || place.international_phone_number || '',
+    website: place.websiteUri || place.website || '',
     photoName,
     authorAttributions,
-    image: newPhotoUrl(photoName, place.id),
+    image: newPhotoUrl(photoName, placeId),
     rating: typeof place.rating === 'number' ? place.rating : null,
-    reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
-    directions: place.googleMapsUri || (place.id ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((place.displayName && place.displayName.text) || address || place.id))}` : ''),
+    reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : typeof place.user_ratings_total === 'number' ? place.user_ratings_total : null,
+    directions: place.googleMapsUri || place.url || (placeId ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name || address || placeId)}` : ''),
     category: criteria.category,
-    businessStatus: place.businessStatus || '',
+    businessStatus: place.businessStatus || place.business_status || '',
     types: place.types || [],
     source: 'Google Places',
   };
