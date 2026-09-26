@@ -19,7 +19,10 @@ function image(type = 'image/jpeg', bytes = 'image-bytes') {
 
 function details(photoReference) {
   return response(200, {
-    photos: photoReference ? [{ name: `places/test_place/photos/${photoReference}` }] : [],
+    status: 'OK',
+    result: {
+      photos: photoReference ? [{ photo_reference: photoReference }] : [],
+    },
   });
 }
 
@@ -35,20 +38,20 @@ async function withHandler(fn) {
 }
 
 function assertPlaceDetailsRequest(request, placeId) {
-  assert.match(request.url, /places\.googleapis\.com\/v1\/places\//);
+  assert.match(request.url, /\/maps\/api\/place\/details\/json/);
   const parsed = new URL(request.url);
-  assert.match(parsed.pathname, /^\/v1\/places\/[^/]+$/);
-  assert.equal(request.options.headers['X-Goog-FieldMask'], 'photos');
-  assert.equal(request.options.headers['X-Goog-Api-Key'], 'google_test_key');
+  assert.equal(parsed.searchParams.get('place_id'), placeId);
+  assert.equal(parsed.searchParams.get('fields'), 'photos');
+  assert.equal(parsed.searchParams.get('key'), 'google_test_key');
   assert.equal(request.options.method, 'GET');
 }
 
 function assertPhotoMediaRequest(request, photoReference) {
-  assert.match(request.url, /places\.googleapis\.com\/v1\/places\/test_place\/photos\//);
+  assert.match(request.url, /\/maps\/api\/place\/photo/);
   const parsed = new URL(request.url);
-  assert.equal(parsed.searchParams.get('maxWidthPx'), '1200');
-  assert.equal(parsed.searchParams.get('maxHeightPx'), '800');
-  assert.equal(parsed.searchParams.get('skipHttpRedirect'), 'false');
+  assert.equal(parsed.searchParams.get('maxwidth'), '1200');
+  assert.equal(parsed.searchParams.get('maxheight'), '800');
+  assert.equal(parsed.searchParams.get('photoreference'), photoReference);
   assert.equal(parsed.searchParams.get('key'), 'google_test_key');
   assert.equal(request.options.method, 'GET');
   assert.equal(request.options.redirect, 'follow');
@@ -103,7 +106,7 @@ async function run() {
         httpMethod: 'GET',
         queryStringParameters: {
           placeId: 'place_stale',
-          photoName: 'places/place_stale/photos/stale_photo_reference',
+          photoName: 'stale_photo_reference',
         },
       });
       assert.equal(res.statusCode, 200);
@@ -111,7 +114,7 @@ async function run() {
       assert.equal(Buffer.from(res.body, 'base64').toString(), 'webp-bytes');
       assertPlaceDetailsRequest(requests[0], 'place_stale');
       assertPhotoMediaRequest(requests[1], 'fresh_photo_reference');
-      assert.match(requests[1].url, /places\/test_place\/photos\/fresh_photo_reference/);
+      assert.doesNotMatch(requests[1].url, /stale_photo_reference/);
     });
 
     requests = [];

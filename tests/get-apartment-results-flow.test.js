@@ -117,51 +117,12 @@ function legacyDetailsResponse(result) {
   return { ok: true, status: 200, json: async () => ({ status: 'OK', result }) };
 }
 
-function googleNewPlace({ id, name, address, phone, website, mapsUrl, rating, reviewCount, photoName }) {
-  return {
-    id,
-    displayName: { text: name },
-    formattedAddress: address,
-    addressComponents: [
-      { longText: 'Concord', shortText: 'Concord', types: ['locality', 'political'] },
-      { longText: 'North Carolina', shortText: 'NC', types: ['administrative_area_level_1', 'political'] },
-    ],
-    nationalPhoneNumber: phone || '(704) 555-0199',
-    websiteUri: website,
-    googleMapsUri: mapsUrl,
-    rating,
-    userRatingCount: reviewCount,
-    businessStatus: 'OPERATIONAL',
-    types: ['apartment_building', 'point_of_interest', 'establishment'],
-    photos: photoName ? [{ name: photoName }] : [],
-  };
-}
-
-function googleSearchResponse(places) {
-  return { ok: true, status: 200, json: async () => ({ places }) };
-}
-
 function installLegacyGoogleMock(urls, places, options = {}) {
   let searchCalls = 0;
   let detailCalls = 0;
   global.fetch = async (url) => {
     const value = String(url);
     urls.push(value);
-    if (value.includes('places.googleapis.com/v1/places:searchText')) {
-      searchCalls++;
-      const place = places[0];
-      return googleSearchResponse(places.map((item) => googleNewPlace({
-        id: item.id,
-        name: item.name,
-        address: item.address,
-        phone: item.phone,
-        website: item.website,
-        mapsUrl: item.mapsUrl,
-        rating: item.rating,
-        reviewCount: item.reviewCount,
-        photoName: item.photoReference ? `places/${item.id}/photos/${item.photoReference}` : '',
-      })));
-    }
     if (value.includes('/maps/api/place/textsearch/json')) {
       searchCalls++;
       const parsed = new URL(value);
@@ -246,16 +207,16 @@ async function run() {
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
     assert.equal(body.properties[0].propertyId, 'place_concord_1');
-    assert.equal(body.properties[0].photoName, 'places/place_concord_1/photos/legacy_photo_ref_concord_1');
-    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1&photoName=places%2Fplace_concord_1%2Fphotos%2Flegacy_photo_ref_concord_1');
+    assert.equal(body.properties[0].photoName, 'legacy_photo_ref_concord_1');
+    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1&photoName=legacy_photo_ref_concord_1');
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
     assert.equal(google.searchCalls, 6);
-    assert.equal(google.detailCalls, 0);
-    assert(urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
-    assert(!urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
-    assert(!urls.some((url) => url.includes('/maps/api/place/details/json')));
+    assert.equal(google.detailCalls, 1);
+    assert(urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
+    assert(urls.some((url) => url.includes('/maps/api/place/details/json')));
+    assert(!urls.some((url) => url.includes('places.googleapis.com/v1')));
 
     const paidBaseCheckout = await loadHandler({
       lead: {
@@ -398,7 +359,7 @@ async function run() {
     assert.equal(freshBody.properties[0].name, 'Legacy Concord Apartments 1');
     assert.equal(freshBody.properties[0].phone, '(704) 555-0301');
     assert.equal(freshBody.properties[0].website, 'https://legacy-concord-1.test');
-    assert.equal(freshBody.properties[0].photoName, 'places/place_legacy_1/photos/legacy_photo_ref_1');
+    assert.equal(freshBody.properties[0].photoName, 'legacy_photo_ref_1');
     assert.match(freshBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_legacy_1&photoName=/);
     assert.equal(fresh.savedResults.length, 1);
     assert.equal(legacy.searchCalls, 6);
@@ -458,25 +419,38 @@ async function run() {
 
     urls.length = 0;
     const variedQueries = [];
-    global.fetch = async (url, options) => {
+    global.fetch = async (url) => {
       const value = String(url);
       urls.push(value);
-      if (value.includes('places.googleapis.com/v1/places:searchText')) {
-        const body = JSON.parse(options && options.body || '{}');
-        const query = body.textQuery || '';
+      if (value.includes('/maps/api/place/textsearch/json')) {
+        const query = new URL(value).searchParams.get('query') || '';
         variedQueries.push(query);
         const cityMatch = query.match(/in (.+)$/);
         const searched = cityMatch ? cityMatch[1] : 'Unknown, US';
         const cityName = searched.split(',')[0];
         const placeId = `place_${cityName.toLowerCase().replace(/\W+/g, '_')}`;
-        return googleSearchResponse([googleNewPlace({
+        return legacySearchResponse([legacySearchResult({
           id: placeId,
           name: `${cityName} Apartments`,
           address: `1 Main St, ${searched}`,
           rating: 4.3,
           reviewCount: 25,
-          photoName: `places/${placeId}/photos/photo_1`,
+          photoReference: `legacy_${placeId}`,
         })]);
+      }
+      if (value.includes('/maps/api/place/details/json')) {
+        const placeId = new URL(value).searchParams.get('place_id');
+        const cityName = placeId.replace(/^place_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return legacyDetailsResponse(legacyDetail({
+          id: placeId,
+          name: `${cityName} Apartments`,
+          address: `1 Main St, ${cityName}`,
+          mapsUrl: `https://maps.google.com/?cid=${encodeURIComponent(placeId)}`,
+          rating: 4.3,
+          reviewCount: 25,
+          city: `${cityName} Center`,
+          photoReference: `legacy_${placeId}`,
+        }));
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
     };
