@@ -74,6 +74,7 @@ function parseRequest(event) {
   let leadId = body.leadId || q.leadId;
   let category = normalizeResultsCategory(body.category || q.category);
   const upsellPaymentIntentId = body.upsellPaymentIntentId || q.upsellPaymentIntentId || '';
+  const prescreenPaymentIntentId = body.prescreenPaymentIntentId || q.prescreenPaymentIntentId || '';
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : null;
   const fallbackCriteria = body.fallbackCriteria && typeof body.fallbackCriteria === 'object' ? body.fallbackCriteria : null;
   const bodyRequestCriteria = body.requestCriteria && typeof body.requestCriteria === 'object' ? body.requestCriteria : null;
@@ -98,7 +99,7 @@ function parseRequest(event) {
     category = normalizeResultsCategory(data.category);
   }
 
-  return { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria };
+  return { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria };
 }
 
 function normalizeResultsCategory(value) {
@@ -113,7 +114,7 @@ exports.handler = async (event) => {
 
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
-  const { leadId, category, upsellPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
+  const { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
 
   if (!leadId) {
     return errorResponse(400, 'LEAD_ID_MISSING', 'We could not find your listing session. Please return to your results and try again.');
@@ -123,6 +124,9 @@ exports.handler = async (event) => {
     listingLog('request', { leadId, method: event.httpMethod, category });
     let entitlements = await getEntitlements(leadId);
     const hasListingAccess = (e) => !!(e && (e.paid10 || e.paid27 || e.paid47));
+    if (!hasListingAccess(entitlements) && prescreenPaymentIntentId) {
+      entitlements = await recoverPrescreenEntitlement(leadId, prescreenPaymentIntentId, entitlements);
+    }
     if (!hasListingAccess(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
@@ -236,6 +240,33 @@ function leadFromFallbackCriteria(criteria, leadId) {
     move_reason: clean(criteria.moveReason),
     recovered_from: 'apartment-list-fallback',
   };
+}
+
+async function recoverPrescreenEntitlement(leadId, paymentIntentId, current) {
+  let pi;
+  try {
+    pi = await getStripe().paymentIntents.retrieve(paymentIntentId);
+  } catch (err) {
+    console.warn('prescreen entitlement recovery lookup failed', err.code || err.message);
+    return current;
+  }
+
+  const metadata = pi.metadata || {};
+  if (pi.status !== 'succeeded' || metadata.leadId !== leadId || String(metadata.product || '').toLowerCase() !== 'prescreen') {
+    return current;
+  }
+
+  const patch = { paid10: true };
+  if (pi.customer) patch.stripeCustomerId = pi.customer;
+  if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
+
+  try {
+    const { patchEntitlements } = require('./_lib/store');
+    return await patchEntitlements(leadId, patch);
+  } catch (err) {
+    console.error('prescreen entitlement recovery save failed', err);
+    return { ...current, ...patch, leadId };
+  }
 }
 
 async function recoverApartmentEntitlement(leadId, category, paymentIntentId, current) {

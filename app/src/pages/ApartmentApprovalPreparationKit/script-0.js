@@ -239,6 +239,10 @@
       const params = new URLSearchParams();
       const leadId = window.rrnLeadId ? rrnLeadId() : '';
       if (leadId) params.set('leadId', leadId);
+      const prescreenPaymentIntentId = window.rrnPrescreenPaymentIntentId ? rrnPrescreenPaymentIntentId() : '';
+      const apartmentPrepPaymentIntentId = window.rrnApartmentPaymentIntentId ? rrnApartmentPaymentIntentId(UPSELL_PRODUCT) : '';
+      if (prescreenPaymentIntentId) params.set('prescreenPaymentIntentId', prescreenPaymentIntentId);
+      if (apartmentPrepPaymentIntentId) params.set('apartmentPrepPaymentIntentId', apartmentPrepPaymentIntentId);
       const city = selectedCity();
       if (city && city !== 'your selected area') params.set('city', city);
       const query = params.toString();

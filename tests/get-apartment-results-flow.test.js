@@ -272,6 +272,48 @@ async function run() {
 
     urls.length = 0;
     installLegacyGoogleMock(urls, concordPlaces);
+    const prescreenRecovery = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+      },
+      entitlements: {
+        paid10: false,
+        paid27: false,
+        paid47: false,
+        purchasedCategories: [],
+      },
+      upsellIntent: {
+        id: 'pi_prescreen',
+        status: 'succeeded',
+        metadata: { leadId: 'lead_prescreen_recover', product: 'prescreen' },
+        customer: 'cus_test',
+        payment_method: 'pm_test',
+      },
+    });
+    const prescreenRecoveryRes = await prescreenRecovery.handler({
+      httpMethod: 'POST',
+      body: JSON.stringify({
+        leadId: 'lead_prescreen_recover',
+        prescreenPaymentIntentId: 'pi_prescreen',
+      }),
+    });
+    const prescreenRecoveryBody = JSON.parse(prescreenRecoveryRes.body);
+    assert.equal(prescreenRecoveryRes.statusCode, 200);
+    assert.equal(prescreenRecoveryBody.ok, true);
+    assert.deepEqual(prescreenRecovery.retrieveCalls, ['pi_prescreen']);
+    assert.deepEqual(prescreenRecovery.patchCalls[0], {
+      leadId: 'lead_prescreen_recover',
+      patch: {
+        paid10: true,
+        stripeCustomerId: 'cus_test',
+        defaultPaymentMethodId: 'pm_test',
+      },
+    });
+
+    urls.length = 0;
+    installLegacyGoogleMock(urls, concordPlaces);
     const prepRecovery = await loadHandler({
       lead: {
         preferred_city: 'Concord, NC',

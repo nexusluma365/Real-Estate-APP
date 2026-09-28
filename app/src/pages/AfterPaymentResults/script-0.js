@@ -209,6 +209,8 @@
     if (rentBudget) next.set('rentBudget', rentBudget);
     if (bedrooms) next.set('bedrooms', Array.isArray(bedrooms) ? bedrooms.join(',') : bedrooms);
     if (leadId) next.set('leadId', leadId);
+    var prescreenPaymentIntentId = window.rrnPrescreenPaymentIntentId ? rrnPrescreenPaymentIntentId() : '';
+    if (prescreenPaymentIntentId) next.set('prescreenPaymentIntentId', prescreenPaymentIntentId);
     return next;
   }
 

@@ -175,6 +175,13 @@ async function loadVerifiedApartmentResults(){
   const urlParams = new URLSearchParams(window.location.search);
   const leadId = urlParams.get("leadId") || answers.lead_id || answers.leadId || "";
   const upsellPaymentIntentId = urlParams.get("upsellPaymentIntentId") || "";
+  const prescreenPaymentIntentId =
+    urlParams.get("prescreenPaymentIntentId") ||
+    (window.rrnPrescreenPaymentIntentId ? rrnPrescreenPaymentIntentId() : "");
+  const apartmentPrepPaymentIntentId =
+    upsellPaymentIntentId ||
+    urlParams.get("apartmentPrepPaymentIntentId") ||
+    (window.rrnApartmentPaymentIntentId ? rrnApartmentPaymentIntentId("apartment_prep") : "");
   hasSavedLead = !!leadId;
   listingErrorMessage = "";
   if (!leadId) {
@@ -205,7 +212,8 @@ async function loadVerifiedApartmentResults(){
         bedrooms: criteria.bedrooms,
       },
     };
-    if (upsellPaymentIntentId) payload.upsellPaymentIntentId = upsellPaymentIntentId;
+    if (apartmentPrepPaymentIntentId) payload.upsellPaymentIntentId = apartmentPrepPaymentIntentId;
+    if (prescreenPaymentIntentId) payload.prescreenPaymentIntentId = prescreenPaymentIntentId;
     let res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

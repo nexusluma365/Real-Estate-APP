@@ -68,6 +68,8 @@ async function run() {
       matchMedia: () => ({ matches: true }),
       rrnFetchEntitlements: async () => ({ paid10: true, paid27: false, purchasedCategories: [] }),
       rrnHasRecentFlowAccess: () => true,
+      rrnPrescreenPaymentIntentId: () => 'pi_prescreen_saved',
+      rrnApartmentPaymentIntentId: (product) => (product === 'apartment_prep' ? 'pi_apartment_prep_saved' : null),
     },
     document: {
       body: { style: {} },
@@ -90,6 +92,8 @@ async function run() {
       assert.equal(payload.requestCriteria.city, 'miami');
       assert.equal(payload.requestCriteria.rentBudget, 2000);
       assert.equal(payload.fallbackCriteria.bedrooms, 2);
+      assert.equal(payload.prescreenPaymentIntentId, 'pi_prescreen_saved');
+      assert.equal(payload.upsellPaymentIntentId, 'pi_apartment_prep_saved');
       return {
         ok: true,
         status: 200,
@@ -113,6 +117,8 @@ async function run() {
   context.window.window = context.window;
   context.rrnFetchEntitlements = context.window.rrnFetchEntitlements;
   context.rrnHasRecentFlowAccess = context.window.rrnHasRecentFlowAccess;
+  context.rrnPrescreenPaymentIntentId = context.window.rrnPrescreenPaymentIntentId;
+  context.rrnApartmentPaymentIntentId = context.window.rrnApartmentPaymentIntentId;
 
   vm.runInNewContext(script, context);
   assert.equal(await context.requireListingAccess(), true);
