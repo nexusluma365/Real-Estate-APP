@@ -244,7 +244,7 @@ async function run() {
   assert.equal(apartmentPrep.createCalls.length, 1);
   assert.equal(apartmentPrep.createCalls[0].amount, 4700);
   assert.equal(apartmentPrep.createCalls[0].metadata.product, 'apartment_prep');
-  assert.deepEqual(prepPatchCalls[0].patch, { paid27: true, addPurchasedCategory: 'apartment_prep' });
+  assert.deepEqual(prepPatchCalls[0].patch, { paid47: true, paid27: true, addPurchasedCategory: 'apartment_prep' });
   assert.deepEqual(apartmentPrep.downloadEmailCalls, [{ leadId: 'lead_123', product: 'apartment_prep' }]);
 
   // A declined upsell must not send the download email.

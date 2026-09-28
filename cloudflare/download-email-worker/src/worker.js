@@ -16,7 +16,8 @@ const PRODUCTS = {
     defaultKey: 'RentReady Guide.zip',
   },
   apartment_prep: {
-    entitlementField: 'paid27',
+    entitlementField: 'paid47',
+    legacyEntitlementField: 'paid27',
     subject: 'Your RentReady Kit is Ready',
     filename: 'RentReady Guide.zip',
     envKey: 'APARTMENT_PREP_DOWNLOAD_KEY',
@@ -128,11 +129,13 @@ async function getEntitlements(env, leadId) {
 }
 
 function hasEntitlement(entitlements, product, def) {
-  if (!entitlements || !entitlements[def.entitlementField]) return false;
+  const raw = entitlements && entitlements.raw_entitlement && typeof entitlements.raw_entitlement === 'object'
+    ? entitlements.raw_entitlement
+    : {};
+  const hasPrimary = !!(entitlements && (entitlements[def.entitlementField] || raw[def.entitlementField]));
+  const hasLegacy = !!(def.legacyEntitlementField && entitlements && (entitlements[def.legacyEntitlementField] || raw[def.legacyEntitlementField]));
+  if (!entitlements || (!hasPrimary && !hasLegacy)) return false;
   if (def.category) {
-    const raw = entitlements.raw_entitlement && typeof entitlements.raw_entitlement === 'object'
-      ? entitlements.raw_entitlement
-      : {};
     const categories = Array.isArray(raw.purchasedCategories)
       ? raw.purchasedCategories
       : Array.isArray(entitlements.purchased_categories)

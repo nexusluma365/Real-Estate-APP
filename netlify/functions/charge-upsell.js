@@ -15,7 +15,7 @@ const PRODUCTS = {
   gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
   modern: { amount: 2700, field: 'paid27', label: 'RentReady Modern Apartment Matches & RentReady Guide', category: 'modern' },
   luxury: { amount: 2700, field: 'paid27', label: 'RentReady Luxury Apartment Matches & RentReady Guide', category: 'luxury' },
-  apartment_prep: { amount: 4700, field: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
+  apartment_prep: { amount: 4700, field: 'paid47', legacyField: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
   creditkit: { amount: 9700, field: 'paid97', label: 'RentReady Credit Action Kit' },
 };
 
@@ -91,7 +91,8 @@ exports.handler = async (event) => {
     // Already-purchased is a no-op success, not a second charge. A customer
     // can own more than one apartment category, so this checks membership
     // in the full set, not equality against the single most-recent one.
-    if (entitlements[def.field] && (!def.category || (entitlements.purchasedCategories || []).includes(def.category))) {
+    const alreadyHasField = entitlements[def.field] || (def.legacyField && entitlements[def.legacyField]);
+    if (alreadyHasField && (!def.category || (entitlements.purchasedCategories || []).includes(def.category))) {
       if (def.category && def.sendDownloadEmail !== false) {
         try {
           await sendDownloadEmail(leadId, def.category);
@@ -149,6 +150,7 @@ exports.handler = async (event) => {
 
     if (pi.status === 'succeeded') {
       const patch = { [def.field]: true };
+      if (def.legacyField) patch[def.legacyField] = true;
       if (manychatContactId) {
         patch.manychat_contact_id = manychatContactId;
         patch.manychatContactId = manychatContactId;

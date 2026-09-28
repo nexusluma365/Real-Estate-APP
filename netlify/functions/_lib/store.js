@@ -7,7 +7,7 @@
 //                     the lead form is submitted and refreshed when the
 //                     $10 PaymentIntent is created, so later functions can
 //                     trust stored answers instead of browser-sent data.
-//   "entitlements" — { paid10, paid27, paid97, membershipStatus,
+//   "entitlements" — { paid10, paid27, paid47, paid97, membershipStatus,
 //                     membershipPlan, stripeCustomerId,
 //                     defaultPaymentMethodId, ... } keyed by leadId.
 //                     Only stripe-webhook.js and the *-upsell/subscription
@@ -231,6 +231,7 @@ function defaultEntitlements(leadId) {
     leadId,
     paid10: false,
     paid27: false,
+    paid47: false,
     paid97: false,
     membershipStatus: 'inactive',
     membershipPlan: null,
@@ -260,6 +261,7 @@ function entitlementRecord(leadId, entitlements = {}) {
     lead_id: leadId,
     paid10: !!entitlements.paid10,
     paid27: !!entitlements.paid27,
+    paid47: !!entitlements.paid47,
     paid97: !!entitlements.paid97,
     membership_status: entitlements.membershipStatus || 'inactive',
     membership_plan: entitlements.membershipPlan || null,
@@ -293,6 +295,7 @@ function entitlementsFromRecord(record, leadId) {
     leadId,
     paid10: !!record.paid10,
     paid27: !!record.paid27,
+    paid47: !!(record.paid47 || (record.raw_entitlement || {}).paid47),
     paid97: !!record.paid97,
     membershipStatus: record.membership_status || 'inactive',
     membershipPlan: record.membership_plan || null,
@@ -319,6 +322,7 @@ function normalizeLocalEntitlements(rec, leadId) {
     ...rec,
     purchasedCategories,
     purchasedCategory: mostRecentCategory(purchasedCategories, rec.purchasedCategory),
+    paid47: !!rec.paid47,
     manychat_contact_id: manychatContactId || null,
     manychatContactId: manychatContactId || null,
   };

@@ -172,9 +172,13 @@ async function run() {
     type: 'payment_intent.succeeded',
     data: { object: { metadata: { leadId: 'lead_789', product: 'apartment_prep' }, customer: 'cus_3', payment_method: 'pm_3' } },
   });
+  const prepPatchCalls = [];
   const prepBackstop = loadHandler({
     constructEvent: (payload) => JSON.parse(payload.toString()),
-    patchEntitlements: async () => ({}),
+    patchEntitlements: async (leadId, patch) => {
+      prepPatchCalls.push({ leadId, patch });
+      return {};
+    },
     entitlements: { paid10: true, purchasedCategories: [] },
   });
   await prepBackstop.handler({
@@ -182,6 +186,16 @@ async function run() {
     headers: { 'stripe-signature': 'test_sig' },
     body: prepJson,
   });
+  assert.deepEqual(prepPatchCalls, [{
+    leadId: 'lead_789',
+    patch: {
+      paid47: true,
+      paid27: true,
+      stripeCustomerId: 'cus_3',
+      defaultPaymentMethodId: 'pm_3',
+      addPurchasedCategory: 'apartment_prep',
+    },
+  }]);
   assert.deepEqual(prepBackstop.downloadEmailCalls, [{ leadId: 'lead_789', product: 'apartment_prep' }]);
 
   // If the synchronous checkout path already recorded the purchase, the
@@ -189,7 +203,7 @@ async function run() {
   const prepAlreadyHandled = loadHandler({
     constructEvent: (payload) => JSON.parse(payload.toString()),
     patchEntitlements: async () => ({}),
-    entitlements: { paid10: true, paid27: true, purchasedCategories: ['apartment_prep'] },
+    entitlements: { paid10: true, paid47: true, paid27: true, purchasedCategories: ['apartment_prep'] },
   });
   await prepAlreadyHandled.handler({
     httpMethod: 'POST',

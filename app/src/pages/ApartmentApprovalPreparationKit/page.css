@@ -135,10 +135,20 @@
 @media(max-width:760px){.apartment-prep-page .problem-section .problem-grid{grid-template-areas:"copy" "visual" "footer"}.apartment-prep-page .problem-section .editorial-image{padding:34px 26px}.apartment-prep-page .problem-copy h2{font-size:44px;max-width:420px}.apartment-prep-page .process-step{grid-template-columns:36px 1fr;gap:14px}.apartment-prep-page .process-step h3{font-size:20px}.apartment-prep-page .process-step p{font-size:14px}.apartment-prep-page .problem-footer .statement{font-size:19px}.apartment-prep-page .journey-visual{width:min(320px,100%)}}
 .apartment-prep-page .cta-arrow{width:24px;height:24px;margin:0 auto 20px;border-right:5px solid #c8cec9;border-bottom:5px solid #c8cec9;border-radius:3px;transform:rotate(45deg);animation:ctaArrowBounce 2.4s ease-in-out infinite}
 @keyframes ctaArrowBounce{0%,100%{transform:rotate(45deg) translate(0,0);opacity:.48}50%{transform:rotate(45deg) translate(6px,6px);opacity:.9}}
-.apartment-prep-page .section-mega-cta{appearance:none;width:100%;border:0;border-radius:26px;background:#34483d;color:#fff;padding:30px 34px;font-size:clamp(24px,2.75vw,42px);font-weight:900;line-height:1.05;letter-spacing:0;box-shadow:0 24px 58px rgba(52,72,61,.24);cursor:pointer;transition:transform .2s ease,box-shadow .2s ease,background .2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
-.apartment-prep-page .section-mega-cta small{display:block;color:rgba(255,255,255,.4);font-size:9px;font-weight:700;line-height:1;letter-spacing:.03em}
-.apartment-prep-page .section-mega-cta:hover{background:#2a3c32;transform:translateY(-2px);box-shadow:0 30px 68px rgba(52,72,61,.3)}
+.apartment-prep-page .section-mega-cta{appearance:none;width:100%;border:1px solid #3f5749;border-radius:.5em;background:#34483d;color:#fff;padding:30px 34px;font-size:clamp(24px,2.75vw,42px);font-weight:900;line-height:1.05;letter-spacing:0;box-shadow:6px 6px 12px rgba(21,32,26,.34),-6px -6px 12px rgba(105,132,116,.32);cursor:pointer;transition:all .3s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.apartment-prep-page .section-mega-cta small{display:block;color:rgba(255,255,255,.58);font-size:9px;font-weight:700;line-height:1;letter-spacing:.03em}
+.apartment-prep-page .section-mega-cta:hover{background:#3b5145;transform:translateY(-1px);box-shadow:8px 8px 16px rgba(21,32,26,.32),-8px -8px 16px rgba(105,132,116,.28)}
+.apartment-prep-page .section-mega-cta:active{color:rgba(255,255,255,.72);background:#34483d;transform:none;box-shadow:inset 4px 4px 12px rgba(21,32,26,.44),inset -4px -4px 12px rgba(105,132,116,.28)}
 .apartment-prep-page .section-mega-cta:focus-visible{outline:3px solid #88d63a;outline-offset:6px}
 .apartment-prep-page .continue-listings-link{display:block;width:max-content;margin:20px auto 0;color:#a9b0aa;font-size:14px;font-weight:800;text-align:center;text-decoration:none;transition:color .18s ease}
 .apartment-prep-page .continue-listings-link:hover{color:#34483d;text-decoration:underline;text-underline-offset:5px}
 @media(max-width:760px){.apartment-prep-page .cta-arrow{margin-bottom:16px}.apartment-prep-page .section-mega-cta{border-radius:20px;padding:22px 20px;font-size:25px}}
+.apartment-prep-page.is-payment-overlay-open > :not(.sheet-scrim){filter:blur(8px);transition:filter .18s ease}
+.apartment-prep-page .sheet-scrim.payment-status{background:rgba(20,31,25,.48);backdrop-filter:blur(10px) saturate(115%)}
+.apartment-prep-page .sheet-scrim.payment-status .sheet{max-width:420px;padding:38px 32px;border-radius:26px}
+.apartment-prep-page .sheet-scrim.payment-status .sheet:before{content:"";display:block;width:54px;height:54px;margin:0 auto 20px;border-radius:50%;border:4px solid rgba(52,72,61,.16);border-top-color:#34483d;animation:apartmentPrepSpin .75s linear infinite}
+.apartment-prep-page .sheet-scrim.payment-success .sheet:before{content:"✓";display:grid;place-items:center;border:0;background:#34483d;color:#fff;font-size:30px;font-weight:800;animation:none}
+.apartment-prep-page .sheet-scrim.payment-failed .sheet:before{content:"";display:block;width:54px;height:54px;margin:0 auto 20px;border-radius:50%;border:4px solid rgba(52,72,61,.16);border-top-color:#34483d;animation:apartmentPrepSpin .75s linear infinite}
+.apartment-prep-page .sheet-scrim.payment-status .sheet-actions{display:none}
+.apartment-prep-page .sheet-scrim.payment-status .sheet h4{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;font-size:28px;font-weight:800;letter-spacing:0;color:#17231c}
+.apartment-prep-page .sheet-scrim.payment-status .sheet .sub{margin:0;color:#5f6f65;font-size:15px;line-height:1.55}

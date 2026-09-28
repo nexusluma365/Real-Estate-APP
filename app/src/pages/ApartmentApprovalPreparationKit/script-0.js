@@ -23,6 +23,7 @@
     const sheetConfirm = document.getElementById('sheetConfirm');
     const continueListingsLink = document.getElementById('continueListingsLink');
     const keysCtaBtn = document.getElementById('keysCtaBtn');
+    const pageRoot = document.querySelector('.apartment-prep-page');
     const sheetSub = sheetScrim.querySelector('.sub');
     const sheetTitle = sheetScrim.querySelector('h4');
     const originalConfirmText = 'Continue to Listings';
@@ -105,6 +106,7 @@
       keysCtaBtn.dataset.busy = '1';
       keysCtaBtn.classList.add('is-loading');
       keysCtaBtn.disabled = true;
+      showPaymentStatus('processing');
 
       let status = 'failed';
       try {
@@ -115,7 +117,8 @@
       }
 
       if (status === 'succeeded') {
-        await continueToRealEstateList();
+        showPaymentStatus('success');
+        setTimeout(continueToRealEstateList, 1400);
         return;
       }
 
@@ -124,7 +127,7 @@
         return;
       }
 
-      showDeclinedPopup();
+      showTroubleAndRedirect();
       resetCheckoutButton();
     }
 
@@ -137,13 +140,18 @@
       let attempts = 0;
       const check = async () => {
         attempts++;
-        const entitlements = await rrnFetchEntitlements(rrnLeadId());
-        if (entitlements && entitlements.paid27 && (entitlements.purchasedCategories || []).includes(UPSELL_PRODUCT)) {
-          await continueToRealEstateList();
-          return;
-        }
+        let entitlements = null;
+        try {
+          entitlements = await rrnFetchEntitlements(rrnLeadId());
+          const purchasedCategories = (entitlements && entitlements.purchasedCategories) || [];
+          if (entitlements && (entitlements.paid47 || entitlements.paid27) && (entitlements.purchasedCategory === UPSELL_PRODUCT || purchasedCategories.includes(UPSELL_PRODUCT))) {
+            showPaymentStatus('success');
+            setTimeout(continueToRealEstateList, 1400);
+            return;
+          }
+        } catch (_e) {}
         if (attempts >= 6) {
-          showDeclinedPopup();
+          showTroubleAndRedirect();
           resetCheckoutButton();
           return;
         }
@@ -160,10 +168,38 @@
     }
 
     function showDeclinedPopup() {
+      showTroubleAndRedirect();
+    }
+
+    function showPaymentStatus(state) {
+      if (!sheetScrim || !sheetTitle || !sheetSub) return;
+      if (pageRoot) pageRoot.classList.add('is-payment-overlay-open');
+      sheetScrim.classList.remove('auto-redirect', 'payment-processing', 'payment-success', 'payment-failed');
+      sheetScrim.classList.add('payment-status');
+      sheetConfirm.disabled = true;
+      sheetConfirm.dataset.busy = '1';
+      delete sheetConfirm.dataset.target;
+
+      if (state === 'success') {
+        sheetScrim.classList.add('payment-success');
+        sheetTitle.textContent = 'Thank You';
+        sheetSub.textContent = 'Your RentReady Kit download link is being sent to your email. Taking you to your apartment listings now.';
+      } else if (state === 'failed') {
+        sheetScrim.classList.add('payment-failed');
+        sheetTitle.textContent = 'Sorry We Having Trouble, but No worries';
+        sheetSub.textContent = 'Taking you to your apartment listings now.';
+      } else {
+        sheetScrim.classList.add('payment-processing');
+        sheetTitle.textContent = 'Processing your RentReady Kit';
+        sheetSub.textContent = 'Please wait while we complete your $47 purchase.';
+      }
+      sheetScrim.classList.add('open');
+    }
+
+    function showTroubleAndRedirect() {
       const city = selectedCity();
       try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', city }); } catch (_e) {}
-      sheetTitle.textContent = "We Couldn’t Complete Your Purchase Yet.";
-      showSheetMessage(`You can continue to your RentReady listings for ${city} and try the Apartment Approval Preparation Kit again when you’re ready.`);
+      showPaymentStatus('failed');
       sheetConfirm.textContent = originalConfirmText;
       sheetConfirm.disabled = false;
       sheetConfirm.dataset.busy = '0';
@@ -181,7 +217,9 @@
 
     function resetSheetMessage() {
       if (sheetConfirm.dataset.busy === '1') return;
+      if (pageRoot) pageRoot.classList.remove('is-payment-overlay-open');
       sheetScrim.classList.remove('auto-redirect');
+      sheetScrim.classList.remove('payment-status', 'payment-processing', 'payment-success', 'payment-failed');
       sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
       sheetSub.textContent = `You can continue to your RentReady listings for ${selectedCity()} and try the Apartment Approval Preparation Kit again when you’re ready.`;
       sheetConfirm.textContent = originalConfirmText;

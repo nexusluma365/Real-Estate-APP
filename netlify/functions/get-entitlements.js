@@ -17,6 +17,9 @@ exports.handler = async (event) => {
 
   try {
     const e = await getEntitlements(leadId);
+    const purchasedCategories = Array.isArray(e.purchasedCategories) ? e.purchasedCategories : [];
+    const hasApartmentPrep = !!e.paid47 || purchasedCategories.includes('apartment_prep');
+    const hasLegacyPaid27Product = !!e.paid27 && purchasedCategories.some((category) => category !== 'apartment_prep');
     // Only ever hand the frontend the flags it needs to render — never the
     // Stripe customer/payment-method identifiers.
     return {
@@ -24,10 +27,11 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         ok: true,
         paid10: !!e.paid10,
-        paid27: !!e.paid27,
+        paid27: hasLegacyPaid27Product,
+        paid47: hasApartmentPrep,
         paid97: !!e.paid97,
         purchasedCategory: e.purchasedCategory || null,
-        purchasedCategories: Array.isArray(e.purchasedCategories) ? e.purchasedCategories : [],
+        purchasedCategories,
         membershipStatus: e.membershipStatus || 'inactive',
         membershipPlan: e.membershipPlan || null,
       }),

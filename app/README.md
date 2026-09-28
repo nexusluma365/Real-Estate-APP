@@ -70,14 +70,12 @@ app/
       index.jsx          ← thin wrapper wiring the above into a React component
   public/
     assets/checkout-client.js   ← copied verbatim, now loaded once globally
-    real estate images/, hero images, generated images  ← copied verbatim
+    hero/product/email images    ← copied verbatim
 ```
 
-The original standalone .html files (index.html, real-estate-list.html,
-etc.) are still sitting at the repo root. They are no longer part of the
-deployed site (only `app/dist` is published) — they're just the source
-material the migration script read from. Safe to delete once you've
-confirmed the app works, or keep them as a reference.
+The original standalone page bodies now live under `src/pages/<PageName>/`
+and are mounted by the React app. The deployed site publishes only
+`app/dist`.
 
 ## If you need to re-extract a page
 
