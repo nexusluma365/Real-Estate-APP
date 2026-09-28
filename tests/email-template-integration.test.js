@@ -21,6 +21,7 @@ assert.match(welcomeTemplate, /class="cta-link"/);
 assert.match(guideTemplate, /Your RentReady Guide is ready\./);
 assert.match(guideTemplate, /{{DOWNLOAD_URL}}/);
 assert.match(guideTemplate, /{{BOOK_IMAGE_URL}}/);
+assert.match(guideTemplate, /{{UNSUBSCRIBE_URL}}/);
 assert.match(guideTemplate, /class="cta-cell" align="center"/);
 assert.match(guideTemplate, /class="cta-wrap"[\s\S]*?align="center"[\s\S]*?style="margin:0 auto;float:none;"/);
 assert.match(guideTemplate, /class="cta-link"/);

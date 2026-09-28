@@ -32,6 +32,7 @@ function loadWorker() {
 async function run() {
   const worker = loadWorker();
   const sentEmails = [];
+  let entitlementProduct = 'modern';
   const files = {
     'RentReady Guide.zip': {
       body: 'ZIPDATA',
@@ -61,6 +62,17 @@ async function run() {
       return Response.json([{ id: 'lead_123', email: 'BUYER@Example.COM', first_name: 'Rae' }]);
     }
     if (href.includes('/rest/v1/entitlements')) {
+      if (entitlementProduct === 'apartment_prep') {
+        return Response.json([
+          {
+            lead_id: 'lead_123',
+            paid27: true,
+            paid97: false,
+            purchased_category: 'apartment_prep',
+            raw_entitlement: { paid47: true, purchasedCategories: ['apartment_prep'] },
+          },
+        ]);
+      }
       return Response.json([
         {
           lead_id: 'lead_123',
@@ -105,6 +117,24 @@ async function run() {
     assert.match(sentEmails[0].text, /https:\/\/worker\.test\/download\?token=/);
     assert.match(sentEmails[0].html, /https:\/\/worker\.test\/download\?token=/);
 
+    entitlementProduct = 'apartment_prep';
+    const prepRes = await worker.fetch(
+      new Request('https://worker.test/send-download', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer trigger-secret', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep' }),
+      }),
+      env
+    );
+    const prepBody = await prepRes.json();
+
+    assert.equal(prepRes.status, 200);
+    assert.deepEqual(prepBody, { ok: true, emailed: true, to: 'buyer@example.com' });
+    assert.equal(sentEmails.length, 2);
+    assert.equal(sentEmails[1].subject, 'Your RentReady Kit is Ready');
+    assert.match(sentEmails[1].html, /https:\/\/worker\.test\/download\?token=/);
+
+    entitlementProduct = 'modern';
     const downloadUrl = sentEmails[0].text.match(/https:\/\/worker\.test\/download\?token=\S+/)[0];
     const downloadRes = await worker.fetch(new Request(downloadUrl), env);
 

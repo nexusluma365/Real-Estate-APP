@@ -145,7 +145,7 @@ function hasEntitlement(entitlements, product, def) {
       : [];
     if (!categories.includes(def.category)) return false;
   }
-  return product === 'modern' || product === 'luxury' || entitlements[def.entitlementField] === true;
+  return product === 'modern' || product === 'luxury' || hasPrimary || hasLegacy;
 }
 
 function r2KeyFor(env, def) {
@@ -227,6 +227,7 @@ async function renderGuideEmail(env, { downloadUrl }) {
     PRIVACY_URL: `${siteUrl}/privacy`,
     TERMS_URL: `${siteUrl}/terms`,
     SUPPORT_URL: `mailto:${supportEmail(env)}`,
+    UNSUBSCRIBE_URL: unsubscribeUrl(env),
     YEAR: new Date().getFullYear(),
   });
 }
