@@ -10,6 +10,7 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
   const savedResults = [];
   const savedLeads = [];
   const retrieveCalls = [];
+  const patchCalls = [];
   require.cache[storePath] = {
     id: storePath,
     filename: storePath,
@@ -23,6 +24,7 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
       patchEntitlements:
         patchEntitlements ||
         (async (leadId, patch) => {
+          patchCalls.push({ leadId, patch });
           const { addPurchasedCategory, ...rest } = patch;
           const purchasedCategories = addPurchasedCategory
             ? Array.from(new Set([...(entitlements.purchasedCategories || []), addPurchasedCategory]))
@@ -53,7 +55,7 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
     },
   };
 
-  return { handler: require('../netlify/functions/get-apartment-results').handler, savedResults, savedLeads, retrieveCalls };
+  return { handler: require('../netlify/functions/get-apartment-results').handler, savedResults, savedLeads, retrieveCalls, patchCalls };
 }
 
 function legacyPlace({
@@ -242,7 +244,7 @@ async function run() {
         beds_needed: '1',
       },
       entitlements: {
-        paid27: true,
+        paid47: true,
         purchasedCategories: ['apartment_prep'],
       },
       cached: {
@@ -267,6 +269,50 @@ async function run() {
     assert.equal(prepUnlockRes.statusCode, 200);
     assert.equal(prepUnlockBody.ok, true);
     assert.equal(prepUnlockBody.category, 'questionnaire');
+
+    urls.length = 0;
+    installLegacyGoogleMock(urls, concordPlaces);
+    const prepRecovery = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+      },
+      entitlements: {
+        paid27: false,
+        paid47: false,
+        purchasedCategories: [],
+      },
+      upsellIntent: {
+        id: 'pi_prep_upsell',
+        status: 'succeeded',
+        metadata: { leadId: 'lead_prep_recover', product: 'apartment_prep', category: 'apartment_prep' },
+        customer: 'cus_test',
+        payment_method: 'pm_test',
+      },
+    });
+    const prepRecoveryRes = await prepRecovery.handler({
+      httpMethod: 'GET',
+      queryStringParameters: {
+        leadId: 'lead_prep_recover',
+        category: 'apartment_prep',
+        upsellPaymentIntentId: 'pi_prep_upsell',
+      },
+    });
+    const prepRecoveryBody = JSON.parse(prepRecoveryRes.body);
+    assert.equal(prepRecoveryRes.statusCode, 200);
+    assert.equal(prepRecoveryBody.ok, true);
+    assert.deepEqual(prepRecovery.retrieveCalls, ['pi_prep_upsell']);
+    assert.deepEqual(prepRecovery.patchCalls[0], {
+      leadId: 'lead_prep_recover',
+      patch: {
+        paid27: true,
+        paid47: true,
+        addPurchasedCategory: 'apartment_prep',
+        stripeCustomerId: 'cus_test',
+        defaultPaymentMethodId: 'pm_test',
+      },
+    });
 
     urls.length = 0;
     installLegacyGoogleMock(urls, concordPlaces);

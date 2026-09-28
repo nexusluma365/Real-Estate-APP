@@ -7,7 +7,7 @@ async function confirmListingAccess(){
   if (leadId && window.rrnFetchEntitlements) {
     try {
       const ent = await rrnFetchEntitlements(leadId);
-      if (ent && (ent.paid10 || ent.paid27)) return true;
+      if (ent && (ent.paid10 || ent.paid27 || ent.paid47)) return true;
     } catch (_e) {}
   }
 

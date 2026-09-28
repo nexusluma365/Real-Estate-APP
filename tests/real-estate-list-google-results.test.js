@@ -116,6 +116,11 @@ async function run() {
 
   vm.runInNewContext(script, context);
   assert.equal(await context.requireListingAccess(), true);
+  context.window.rrnFetchEntitlements = async () => ({ paid10: false, paid27: false, paid47: true, purchasedCategories: ['apartment_prep'] });
+  context.window.rrnHasRecentFlowAccess = () => false;
+  context.rrnFetchEntitlements = context.window.rrnFetchEntitlements;
+  context.rrnHasRecentFlowAccess = context.window.rrnHasRecentFlowAccess;
+  assert.equal(await context.requireListingAccess(), true);
   context.applyAnswerCriteria();
   await context.loadVerifiedApartmentResults();
   context.renderAll();

@@ -261,7 +261,6 @@ function entitlementRecord(leadId, entitlements = {}) {
     lead_id: leadId,
     paid10: !!entitlements.paid10,
     paid27: !!entitlements.paid27,
-    paid47: !!entitlements.paid47,
     paid97: !!entitlements.paid97,
     membership_status: entitlements.membershipStatus || 'inactive',
     membership_plan: entitlements.membershipPlan || null,

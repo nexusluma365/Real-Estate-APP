@@ -122,7 +122,7 @@ exports.handler = async (event) => {
   try {
     listingLog('request', { leadId, method: event.httpMethod, category });
     let entitlements = await getEntitlements(leadId);
-    const hasListingAccess = (e) => !!(e && (e.paid10 || e.paid27));
+    const hasListingAccess = (e) => !!(e && (e.paid10 || e.paid27 || e.paid47));
     if (!hasListingAccess(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
@@ -252,7 +252,12 @@ async function recoverApartmentEntitlement(leadId, category, paymentIntentId, cu
     return current;
   }
 
-  const patch = { paid27: true, addPurchasedCategory: String(metadata.product || metadata.category || 'apartment_prep').toLowerCase() };
+  const recoveredProduct = String(metadata.product || metadata.category || 'apartment_prep').toLowerCase();
+  const patch = {
+    paid27: true,
+    ...(recoveredProduct === 'apartment_prep' ? { paid47: true } : {}),
+    addPurchasedCategory: recoveredProduct,
+  };
   if (pi.customer) patch.stripeCustomerId = pi.customer;
   if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
 
