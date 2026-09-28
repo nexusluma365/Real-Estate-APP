@@ -17,6 +17,8 @@ const PRESCREEN_INTENT_KEY = 'rrn_prescreen_payment_intent_v1';
 const APARTMENT_INTENT_KEY = 'rrn_apartment_payment_intent_v1';
 const FLOW_ACCESS_TTL_MS = 20 * 60 * 1000;
 let rrnConfigPromise = null;
+const PAYMENT_OVERLAY_ID = 'rrnPaymentOverlay';
+const PAYMENT_OVERLAY_STYLE_ID = 'rrnPaymentOverlayStyles';
 
 function rrnLeadId() {
   try {
@@ -207,6 +209,113 @@ function rrnDownloadUrl(product) {
   return '/.netlify/functions/download-file?leadId=' + encodeURIComponent(leadId) + '&product=' + encodeURIComponent(product);
 }
 
+function rrnEnsurePaymentOverlay() {
+  if (!document.getElementById(PAYMENT_OVERLAY_STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = PAYMENT_OVERLAY_STYLE_ID;
+    style.textContent = `
+      #${PAYMENT_OVERLAY_ID}{
+        position:fixed;
+        inset:0;
+        z-index:99999;
+        display:none;
+        align-items:center;
+        justify-content:center;
+        padding:24px;
+        background:rgba(20,31,25,.48);
+        backdrop-filter:blur(10px) saturate(115%);
+        -webkit-backdrop-filter:blur(10px) saturate(115%);
+      }
+      #${PAYMENT_OVERLAY_ID}.is-open{display:flex}
+      #${PAYMENT_OVERLAY_ID} .rrn-payment-card{
+        width:min(420px,100%);
+        border-radius:26px;
+        background:#fff;
+        padding:38px 32px;
+        text-align:center;
+        box-shadow:0 25px 60px rgba(0,0,0,.25);
+        color:#17231c;
+        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+      }
+      #${PAYMENT_OVERLAY_ID} .rrn-payment-icon{
+        width:54px;
+        height:54px;
+        margin:0 auto 20px;
+        border-radius:50%;
+        border:4px solid rgba(52,72,61,.16);
+        border-top-color:#34483d;
+        animation:rrnPaymentSpin .75s linear infinite;
+      }
+      #${PAYMENT_OVERLAY_ID}.is-success .rrn-payment-icon{
+        display:grid;
+        place-items:center;
+        border:0;
+        background:#34483d;
+        color:#fff;
+        font-size:30px;
+        font-weight:800;
+        animation:none;
+      }
+      #${PAYMENT_OVERLAY_ID}.is-success .rrn-payment-icon:before{content:"✓"}
+      #${PAYMENT_OVERLAY_ID} h4{
+        margin:0 0 10px;
+        color:#17231c;
+        font-size:28px;
+        font-weight:800;
+        line-height:1.1;
+        letter-spacing:0;
+      }
+      #${PAYMENT_OVERLAY_ID} p{
+        margin:0;
+        color:#5f6f65;
+        font-size:15px;
+        line-height:1.55;
+      }
+      @keyframes rrnPaymentSpin{to{transform:rotate(360deg)}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  let overlay = document.getElementById(PAYMENT_OVERLAY_ID);
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = PAYMENT_OVERLAY_ID;
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.innerHTML = `
+      <div class="rrn-payment-card">
+        <div class="rrn-payment-icon" aria-hidden="true"></div>
+        <h4>Processing your payment</h4>
+        <p>Please wait while we securely confirm your purchase.</p>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  return overlay;
+}
+
+function rrnShowPaymentOverlay(options) {
+  const overlay = rrnEnsurePaymentOverlay();
+  const opts = options || {};
+  const state = opts.state || 'processing';
+  const title = opts.title || (state === 'success' ? 'Thank You' : 'Processing your payment');
+  const message = opts.message || (state === 'success'
+    ? 'Your payment was successful. Taking you to the next step now.'
+    : 'Please wait while we securely confirm your purchase.');
+  const titleEl = overlay.querySelector('h4');
+  const messageEl = overlay.querySelector('p');
+  if (titleEl) titleEl.textContent = title;
+  if (messageEl) messageEl.textContent = message;
+  overlay.classList.remove('is-success');
+  if (state === 'success') overlay.classList.add('is-success');
+  overlay.classList.add('is-open');
+}
+
+function rrnHidePaymentOverlay() {
+  const overlay = document.getElementById(PAYMENT_OVERLAY_ID);
+  if (overlay) overlay.classList.remove('is-open', 'is-success');
+}
+
 async function rrnEmailAsset(type, category) {
   const leadId = rrnLeadId();
   if (!leadId) return false;
@@ -233,4 +342,6 @@ window.rrnDownloadUrl = rrnDownloadUrl;
 window.rrnEmailAsset = rrnEmailAsset;
 window.rrnGrantFlowAccess = rrnGrantFlowAccess;
 window.rrnHasRecentFlowAccess = rrnHasRecentFlowAccess;
+window.rrnShowPaymentOverlay = rrnShowPaymentOverlay;
+window.rrnHidePaymentOverlay = rrnHidePaymentOverlay;
 })();

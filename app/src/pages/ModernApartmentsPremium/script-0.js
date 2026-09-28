@@ -75,6 +75,12 @@
       checkoutBtn.dataset.busy = '1';
       checkoutBtn.classList.add('is-loading');
       checkoutBtn.disabled = true;
+      if (window.rrnShowPaymentOverlay) {
+        rrnShowPaymentOverlay({
+          title: 'Processing your apartment list',
+          message: 'Please wait while we securely confirm your purchase.',
+        });
+      }
 
       let status = 'failed';
       try {
@@ -85,11 +91,24 @@
       }
 
       if (status === 'succeeded') {
-        await continueToRealEstateList();
+        if (window.rrnShowPaymentOverlay) {
+          rrnShowPaymentOverlay({
+            state: 'success',
+            title: 'Thank You',
+            message: 'Taking you to your apartment listings now.',
+          });
+        }
+        setTimeout(continueToRealEstateList, 900);
         return;
       }
 
       if (status === 'processing') {
+        if (window.rrnShowPaymentOverlay) {
+          rrnShowPaymentOverlay({
+            title: 'Confirming your apartment list',
+            message: 'Your payment is processing. Please keep this page open.',
+          });
+        }
         pollForModernCompletion();
         return;
       }
@@ -110,7 +129,14 @@
         const entitlements = await rrnFetchEntitlements(rrnLeadId());
         const purchasedCategories = (entitlements && entitlements.purchasedCategories) || [];
         if (entitlements && entitlements.paid27 && (entitlements.purchasedCategory === APARTMENT_CATEGORY || purchasedCategories.includes(APARTMENT_CATEGORY))) {
-          await continueToRealEstateList();
+          if (window.rrnShowPaymentOverlay) {
+            rrnShowPaymentOverlay({
+              state: 'success',
+              title: 'Thank You',
+            message: 'Taking you to your apartment listings now.',
+          });
+        }
+          setTimeout(continueToRealEstateList, 900);
           return;
         }
         if (attempts >= 6) {
@@ -130,6 +156,7 @@
     }
 
     function showDeclinedPopup() {
+      if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
       const city = selectedCity();
       try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', city }); } catch (_e) {}
       sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";

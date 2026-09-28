@@ -82,18 +82,45 @@ async function handleCreditKitPurchase() {
   errBox.innerHTML = '';
   const originalLabel = btn.innerHTML;
   btn.innerHTML = 'Processing…';
+  if (window.rrnShowPaymentOverlay) {
+    rrnShowPaymentOverlay({
+      title: 'Processing your Credit Action Kit',
+      message: 'Please wait while we securely confirm your purchase.',
+    });
+  }
 
-  const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
-  const status = await rrnChargeUpsell('creditkit', stripeKey);
+  let status = 'failed';
+  try {
+    const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
+    status = await rrnChargeUpsell('creditkit', stripeKey);
+  } catch (_e) {
+    status = 'failed';
+  }
 
   if (status === 'succeeded') {
+    if (window.rrnShowPaymentOverlay) {
+      rrnShowPaymentOverlay({
+        state: 'success',
+        title: 'Thank You',
+        message: 'Your Credit Action Kit is ready.',
+      });
+    }
     try { sessionStorage.setItem(PAID97_KEY, '1'); } catch (_e) {}
-    renderUnlocked(loadAnswers());
+    setTimeout(() => {
+      renderUnlocked(loadAnswers());
+      if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+    }, 800);
     return;
   }
 
   if (status === 'processing') {
     btn.innerHTML = 'Confirming your payment…';
+    if (window.rrnShowPaymentOverlay) {
+      rrnShowPaymentOverlay({
+        title: 'Confirming your Credit Action Kit',
+        message: 'Your payment is processing. Please keep this page open.',
+      });
+    }
     pollForCreditKitCompletion(btn, originalLabel, errBox);
     return;
   }
@@ -101,6 +128,7 @@ async function handleCreditKitPurchase() {
   btn.disabled = false;
   btn.dataset.busy = '0';
   btn.innerHTML = originalLabel;
+  if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
   errBox.innerHTML = `
     <div class="pay-error">We couldn't complete this purchase with your saved payment method.</div>
     <a class="small-link fade-in" href="#" onclick="skipCreditKit(event)">Continue Without This →</a>
@@ -114,14 +142,25 @@ function pollForCreditKitCompletion(btn, originalLabel, errBox) {
     attempts++;
     const ent = await rrnFetchEntitlements(leadId);
     if (ent && ent.paid97) {
+      if (window.rrnShowPaymentOverlay) {
+        rrnShowPaymentOverlay({
+          state: 'success',
+          title: 'Thank You',
+          message: 'Your Credit Action Kit is ready.',
+        });
+      }
       try { sessionStorage.setItem(PAID97_KEY, '1'); } catch (_e) {}
-      renderUnlocked(loadAnswers());
+      setTimeout(() => {
+        renderUnlocked(loadAnswers());
+        if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+      }, 800);
       return;
     }
     if (attempts >= 6) {
       btn.disabled = false;
       btn.dataset.busy = '0';
       btn.innerHTML = originalLabel;
+      if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
       errBox.innerHTML = `
         <div class="pay-error">Your payment is still processing. It's safe to check back shortly.</div>
         <a class="small-link fade-in" href="#" onclick="skipCreditKit(event)">Continue Without This →</a>

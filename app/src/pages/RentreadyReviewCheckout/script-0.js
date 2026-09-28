@@ -109,6 +109,11 @@
     el.classList.add('show');
   }
 
+  function deferNavigation(callback, delay){
+    if (typeof setTimeout === 'function') setTimeout(callback, delay);
+    else callback();
+  }
+
   function bindElementState(element, id){
     var wrapper = document.getElementById(id);
     if (!wrapper) return;
@@ -255,12 +260,24 @@
     err.classList.remove('show');
     btn.disabled = true;
     btn.textContent = 'Starting secure checkout...';
+    if (window.rrnShowPaymentOverlay) {
+      rrnShowPaymentOverlay({
+        title: 'Processing your RentReady Check',
+        message: 'Please wait while we securely confirm your $10 payment.',
+      });
+    }
 
     try {
       if (!paymentClientSecret) {
         await createPrescreenIntent(answers);
       }
       btn.textContent = 'Confirming payment...';
+      if (window.rrnShowPaymentOverlay) {
+        rrnShowPaymentOverlay({
+          title: 'Confirming your payment',
+          message: 'Please keep this page open while Stripe confirms your purchase.',
+        });
+      }
       var billingName = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || undefined;
       var result = await stripe.confirmCardPayment(
         paymentClientSecret,
@@ -304,8 +321,16 @@
 
       grantResultsAccess();
       rrTrack('review_purchased', marketingContext(answers));
-      window.location.href = RESULTS_URL;
+      if (window.rrnShowPaymentOverlay) {
+        rrnShowPaymentOverlay({
+          state: 'success',
+          title: 'Thank You',
+          message: 'Your RentReady Check is ready. Taking you to your results now.',
+        });
+      }
+      deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);
     } catch (error) {
+      if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
       btn.disabled = false;
       btn.innerHTML = 'Continue to Your Approval Odds <span>→</span>';
       showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);

@@ -44,11 +44,29 @@ async function handleMembershipPurchase(plan) {
   errBox.innerHTML = '';
   const originalLabel = btn.innerHTML;
   btn.innerHTML = 'Processing…';
+  if (window.rrnShowPaymentOverlay) {
+    rrnShowPaymentOverlay({
+      title: 'Processing your membership',
+      message: 'Please wait while we securely confirm your subscription.',
+    });
+  }
 
-  const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
-  const status = await rrnCreateSubscription(plan, stripeKey);
+  let status = 'failed';
+  try {
+    const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
+    status = await rrnCreateSubscription(plan, stripeKey);
+  } catch (_e) {
+    status = 'failed';
+  }
 
   if (status === 'succeeded') {
+    if (window.rrnShowPaymentOverlay) {
+      rrnShowPaymentOverlay({
+        state: 'success',
+        title: 'Thank You',
+        message: 'Your RentReady Support membership is active.',
+      });
+    }
     renderJoined();
     return;
   }
@@ -56,6 +74,7 @@ async function handleMembershipPurchase(plan) {
   btn.disabled = false;
   btn.dataset.busy = '0';
   btn.innerHTML = originalLabel;
+  if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
   errBox.innerHTML = `
     <div class="pay-error">We couldn't complete this purchase with your saved payment method.</div>
     <a class="small-link fade-in" href="#" onclick="continueWithoutMembership(event)">Continue Without This →</a>

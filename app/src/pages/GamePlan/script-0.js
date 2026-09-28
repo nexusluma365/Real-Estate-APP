@@ -92,18 +92,45 @@ async function handleGamePlanPurchase() {
   errBox.innerHTML = '';
   const originalLabel = btn.innerHTML;
   btn.innerHTML = 'Processing…';
+  if (window.rrnShowPaymentOverlay) {
+    rrnShowPaymentOverlay({
+      title: 'Processing your RentReady Game Plan',
+      message: 'Please wait while we securely confirm your purchase.',
+    });
+  }
 
-  const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
-  const status = await rrnChargeUpsell('gameplan', stripeKey);
+  let status = 'failed';
+  try {
+    const stripeKey = await rrnGetStripePublishableKey(STRIPE_PUBLISHABLE_KEY);
+    status = await rrnChargeUpsell('gameplan', stripeKey);
+  } catch (_e) {
+    status = 'failed';
+  }
 
   if (status === 'succeeded') {
+    if (window.rrnShowPaymentOverlay) {
+      rrnShowPaymentOverlay({
+        state: 'success',
+        title: 'Thank You',
+        message: 'Your RentReady Game Plan is ready.',
+      });
+    }
     try { sessionStorage.setItem(PAID27_KEY, '1'); } catch (_e) {}
-    renderUnlocked(loadAnswers());
+    setTimeout(() => {
+      renderUnlocked(loadAnswers());
+      if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+    }, 800);
     return;
   }
 
   if (status === 'processing') {
     btn.innerHTML = 'Confirming your payment…';
+    if (window.rrnShowPaymentOverlay) {
+      rrnShowPaymentOverlay({
+        title: 'Confirming your Game Plan',
+        message: 'Your payment is processing. Please keep this page open.',
+      });
+    }
     pollForGamePlanCompletion(btn, originalLabel, errBox);
     return;
   }
@@ -113,6 +140,7 @@ async function handleGamePlanPurchase() {
   btn.disabled = false;
   btn.dataset.busy = '0';
   btn.innerHTML = originalLabel;
+  if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
   errBox.innerHTML = `
     <div class="pay-error">We couldn't complete this purchase with your saved payment method.</div>
     <a class="small-link fade-in" href="#" onclick="skipGamePlan(event)">Continue Without This →</a>
@@ -126,14 +154,25 @@ function pollForGamePlanCompletion(btn, originalLabel, errBox) {
     attempts++;
     const ent = await rrnFetchEntitlements(leadId);
     if (ent && ent.paid27) {
+      if (window.rrnShowPaymentOverlay) {
+        rrnShowPaymentOverlay({
+          state: 'success',
+          title: 'Thank You',
+          message: 'Your RentReady Game Plan is ready.',
+        });
+      }
       try { sessionStorage.setItem(PAID27_KEY, '1'); } catch (_e) {}
-      renderUnlocked(loadAnswers());
+      setTimeout(() => {
+        renderUnlocked(loadAnswers());
+        if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+      }, 800);
       return;
     }
     if (attempts >= 6) {
       btn.disabled = false;
       btn.dataset.busy = '0';
       btn.innerHTML = originalLabel;
+      if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
       errBox.innerHTML = `
         <div class="pay-error">Your payment is still processing. It's safe to check back shortly.</div>
         <a class="small-link fade-in" href="#" onclick="skipGamePlan(event)">Continue Without This →</a>
