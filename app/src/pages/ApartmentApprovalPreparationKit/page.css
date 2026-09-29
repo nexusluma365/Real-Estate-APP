@@ -140,8 +140,6 @@
 .apartment-prep-page .section-mega-cta:hover{background:#3b5145;transform:translateY(-1px);box-shadow:8px 8px 16px rgba(21,32,26,.32),-8px -8px 16px rgba(105,132,116,.28)}
 .apartment-prep-page .section-mega-cta:active{color:rgba(255,255,255,.72);background:#34483d;transform:none;box-shadow:inset 4px 4px 12px rgba(21,32,26,.44),inset -4px -4px 12px rgba(105,132,116,.28)}
 .apartment-prep-page .section-mega-cta:focus-visible{outline:3px solid #88d63a;outline-offset:6px}
-.apartment-prep-page .continue-listings-link{display:block;width:max-content;margin:20px auto 0;color:#a9b0aa;font-size:14px;font-weight:800;text-align:center;text-decoration:none;transition:color .18s ease}
-.apartment-prep-page .continue-listings-link:hover{color:#34483d;text-decoration:underline;text-underline-offset:5px}
 @media(max-width:760px){.apartment-prep-page .cta-arrow{margin-bottom:16px}.apartment-prep-page .section-mega-cta{border-radius:20px;padding:22px 20px;font-size:25px}}
 .apartment-prep-page.is-payment-overlay-open > :not(.sheet-scrim){filter:blur(8px);transition:filter .18s ease}
 .apartment-prep-page .sheet-scrim.payment-status{background:rgba(20,31,25,.48);backdrop-filter:blur(10px) saturate(115%)}

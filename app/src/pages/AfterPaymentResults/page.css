@@ -187,22 +187,22 @@
   }
 
   .pl__ring--a {
-    stroke: #f42f25;
+    stroke: #0f3d2a;
   }
 
   .pl__ring--b {
     animation-name: ringB;
-    stroke: #f49725;
+    stroke: #1f6b45;
   }
 
   .pl__ring--c {
     animation-name: ringC;
-    stroke: #255ff4;
+    stroke: #34a46c;
   }
 
   .pl__ring--d {
     animation-name: ringD;
-    stroke: #f42582;
+    stroke: #9eea78;
   }
 
   @keyframes ringA {
@@ -1787,19 +1787,6 @@
     background:#18583a;
     transform:translateY(-2px);
     box-shadow:0 24px 52px rgba(31,112,74,.22);
-    outline:none;
-  }
-  .apartment-secondary-link{
-    color:#4f655a;
-    font-size:14px;
-    line-height:1.45;
-    font-weight:700;
-    text-decoration:underline;
-    text-underline-offset:4px;
-  }
-  .apartment-secondary-link:hover,
-  .apartment-secondary-link:focus-visible{
-    color:#163e2c;
     outline:none;
   }
   .apartment-grid{

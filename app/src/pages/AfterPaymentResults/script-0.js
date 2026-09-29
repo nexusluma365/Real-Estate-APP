@@ -216,23 +216,10 @@
 
   function configureApartmentNextStepLinks(){
     var prepKitCta = document.getElementById('prepKitCta');
-    var continueListingsLink = document.getElementById('continueListingsLink');
     var params = renterSearchParams();
     var query = params.toString();
     var prepUrl = '/apartment-approval-preparation-kit' + (query ? '?' + query : '');
-    var listUrl = '/real-estate-list.html' + (query ? '?' + query : '');
     if (prepKitCta) prepKitCta.href = prepUrl;
-    if (continueListingsLink) {
-      continueListingsLink.href = listUrl;
-      continueListingsLink.addEventListener('click', function(){
-        try {
-          rrnGrantFlowAccess('apartment-list', {
-            status: 'upsell-skipped',
-            city: params.get('city') || null,
-          });
-        } catch (_e) {}
-      });
-    }
   }
 
   function marketingContext(){
