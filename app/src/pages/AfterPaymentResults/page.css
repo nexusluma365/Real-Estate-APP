@@ -205,6 +205,40 @@
     stroke: #9eea78;
   }
 
+  @media (max-width: 900px) {
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding: calc(14px + env(safe-area-inset-top)) max(18px, env(safe-area-inset-left)) 12px max(18px, env(safe-area-inset-right));
+      background: rgba(243,246,243,.74);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+    }
+    .stage {
+      min-height: 100svh;
+      padding: calc(32px + env(safe-area-inset-top)) 20px calc(44px + env(safe-area-inset-bottom));
+    }
+    .status-line {
+      margin-bottom: clamp(46px, 8svh, 82px);
+      font-size: clamp(12px, 3.2vw, 15px);
+    }
+    .scene-wrap {
+      width: min(82vw, 360px);
+      height: min(58vw, 270px);
+    }
+    .pl {
+      width: clamp(5.4em, 18vw, 7.2em);
+      height: clamp(5.4em, 18vw, 7.2em);
+    }
+    .readout-percent {
+      font-size: clamp(52px, 15vw, 76px);
+    }
+    .readout-phrase {
+      font-size: clamp(13px, 3.4vw, 16px);
+    }
+  }
+
   @keyframes ringA {
     from, 4% {
       stroke-dasharray: 0 660;

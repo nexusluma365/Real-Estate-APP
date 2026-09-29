@@ -698,3 +698,175 @@ input[type=range]:focus { box-shadow: none; }
   .agent-range-value { font-size: 28px; }
   .aria-robot { display: none; }
 }
+
+@media (max-width: 900px) {
+  html, body {
+    background: #f6faf7;
+    overscroll-behavior-y: contain;
+  }
+  .shell {
+    align-items: stretch;
+    justify-content: center;
+    min-height: 100svh;
+    padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-right));
+    overflow: visible;
+  }
+  .card.agent-card,
+  .card {
+    width: min(100%, 720px);
+    min-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    border-radius: clamp(22px, 5vw, 34px);
+    box-shadow: 0 18px 48px rgba(26,71,49,.12);
+  }
+  .card-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    padding: 14px clamp(18px,4.8vw,34px) 10px;
+    background: rgba(232,247,238,.86);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+  .brand {
+    min-width: 0;
+    font-size: clamp(15px,4.3vw,22px);
+    gap: 10px;
+  }
+  .brand-icon {
+    width: clamp(34px,9.8vw,46px);
+    height: clamp(34px,9.8vw,46px);
+    border-radius: 12px;
+    flex: 0 0 auto;
+  }
+  .step-tag {
+    flex: 0 0 auto;
+    max-width: 38%;
+    font-size: clamp(10px,3.1vw,14px);
+    letter-spacing: .12em;
+    white-space: nowrap;
+  }
+  .agent-shell {
+    gap: clamp(14px,3.2svh,22px);
+    padding: 14px clamp(18px,5vw,46px) max(22px, env(safe-area-inset-bottom));
+  }
+  .agent-conversation {
+    height: auto;
+    max-height: 38svh;
+    min-height: 0;
+    padding: clamp(14px,3.8vw,24px);
+    border-radius: 24px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .agent-bubble {
+    font-size: clamp(14px,3.8vw,18px);
+    line-height: 1.42;
+    border-radius: 20px;
+    padding: 14px 16px;
+  }
+  .agent-message-name {
+    font-size: clamp(10px,2.8vw,12px);
+  }
+  .agent-response {
+    max-width: min(100%, 560px);
+  }
+  .agent-options {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 10px;
+  }
+  .agent-option,
+  .pill {
+    min-height: 54px;
+    border-radius: 18px;
+    font-size: clamp(14px,3.7vw,17px);
+    text-align: center;
+    justify-content: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number],
+  .agent-input {
+    min-height: 56px;
+    border-radius: 18px;
+    font-size: 16px;
+  }
+  .summary {
+    max-width: min(100%, 520px);
+    padding: clamp(16px,4vw,24px);
+    border-radius: 24px;
+    background: rgba(255,255,255,.9);
+  }
+  .summary-row {
+    font-size: clamp(13px,3.6vw,17px);
+    gap: 16px;
+    padding: 9px 0;
+  }
+  .summary-row .lbl {
+    max-width: 45%;
+    color: rgba(99,114,104,.92);
+  }
+  .summary-row .val {
+    max-width: 55%;
+    overflow-wrap: anywhere;
+  }
+  .btn-row.agent-actions,
+  .btn-row {
+    max-width: min(100%, 560px);
+    gap: 12px;
+  }
+  .btn-primary,
+  .btn-back {
+    min-height: 58px;
+    border-radius: 999px;
+    font-size: clamp(15px,4vw,19px);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-primary {
+    box-shadow: 0 18px 34px rgba(26,71,49,.18);
+  }
+}
+
+@media (max-width: 520px) {
+  .shell {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .card.agent-card,
+  .card {
+    width: 100%;
+    min-height: 100svh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+  .card-header {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  .brand {
+    font-size: clamp(16px,5.1vw,20px);
+  }
+  .step-tag {
+    max-width: 36%;
+    font-size: 11px;
+  }
+  .agent-shell {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  .agent-response,
+  .btn-row.agent-actions {
+    max-width: 100%;
+  }
+  .agent-actions .btn-primary,
+  .agent-actions .btn-back,
+  .btn-primary,
+  .btn-back {
+    width: 100%;
+    max-width: none;
+  }
+  .summary-row {
+    align-items: center;
+  }
+}
