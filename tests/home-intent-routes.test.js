@@ -30,8 +30,8 @@ assert.doesNotMatch(app, /<Route path="\/" element={<Questionnaire \/>} \/>/);
 ].forEach((route) => assert.match(app, new RegExp(`<Route path="${route}" element={<IntentLanding`)));
 
 [
-  'Worried Something Could Stop You From Getting the Apartment?',
-  'Check where your rental profile stands before you spend money applying.',
+  'Worried Bad Credit Could Stop You From Getting Approved for an Apartment?',
+  'See your chances of getting approved and what could help or hurt your chances — before wasting money on application fees.',
   'No Credit Pull',
   'Takes Just a Few Minutes',
   'Based on What You Tell Us',
