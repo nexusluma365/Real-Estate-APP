@@ -702,11 +702,15 @@ input[type=range]:focus { box-shadow: none; }
 @media (max-width: 900px) {
   html, body {
     background: #f6faf7;
-    overscroll-behavior-y: contain;
+    min-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .shell {
     align-items: stretch;
     justify-content: center;
+    display: block;
     min-height: 100svh;
     padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-right));
     overflow: visible;
@@ -714,8 +718,11 @@ input[type=range]:focus { box-shadow: none; }
   .card.agent-card,
   .card {
     width: min(100%, 720px);
+    height: auto;
     min-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    margin: 0 auto;
     border-radius: clamp(22px, 5vw, 34px);
+    overflow: visible;
     box-shadow: 0 18px 48px rgba(26,71,49,.12);
   }
   .card-header {
@@ -749,12 +756,17 @@ input[type=range]:focus { box-shadow: none; }
     gap: clamp(14px,3.2svh,22px);
     padding: 14px clamp(18px,5vw,46px) max(22px, env(safe-area-inset-bottom));
   }
+  .agent-started .agent-shell {
+    padding-bottom: calc(42px + env(safe-area-inset-bottom));
+  }
   .agent-conversation {
     height: auto;
-    max-height: 38svh;
+    max-height: min(32svh, 280px);
     min-height: 0;
     padding: clamp(14px,3.8vw,24px);
     border-radius: 24px;
+    overflow-y: auto;
+    overscroll-behavior: auto;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
   }
@@ -835,10 +847,12 @@ input[type=range]:focus { box-shadow: none; }
   .card.agent-card,
   .card {
     width: 100%;
+    height: auto;
     min-height: 100svh;
     border-radius: 0;
     border-left: 0;
     border-right: 0;
+    overflow: visible;
   }
   .card-header {
     display: grid;
@@ -866,6 +880,12 @@ input[type=range]:focus { box-shadow: none; }
   .agent-shell {
     padding-left: 18px;
     padding-right: 18px;
+  }
+  .agent-started .agent-shell {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+  .agent-started .agent-conversation {
+    max-height: min(28svh, 238px);
   }
   .agent-response,
   .btn-row.agent-actions {
