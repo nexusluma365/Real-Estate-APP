@@ -50,6 +50,8 @@ let listingState = "idle";
 let listingErrorMessage = "";
 let nearbyAreas = [];
 let hasSavedLead = false;
+let loadingSequenceTimer = null;
+let loadingStatusTimer = null;
 const bedroomLabel = n => n === 0 ? "Studio" : (n >= 4 ? "4+ Bedrooms" : n + (n===1?" Bedroom":" Bedrooms"));
 const money = n => "$" + n.toLocaleString("en-US");
 const htmlEscape = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
@@ -617,21 +619,33 @@ function runLoadingSequence(onDone, overlayMode){
   const overlay = document.getElementById("loadingOverlay");
   const statusEl = document.getElementById("loadStatus");
   const bar = document.getElementById("loadBar");
+  if (loadingSequenceTimer) clearInterval(loadingSequenceTimer);
+  if (loadingStatusTimer) clearTimeout(loadingStatusTimer);
+  loadingSequenceTimer = null;
+  loadingStatusTimer = null;
   overlay.classList.remove("hide");
   overlay.classList.toggle("overlay-mode", !!overlayMode);
   const messages = ["Searching apartment communities…","Checking locations…","Comparing your preferences…","Ranking your strongest matches…","Preparing your apartment list…"];
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const step = reduced ? 0 : (overlayMode ? 250 : 440);
   let i = 0;
-  bar.style.width = "6%"; statusEl.textContent = messages[0];
-  const interval = setInterval(()=>{
+  bar.style.width = "6%";
+  statusEl.style.opacity = 1;
+  statusEl.textContent = messages[0];
+  loadingSequenceTimer = setInterval(()=>{
     i++;
     bar.style.width = Math.min(96, (i+1) * (100/messages.length)) + "%";
     if(i < messages.length){
       statusEl.style.opacity = 0;
-      setTimeout(()=>{ statusEl.textContent = messages[i]; statusEl.style.opacity = 1; }, reduced ? 0 : 150);
+      if (loadingStatusTimer) clearTimeout(loadingStatusTimer);
+      loadingStatusTimer = setTimeout(()=>{
+        statusEl.textContent = messages[i];
+        statusEl.style.opacity = 1;
+        loadingStatusTimer = null;
+      }, reduced ? 0 : 130);
     } else {
-      clearInterval(interval);
+      clearInterval(loadingSequenceTimer);
+      loadingSequenceTimer = null;
       bar.style.width = "100%";
       setTimeout(()=>{
         Promise.resolve()
