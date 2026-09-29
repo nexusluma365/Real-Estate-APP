@@ -841,15 +841,27 @@ input[type=range]:focus { box-shadow: none; }
     border-right: 0;
   }
   .card-header {
-    padding-left: 18px;
-    padding-right: 18px;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    row-gap: 8px;
+    padding: 14px 18px 12px;
   }
   .brand {
-    font-size: clamp(16px,5.1vw,20px);
+    width: 100%;
+    justify-content: center;
+    font-size: clamp(18px,5.6vw,22px);
+    line-height: 1.05;
   }
   .step-tag {
-    max-width: 36%;
-    font-size: 11px;
+    width: 100%;
+    max-width: none;
+    overflow: visible;
+    text-align: center;
+    text-overflow: clip;
+    white-space: normal;
+    font-size: 10.5px;
+    line-height: 1.2;
   }
   .agent-shell {
     padding-left: 18px;
