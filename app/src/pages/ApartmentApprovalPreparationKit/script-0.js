@@ -22,6 +22,7 @@
     const sheetCancel = document.getElementById('sheetCancel');
     const sheetConfirm = document.getElementById('sheetConfirm');
     const keysCtaBtn = document.getElementById('keysCtaBtn');
+    const continueListingsLink = document.getElementById('continueListingsLink');
     const pageRoot = document.querySelector('.apartment-prep-page');
     const sheetSub = sheetScrim.querySelector('.sub');
     const sheetTitle = sheetScrim.querySelector('h4');
@@ -48,6 +49,14 @@
     sheetConfirm.addEventListener('click', () => {
       window.location.href = sheetConfirm.dataset.target || realEstateListUrl();
     });
+
+    if (continueListingsLink) {
+      continueListingsLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', city: selectedCity() }); } catch (_e) {}
+        window.location.href = realEstateListUrl();
+      });
+    }
 
     requireUpsellAccess();
 

@@ -150,3 +150,5 @@
 .apartment-prep-page .sheet-scrim.payment-status .sheet-actions{display:none}
 .apartment-prep-page .sheet-scrim.payment-status .sheet h4{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;font-size:28px;font-weight:800;letter-spacing:0;color:#17231c}
 .apartment-prep-page .sheet-scrim.payment-status .sheet .sub{margin:0;color:#5f6f65;font-size:15px;line-height:1.55}
+.apartment-prep-page .continue-listings-link{display:inline-block;margin-top:24px;color:rgba(0,0,0,.4);font-size:14px;font-weight:800;line-height:1.4;text-decoration:underline;text-underline-offset:4px}
+.apartment-prep-page .continue-listings-link:hover,.apartment-prep-page .continue-listings-link:focus-visible{color:rgba(0,0,0,.55);outline:none}
