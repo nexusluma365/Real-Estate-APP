@@ -816,7 +816,9 @@ async function submitLead() {
   const btn = document.getElementById('agentNext');
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'Submitting...';
+    btn.classList.add('is-processing');
+    if (typeof btn.setAttribute === 'function') btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<span class="btn-loader" aria-hidden="true"></span><span class="btn-processing-text">Processing</span>';
   }
   emitAgentActivity('lead_submitting', { handoffStatus: agentState.status });
   const payload = collectPayload();
@@ -838,6 +840,8 @@ async function submitLead() {
     showError(`Something went wrong: ${err.message}. Please try again.`);
     if (btn) {
       btn.disabled = false;
+      btn.classList.remove('is-processing');
+      if (typeof btn.removeAttribute === 'function') btn.removeAttribute('aria-busy');
       btn.innerHTML = 'Continue to Your Approval Odds <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
     }
     isSubmitting = false;
