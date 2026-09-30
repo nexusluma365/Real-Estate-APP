@@ -1,5 +1,10 @@
+// Publishable keys are public by design. The key served to the browser must be
+// in the same mode (test/live) as STRIPE_SECRET_KEY, so switching the secret
+// key in Netlify switches the whole site between test and live payments.
 const TEST_STRIPE_PUBLISHABLE_KEY =
   'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
+const LIVE_STRIPE_PUBLISHABLE_KEY =
+  'pk_live_51UFFsZAYPiGDuG9egfnWWGrgNl3YUSIoTAO9FWv6k0UY9auWSr4irlhvuK3yJ2MZhPCgHdCLFt6hTvaGfeZ416bN00nS4e3cYs';
 
 function stripeKeyMode(key) {
   const value = String(key || '');
@@ -17,6 +22,8 @@ exports.handler = async function handler(event) {
     };
   }
 
+  const secretMode = stripeKeyMode(process.env.STRIPE_SECRET_KEY);
+  const wantedMode = secretMode || 'test';
   const stripePublishableKey =
     [
       process.env.STRIPE_PUBLISHABLE_KEY,
@@ -24,11 +31,10 @@ exports.handler = async function handler(event) {
       process.env.PUBLIC_STRIPE_PUBLISHABLE_KEY,
       process.env.VITE_STRIPE_PUBLISHABLE_KEY,
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-    ].find((key) => stripeKeyMode(key) === 'test') ||
-    TEST_STRIPE_PUBLISHABLE_KEY;
+    ].find((key) => stripeKeyMode(key) === wantedMode) ||
+    (wantedMode === 'live' ? LIVE_STRIPE_PUBLISHABLE_KEY : TEST_STRIPE_PUBLISHABLE_KEY);
 
   const publishableMode = stripeKeyMode(stripePublishableKey);
-  const secretMode = stripeKeyMode(process.env.STRIPE_SECRET_KEY);
   const modeMismatch = secretMode && publishableMode && secretMode !== publishableMode;
 
   return {
@@ -39,7 +45,7 @@ exports.handler = async function handler(event) {
       stripePublishableKey: modeMismatch ? '' : stripePublishableKey,
       stripeMode: publishableMode || null,
       error: modeMismatch
-        ? `Stripe key mode mismatch: browser publishable key is ${publishableMode}, but STRIPE_SECRET_KEY is ${secretMode}. Use matching test keys in Netlify.`
+        ? `Stripe key mode mismatch: browser publishable key is ${publishableMode}, but STRIPE_SECRET_KEY is ${secretMode}. Use matching Stripe keys in Netlify.`
         : stripePublishableKey
         ? null
         : 'STRIPE_PUBLISHABLE_KEY is not configured.',

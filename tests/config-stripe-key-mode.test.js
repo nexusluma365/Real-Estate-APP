@@ -29,16 +29,29 @@ async function run() {
     assert.match(fallbackBody.stripePublishableKey, /^pk_test_/);
     assert.equal(fallbackBody.stripeMode, 'test');
 
-    process.env.STRIPE_PUBLISHABLE_KEY = 'pk_live_should_not_be_used_in_test_mode';
+    // A live publishable key in Netlify is ignored while the secret key is still test.
+    process.env.STRIPE_PUBLISHABLE_KEY = 'pk_live_configured';
+    process.env.STRIPE_SECRET_KEY = 'sk_test_backend';
+    const stillTestRes = await loadHandler()({ httpMethod: 'GET' });
+    const stillTestBody = JSON.parse(stillTestRes.body);
+    assert.equal(stillTestRes.statusCode, 200);
+    assert.equal(stillTestBody.stripeMode, 'test');
+    assert.match(stillTestBody.stripePublishableKey, /^pk_test_/);
+
+    // Switching the secret key to live switches the browser key to live.
     process.env.STRIPE_SECRET_KEY = 'sk_live_backend';
-    const mismatchRes = await loadHandler()({ httpMethod: 'GET' });
-    const mismatchBody = JSON.parse(mismatchRes.body);
-    assert.equal(mismatchRes.statusCode, 409);
-    assert.equal(mismatchBody.ok, false);
-    assert.equal(mismatchBody.stripePublishableKey, '');
-    assert.match(mismatchBody.error, /mode mismatch/i);
-    assert.match(mismatchBody.error, /test/);
-    assert.match(mismatchBody.error, /live/);
+    const liveRes = await loadHandler()({ httpMethod: 'GET' });
+    const liveBody = JSON.parse(liveRes.body);
+    assert.equal(liveRes.statusCode, 200);
+    assert.equal(liveBody.ok, true);
+    assert.equal(liveBody.stripeMode, 'live');
+    assert.equal(liveBody.stripePublishableKey, 'pk_live_configured');
+
+    // With no live key in Netlify, the built-in live publishable key is used.
+    delete process.env.STRIPE_PUBLISHABLE_KEY;
+    const builtInLiveBody = JSON.parse((await loadHandler()({ httpMethod: 'GET' })).body);
+    assert.equal(builtInLiveBody.stripeMode, 'live');
+    assert.match(builtInLiveBody.stripePublishableKey, /^pk_live_51UFFsZ/);
 
     process.env.STRIPE_PUBLISHABLE_KEY = 'pk_test_configured';
     process.env.STRIPE_SECRET_KEY = 'sk_test_backend';
