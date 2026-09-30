@@ -57,4 +57,14 @@ assert.doesNotMatch(html, /Email me these results/);
 assert.doesNotMatch(html, /resendEmailBtn/);
 assert.doesNotMatch(js, /resendEmailBtn/);
 
+// Search dropdown: city/state and price range with an Update CTA.
+assert.match(html, /id="searchEditBtn"[^>]*aria-controls="searchPopover"/);
+assert.match(html, /id="searchPopover"[^>]*role="dialog"/);
+assert.match(html, /id="searchCity"/);
+assert.match(html, /id="searchState"/);
+assert.match(html, /id="searchPrice"/);
+assert.match(html, /id="searchUpdateBtn">Update<\/button>/);
+assert.match(js, /payload\.searchOverride = \{/);
+assert.match(css, /\.search-popover\{position:absolute;/);
+
 console.log('real estate list search controls test passed');

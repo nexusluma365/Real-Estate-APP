@@ -39,6 +39,7 @@ let criteria = {
   area: "",
   style: "Luxury",
   budgetMax: 3000,
+  budgetMin: null,
   bedrooms: 2,
   preferences: ["Modern","Pool","Fitness Center","Balcony","High-Rise","Pet Friendly"],
 };
@@ -65,6 +66,42 @@ function readAnswers(){
   }
 }
 
+const SEARCH_OVERRIDE_KEY = "rrn_listing_search_v1";
+const PRICE_RANGES = [
+  { min: 0, max: 1000, label: "Under $1,000" },
+  { min: 1000, max: 1500, label: "$1,000 – $1,500" },
+  { min: 1500, max: 2000, label: "$1,500 – $2,000" },
+  { min: 2000, max: 2500, label: "$2,000 – $2,500" },
+  { min: 2500, max: 3000, label: "$2,500 – $3,000" },
+  { min: 3000, max: 4000, label: "$3,000 – $4,000" },
+  { min: 4000, max: 6000, label: "$4,000+" },
+];
+const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DC","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+
+function currentLeadId(){
+  const answers = readAnswers();
+  return new URLSearchParams(window.location.search).get("leadId") || answers.lead_id || answers.leadId || "";
+}
+
+// City/price chosen in the search dropdown, kept per lead so reloads keep the same search.
+function readSearchOverride(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(SEARCH_OVERRIDE_KEY) || "null");
+    return saved && saved.city && saved.leadId === currentLeadId() ? saved : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function saveSearchOverride(override){
+  try { localStorage.setItem(SEARCH_OVERRIDE_KEY, JSON.stringify({ ...override, leadId: currentLeadId() })); } catch (_e) {}
+}
+
+function budgetLabel(){
+  const range = PRICE_RANGES.find(r => r.min === criteria.budgetMin && r.max === criteria.budgetMax);
+  return range ? range.label : "Up to " + money(criteria.budgetMax);
+}
+
 function applyAnswerCriteria(){
   const answers = readAnswers();
   const params = new URLSearchParams(window.location.search);
@@ -82,6 +119,13 @@ function applyAnswerCriteria(){
     budgetMax: Number.isFinite(rentBudget) && rentBudget > 0 ? rentBudget : Number.isFinite(urlBudget) && urlBudget > 0 ? urlBudget : criteria.budgetMax,
     bedrooms: answers.beds_needed ? normalizeBedrooms(answers.beds_needed) : urlBeds ? normalizeBedrooms(urlBeds) : criteria.bedrooms,
   };
+  const override = readSearchOverride();
+  if (override) {
+    criteria.city = override.city;
+    criteria.area = override.city;
+    criteria.budgetMax = override.rentBudgetMax || criteria.budgetMax;
+    criteria.budgetMin = override.rentBudgetMax ? override.rentBudgetMin : null;
+  }
 }
 
 function normalizeBedrooms(value){
@@ -214,6 +258,14 @@ async function loadVerifiedApartmentResults(){
         bedrooms: criteria.bedrooms,
       },
     };
+    const searchOverride = readSearchOverride();
+    if (searchOverride) {
+      payload.searchOverride = {
+        city: searchOverride.city,
+        rentBudgetMin: searchOverride.rentBudgetMin,
+        rentBudgetMax: searchOverride.rentBudgetMax,
+      };
+    }
     if (apartmentPrepPaymentIntentId) payload.upsellPaymentIntentId = apartmentPrepPaymentIntentId;
     if (prescreenPaymentIntentId) payload.prescreenPaymentIntentId = prescreenPaymentIntentId;
     let res = await fetchWithTimeout("/.netlify/functions/get-apartment-results", {
@@ -236,6 +288,9 @@ async function loadVerifiedApartmentResults(){
       criteria.area = data.criteria.searchArea || data.criteria.city || criteria.area;
       criteria.style = "Apartment";
       criteria.budgetMax = Number(data.criteria.rentBudget) || criteria.budgetMax;
+      criteria.budgetMin = typeof data.criteria.rentBudgetMin === "number"
+        ? data.criteria.rentBudgetMin
+        : searchOverride && searchOverride.rentBudgetMax === criteria.budgetMax ? searchOverride.rentBudgetMin : null;
       criteria.bedrooms = normalizeBedrooms(data.criteria.bedrooms);
     }
     nearbyAreas = Array.isArray(data.nearbyAreas) ? data.nearbyAreas : [];
@@ -530,7 +585,7 @@ function renderHeroAndSummary(){
     : "We found your matches.";
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
-  document.getElementById("scBudget").textContent = "Up to " + money(criteria.budgetMax);
+  document.getElementById("scBudget").textContent = budgetLabel();
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
   document.getElementById("heroSub").textContent = heroSubText(matchText, bedroomText, cityName);
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
@@ -684,6 +739,85 @@ function selectArea(area){
   document.getElementById("listSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
   runLoadingSequence(refreshResults, true);
 }
+/* ---------- search dropdown (city, state, price range) ---------- */
+const summaryCard = document.getElementById("summaryCard");
+const searchEditBtn = document.getElementById("searchEditBtn");
+const searchPopover = document.getElementById("searchPopover");
+const searchForm = document.getElementById("searchForm");
+const searchCity = document.getElementById("searchCity");
+const searchState = document.getElementById("searchState");
+const searchPrice = document.getElementById("searchPrice");
+const searchError = document.getElementById("searchError");
+
+function setupSearchDropdown(){
+  if (!searchPopover || !searchForm) return;
+  searchState.innerHTML = '<option value="">State</option>' + US_STATES.map(st => `<option value="${st}">${st}</option>`).join("");
+  searchPrice.innerHTML = PRICE_RANGES.map((r, i) => `<option value="${i}">${htmlEscape(r.label)}</option>`).join("");
+  searchEditBtn.addEventListener("click", () => searchPopover.classList.contains("open") ? closeSearchDropdown(true) : openSearchDropdown());
+  document.getElementById("searchCancelBtn").addEventListener("click", () => closeSearchDropdown(true));
+  searchForm.addEventListener("submit", submitSearchDropdown);
+  [searchCity, searchState].forEach(el => el.addEventListener("input", () => { el.removeAttribute("aria-invalid"); searchError.textContent = ""; }));
+  document.addEventListener("click", e => {
+    if (searchPopover.classList.contains("open") && !summaryCard.contains(e.target)) closeSearchDropdown(false);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && searchPopover.classList.contains("open")) closeSearchDropdown(true);
+  });
+}
+
+function openSearchDropdown(){
+  const match = String(criteria.city || "").match(/^(.*?),\s*([A-Za-z]{2})$/);
+  searchCity.value = match ? match[1].trim() : (criteria.city || "");
+  searchState.value = match && US_STATES.includes(match[2].toUpperCase()) ? match[2].toUpperCase() : "";
+  const exact = PRICE_RANGES.findIndex(r => r.min === criteria.budgetMin && r.max === criteria.budgetMax);
+  const covering = PRICE_RANGES.findIndex(r => criteria.budgetMax <= r.max);
+  searchPrice.value = String(exact >= 0 ? exact : covering >= 0 ? covering : PRICE_RANGES.length - 1);
+  searchError.textContent = "";
+  [searchCity, searchState].forEach(el => el.removeAttribute("aria-invalid"));
+  searchPopover.classList.add("open");
+  searchPopover.setAttribute("aria-hidden", "false");
+  searchEditBtn.setAttribute("aria-expanded", "true");
+  setTimeout(() => (searchCity.value ? searchState : searchCity).focus(), 60);
+}
+
+function closeSearchDropdown(returnFocus){
+  searchPopover.classList.remove("open");
+  searchPopover.setAttribute("aria-hidden", "true");
+  searchEditBtn.setAttribute("aria-expanded", "false");
+  if (returnFocus) searchEditBtn.focus();
+}
+
+function submitSearchDropdown(e){
+  e.preventDefault();
+  const city = searchCity.value.replace(/,.*$/, "").replace(/\s+/g, " ").trim();
+  const state = searchState.value;
+  if (!city || !/^[A-Za-z .'-]{2,}$/.test(city)) {
+    searchCity.setAttribute("aria-invalid", "true");
+    searchError.textContent = "Enter a valid city name.";
+    searchCity.focus();
+    return;
+  }
+  if (!state) {
+    searchState.setAttribute("aria-invalid", "true");
+    searchError.textContent = "Choose a state.";
+    searchState.focus();
+    return;
+  }
+  const range = PRICE_RANGES[Number(searchPrice.value)] || PRICE_RANGES[PRICE_RANGES.length - 1];
+  const cityState = `${city.replace(/\b\w/g, ch => ch.toUpperCase())}, ${state}`;
+  closeSearchDropdown(false);
+  const unchanged = cityState === criteria.city && range.max === criteria.budgetMax && range.min === criteria.budgetMin;
+  if (unchanged) return;
+  saveSearchOverride({ city: cityState, rentBudgetMin: range.min, rentBudgetMax: range.max });
+  criteria.city = cityState;
+  criteria.area = cityState;
+  criteria.budgetMin = range.min;
+  criteria.budgetMax = range.max;
+  runLoadingSequence(refreshResults, true);
+}
+
+setupSearchDropdown();
+
 document.getElementById("emptyRefreshBtn").addEventListener("click", ()=>{ runLoadingSequence(refreshResults, true); });
 
 function hideProperty(id){

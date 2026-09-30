@@ -1,5 +1,5 @@
 // GET  /.netlify/functions/get-apartment-results?leadId=...
-// POST /.netlify/functions/get-apartment-results   body: { leadId, answers? }
+// POST /.netlify/functions/get-apartment-results   body: { leadId, answers?, searchOverride? }
 //
 // Produces personalized apartment results from the user's questionnaire.
 // Factual property data comes from Google Places when GOOGLE_PLACES_API_KEY
@@ -91,6 +91,9 @@ function parseRequest(event) {
         }
       : null;
   const requestCriteria = bodyRequestCriteria || queryRequestCriteria;
+  // Explicit city/price change from the listing page's search dropdown. Unlike
+  // requestCriteria (a recovery path), this takes precedence over the saved lead.
+  const searchOverride = body.searchOverride && typeof body.searchOverride === 'object' ? body.searchOverride : null;
   const token = body.token || q.token;
 
   if (token) {
@@ -102,7 +105,7 @@ function parseRequest(event) {
     category = normalizeResultsCategory(data.category);
   }
 
-  return { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria };
+  return { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria, searchOverride };
 }
 
 function normalizeResultsCategory(value) {
@@ -118,6 +121,10 @@ exports.handler = async (event) => {
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
   const { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
+  const searchOverride = parsed.searchOverride ? normalizeSearchOverride(parsed.searchOverride) : null;
+  if (searchOverride && !searchOverride.city) {
+    return errorResponse(400, 'SEARCH_CRITERIA_INVALID', 'Please enter a U.S. city and state, like Austin, TX.');
+  }
 
   if (!leadId) {
     return errorResponse(400, 'LEAD_ID_MISSING', 'We could not find your listing session. Please return to your results and try again.');
@@ -164,7 +171,7 @@ exports.handler = async (event) => {
     }
     if (!lead) return errorResponse(404, 'LEAD_NOT_FOUND', 'No saved questionnaire was found for this listing session.');
 
-    const criteria = buildCriteria(lead, category, requestCriteria || fallbackCriteria);
+    const criteria = buildCriteria(lead, category, requestCriteria || fallbackCriteria, searchOverride);
     if (!criteria.city) {
       return errorResponse(400, 'SEARCH_CRITERIA_MISSING', 'Please enter a U.S. city and state, like Austin, TX.');
     }
@@ -645,14 +652,28 @@ function isAnyUsableCachedResult(cached, criteria) {
   return properties.some((property) => property && property.source === 'Google Places' && property.propertyId && property.name);
 }
 
-function buildCriteria(lead, _category, requestCriteria) {
+function normalizeSearchOverride(raw) {
+  const city = normalizeCityState(clean(raw.city).slice(0, 120));
+  const max = Math.round(Number(raw.rentBudgetMax));
+  const min = Math.round(Number(raw.rentBudgetMin));
+  const rentBudget = Number.isFinite(max) && max > 0 && max <= 50000 ? max : null;
+  return {
+    city,
+    rentBudget,
+    rentBudgetMin: rentBudget && Number.isFinite(min) && min >= 0 && min < rentBudget ? min : null,
+  };
+}
+
+function buildCriteria(lead, _category, requestCriteria, searchOverride) {
   const leadLocation = clean(lead.preferred_city || lead.city);
   const parsedLeadLocation = normalizeCityState(leadLocation);
   const requestCity = clean(requestCriteria && (requestCriteria.city || requestCriteria.location || requestCriteria.area || requestCriteria.searchArea));
   const requestLocation = normalizeCityState(requestCity) || requestCity;
-  const parsedLocation = parsedLeadLocation || leadLocation || requestLocation;
+  const parsedLocation = (searchOverride && searchOverride.city) || parsedLeadLocation || leadLocation || requestLocation;
   const requestBudget = Number(requestCriteria && (requestCriteria.rentBudget || requestCriteria.budgetMax || requestCriteria.budget));
-  const rentBudget = Number(lead.rent_budget) || (Number.isFinite(requestBudget) && requestBudget > 0 ? requestBudget : null);
+  const rentBudget = (searchOverride && searchOverride.rentBudget) ||
+    Number(lead.rent_budget) ||
+    (Number.isFinite(requestBudget) && requestBudget > 0 ? requestBudget : null);
   const requestBedrooms = requestCriteria && (requestCriteria.bedrooms === 0 || requestCriteria.bedrooms ? requestCriteria.bedrooms : requestCriteria.beds);
   const bedrooms = normalizeBedrooms(lead.beds_needed || requestBedrooms);
   return {
@@ -664,6 +685,7 @@ function buildCriteria(lead, _category, requestCriteria) {
         ? 'City/state was not normalized; Google Places will interpret the saved location text.'
         : null,
     rentBudget,
+    rentBudgetMin: searchOverride && searchOverride.rentBudget === rentBudget ? searchOverride.rentBudgetMin : null,
     bedrooms,
     bedroomsLabel: bedroomLabel(bedrooms),
     moveTimeline: clean(lead.move_timeline),

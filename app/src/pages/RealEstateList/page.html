@@ -14,11 +14,40 @@
       <h1 id="heroTitle">Your apartment list is ready.</h1>
       <p class="hero-sub" id="heroSub">We used the area and apartment preferences you shared to find communities worth exploring. Confirm current pricing, availability, and screening details directly with each property.</p>
 
-      <div class="summary-card">
+      <div class="summary-card" id="summaryCard">
         <div class="sc-item"><div class="sc-label">Location</div><div class="sc-value" id="scLocation">—</div></div>
         <div class="sc-item"><div class="sc-label">Style</div><div class="sc-value" id="scStyle">—</div></div>
         <div class="sc-item"><div class="sc-label">Budget</div><div class="sc-value" id="scBudget">—</div></div>
         <div class="sc-item"><div class="sc-label">Bedrooms</div><div class="sc-value" id="scBedrooms">—</div></div>
+        <button class="sc-cta" type="button" id="searchEditBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="searchPopover" aria-label="Change city, state, or price range" title="Change city, state, or price range">Change search</button>
+
+        <div class="search-popover" id="searchPopover" role="dialog" aria-labelledby="searchPopoverTitle" aria-hidden="true">
+          <form id="searchForm" novalidate>
+            <div class="sp-head">
+              <h3 id="searchPopoverTitle">Refine your search</h3>
+              <p>Change your location or price range.</p>
+            </div>
+            <div class="sp-row">
+              <label class="sp-field">
+                <span>City</span>
+                <input id="searchCity" type="text" autocomplete="address-level2" placeholder="Charlotte" maxlength="80" required>
+              </label>
+              <label class="sp-field sp-state">
+                <span>State</span>
+                <select id="searchState" autocomplete="address-level1" required><option value="">State</option></select>
+              </label>
+            </div>
+            <label class="sp-field">
+              <span>Price range</span>
+              <select id="searchPrice"></select>
+            </label>
+            <p class="sp-error" id="searchError" role="alert"></p>
+            <div class="sp-actions">
+              <button type="button" class="btn btn-secondary" id="searchCancelBtn">Cancel</button>
+              <button type="submit" class="btn btn-primary sp-update" id="searchUpdateBtn">Update</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </section>

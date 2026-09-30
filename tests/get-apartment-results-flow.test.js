@@ -580,6 +580,41 @@ async function run() {
     assert(!variedQueries.some((query) => query.includes('New York, NY')));
     assert(!variedQueries.some((query) => query.includes('Mount Vernon, WA')));
 
+    // The listing page's search dropdown explicitly changes city and price range.
+    urls.length = 0;
+    installLegacyGoogleMock(urls, concordPlaces);
+    const override = await loadHandler({
+      lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
+      entitlements: { paid10: true, purchasedCategories: [] },
+    });
+    const overrideRes = await override.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({
+        leadId: 'lead_override',
+        searchOverride: { city: 'Charlotte, North Carolina', rentBudgetMin: 1500, rentBudgetMax: 2000 },
+      }),
+    });
+    const overrideBody = JSON.parse(overrideRes.body);
+    assert.equal(overrideRes.statusCode, 200);
+    assert.equal(overrideBody.criteria.city, 'Charlotte, NC');
+    assert.equal(overrideBody.criteria.rentBudget, 2000);
+    assert.equal(overrideBody.criteria.rentBudgetMin, 1500);
+    const overrideQueries = urls.filter((url) => url.includes('/textsearch/')).map((url) => new URL(url).searchParams.get('query'));
+    assert(overrideQueries.every((query) => query.includes('Charlotte, NC')));
+
+    const badOverride = await loadHandler({
+      lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
+      entitlements: { paid10: true, purchasedCategories: [] },
+    });
+    const badOverrideRes = await badOverride.handler({
+      httpMethod: 'POST',
+      queryStringParameters: null,
+      body: JSON.stringify({ leadId: 'lead_override', searchOverride: { city: 'Nowhere', rentBudgetMax: 2000 } }),
+    });
+    assert.equal(badOverrideRes.statusCode, 400);
+    assert.equal(JSON.parse(badOverrideRes.body).error.code, 'SEARCH_CRITERIA_INVALID');
+
     const postNoAnswers = await loadHandler({
       lead: null,
       entitlements: { paid27: true, purchasedCategories: ['luxury'] },
