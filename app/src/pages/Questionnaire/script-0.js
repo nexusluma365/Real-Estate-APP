@@ -168,7 +168,7 @@ const QUESTIONS = [
     min: 20000,
     max: 500000,
     step: 5000,
-    defaultValue: 75000,
+    placeholder: 'Enter yearly amount',
     required: true,
     prefix: '$',
   },
@@ -180,7 +180,7 @@ const QUESTIONS = [
     min: 500,
     max: 15000,
     step: 100,
-    defaultValue: 2000,
+    placeholder: 'Enter monthly amount',
     required: true,
     prefix: '$',
     suffix: '/mo',
@@ -524,7 +524,7 @@ function renderResponse() {
       <label class="agent-input-label" for="agentInput">${escapeHtml(question.prompt)}</label>
       <div class="agent-money-field">
         <span>${escapeHtml(question.prefix || '')}</span>
-        <input class="agent-input" id="agentInput" type="number" inputmode="numeric" min="${question.min || ''}" max="${question.max || ''}" step="${question.step || 1}" placeholder="${escapeAttr(String(question.defaultValue || ''))}" value="${escapeAttr(current)}" ${question.required ? 'required' : ''}>
+        <input class="agent-input" id="agentInput" type="number" inputmode="numeric" min="${question.min || ''}" max="${question.max || ''}" step="${question.step || 1}" placeholder="${escapeAttr(question.placeholder || '')}" value="${escapeAttr(current)}" ${question.required ? 'required' : ''}>
         ${question.suffix ? `<em>${escapeHtml(question.suffix)}</em>` : ''}
       </div>
     `;
