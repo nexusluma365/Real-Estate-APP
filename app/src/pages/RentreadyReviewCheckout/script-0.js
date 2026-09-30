@@ -41,6 +41,22 @@
     } catch (_e) {}
   }
 
+  // Google Ads conversion for the $10 RentReady Check. Paste the label from the
+  // conversion action's event snippet (send_to: 'AW-18213168150/<label>').
+  var GOOGLE_ADS_ID = 'AW-18213168150';
+  var GOOGLE_ADS_PURCHASE_LABEL = '';
+
+  function trackGooglePurchase(transactionId){
+    try {
+      if (typeof window.gtag !== 'function') return;
+      var purchase = { value: 10.0, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
+      window.gtag('event', 'purchase', Object.assign({ send_to: GOOGLE_ADS_ID }, purchase));
+      if (GOOGLE_ADS_PURCHASE_LABEL) {
+        window.gtag('event', 'conversion', Object.assign({ send_to: GOOGLE_ADS_ID + '/' + GOOGLE_ADS_PURCHASE_LABEL }, purchase));
+      }
+    } catch (_e) {}
+  }
+
   function readEntryIntent(answers){
     if (answers && VALID_ENTRY_INTENTS.indexOf(answers.entry_intent) >= 0) return answers.entry_intent;
     try {
@@ -321,6 +337,7 @@
 
       grantResultsAccess();
       rrTrack('review_purchased', marketingContext(answers));
+      trackGooglePurchase(result.paymentIntent ? result.paymentIntent.id : paymentIntentId);
       if (window.rrnShowPaymentOverlay) {
         rrnShowPaymentOverlay({
           state: 'success',
