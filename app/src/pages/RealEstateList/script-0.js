@@ -363,6 +363,14 @@ function listingFactsHtml(apt, crit){
   return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
 }
 function photoHtml(apt) {
+  if (apt.photo && apt.id) {
+    return `<img src="${htmlEscape(apt.photo)}"
+      alt="${htmlEscape(apt.name || "Apartment community")}"
+      loading="lazy"
+      decoding="async"
+      data-property-id="${htmlEscape(apt.id)}"
+      onerror="listingImageFallback(this)">${photoAttributionHtml(apt)}`;
+  }
   if (apt.id) {
     return listingPhotoFallbackHtml(apt);
   }
@@ -392,12 +400,16 @@ function listingPhotoFallbackHtml(apt){
 }
 function listingImageFallback(img){
   if (!img || !img.parentNode) return;
-  const holder = document.createElement("div");
-  holder.className = "photo-placeholder";
-  holder.setAttribute("role", "img");
-  holder.setAttribute("aria-label", "No property photo available");
-  holder.innerHTML = ICONS.pin;
+  const id = img.dataset && img.dataset.propertyId;
+  const result = id ? currentResults.find(r => r.verified.id === id) : null;
+  const attribution = img.nextElementSibling;
+  if (attribution && attribution.classList.contains("photo-attribution")) attribution.remove();
+  const template = document.createElement("template");
+  template.innerHTML = listingPhotoFallbackHtml(result ? result.verified : null).trim();
+  const holder = template.content.firstElementChild;
   img.replaceWith(holder);
+  // The Google photo failed, so try the verified official-site image resolver.
+  if (result) queueListingImageResolution(holder);
 }
 const imageResolutionQueue = [];
 const imageResolutionActive = new Set();

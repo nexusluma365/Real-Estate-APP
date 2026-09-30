@@ -23,6 +23,31 @@ function details(photoName) {
   });
 }
 
+function legacyDetails(photoRef) {
+  return response(200, {
+    status: 'OK',
+    result: { photos: photoRef ? [{ photo_reference: photoRef }] : [] },
+  });
+}
+
+function isLegacyDetails(url) {
+  return /maps\.googleapis\.com\/maps\/api\/place\/details\/json/.test(String(url));
+}
+
+// Places API (New) cases: the legacy details lookup finds no photos.
+function newApiOnly(fn) {
+  return async (url, options) => (isLegacyDetails(url) ? legacyDetails('') : fn(url, options));
+}
+
+function assertLegacyPhotoRequest(request, photoRef) {
+  const parsed = new URL(request.url);
+  assert.equal(parsed.origin + parsed.pathname, 'https://maps.googleapis.com/maps/api/place/photo');
+  assert.equal(parsed.searchParams.get('photo_reference'), photoRef);
+  assert.equal(parsed.searchParams.get('maxwidth'), '1200');
+  assert.equal(parsed.searchParams.get('key'), 'google_test_key');
+  assert.equal(request.options.redirect, 'follow');
+}
+
 async function loadHandler() {
   const functionPath = require.resolve('../netlify/functions/google-place-image');
   delete require.cache[functionPath];
@@ -68,12 +93,12 @@ async function run() {
 
   try {
     let requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
         ? details('places/place_missing/photos/fresh')
         : image('image/jpeg', 'fresh-image-bytes');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_missing' } });
       assert.equal(res.statusCode, 200);
@@ -93,10 +118,10 @@ async function run() {
 
     process.env.ENABLE_GOOGLE_PLACE_PHOTOS = 'false';
     requests = [];
-    global.fetch = async () => {
+    global.fetch = newApiOnly(async () => {
       requests.push({ url: 'should-not-run', options: {} });
       return image();
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_disabled' } });
       assert.equal(res.statusCode, 503);
@@ -105,10 +130,10 @@ async function run() {
     process.env.ENABLE_GOOGLE_PLACE_PHOTOS = 'true';
 
     requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return image('image/webp', 'webp-bytes');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({
         httpMethod: 'GET',
@@ -125,12 +150,12 @@ async function run() {
     });
 
     requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       if (requests.length === 1) return response(404, { error: { message: 'stale media' } });
       if (requests.length === 2) return details('places/place_stale/photos/fresh');
       return image('image/webp', 'fresh-webp-bytes');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({
         httpMethod: 'GET',
@@ -148,10 +173,10 @@ async function run() {
     });
 
     requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return details('');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_no_photos' } });
       assert.equal(res.statusCode, 204);
@@ -161,12 +186,12 @@ async function run() {
 
     for (const status of [400, 403, 404]) {
       requests = [];
-      global.fetch = async (url, options) => {
+      global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
         ? details(`places/place_${status}/photos/fresh`)
         : response(status, { error: { message: `media ${status}` } });
-      };
+      });
       await withHandler(async (handler) => {
         const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: `place_${status}` } });
         assert.equal(res.statusCode, 204);
@@ -177,12 +202,12 @@ async function run() {
     }
 
     requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
         ? details('places/place_json/photos/fresh')
         : response(200, { photoUri: 'https://lh3.googleusercontent.com/not-used' }, 'application/json');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_json' } });
       assert.equal(res.statusCode, 204);
@@ -191,12 +216,12 @@ async function run() {
     });
 
     requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
         ? details('places/place_html/photos/fresh')
         : response(200, '<html></html>', 'text/html');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_html' } });
       assert.equal(res.statusCode, 204);
@@ -204,16 +229,58 @@ async function run() {
     });
 
     requests = [];
-    global.fetch = async (url, options) => {
+    global.fetch = newApiOnly(async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
         ? details('places/place_empty/photos/fresh')
         : image('image/jpeg', '');
-    };
+    });
     await withHandler(async (handler) => {
       const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_empty' } });
       assert.equal(res.statusCode, 204);
       assert.equal(requests.length, 2);
+    });
+
+    requests = [];
+    global.fetch = newApiOnly(async () => {
+      requests.push({ url: 'should-not-run', options: {} });
+      return image();
+    });
+    await withHandler(async (handler) => {
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_bad', photoName: 'legacy_photo_reference_without_place' } });
+      assert.equal(res.statusCode, 400);
+      assert.equal(requests.length, 0);
+    });
+
+    const legacyRef = 'AWn5SU_legacy_photo_reference_1';
+    requests = [];
+    global.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
+      return image('image/jpeg', 'legacy-image-bytes');
+    };
+    await withHandler(async (handler) => {
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_legacy', photoRef: legacyRef } });
+      assert.equal(res.statusCode, 200);
+      assert.equal(Buffer.from(res.body, 'base64').toString(), 'legacy-image-bytes');
+      assert.equal(requests.length, 1);
+      assertLegacyPhotoRequest(requests[0], legacyRef);
+    });
+
+    requests = [];
+    global.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
+      if (requests.length === 1) return response(403, '', 'text/html');
+      if (requests.length === 2) return legacyDetails('AWn5SU_legacy_photo_reference_fresh');
+      return image('image/jpeg', 'fresh-legacy-bytes');
+    };
+    await withHandler(async (handler) => {
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_legacy_stale', photoRef: legacyRef } });
+      assert.equal(res.statusCode, 200);
+      assert.equal(Buffer.from(res.body, 'base64').toString(), 'fresh-legacy-bytes');
+      assertLegacyPhotoRequest(requests[0], legacyRef);
+      assert.equal(isLegacyDetails(requests[1].url), true);
+      assert.equal(new URL(requests[1].url).searchParams.get('fields'), 'photo');
+      assertLegacyPhotoRequest(requests[2], 'AWn5SU_legacy_photo_reference_fresh');
     });
 
     requests = [];
@@ -222,7 +289,7 @@ async function run() {
       return image();
     };
     await withHandler(async (handler) => {
-      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_bad', photoName: 'legacy_photo_reference_without_place' } });
+      const res = await handler({ httpMethod: 'GET', queryStringParameters: { placeId: 'place_bad_ref', photoRef: 'bad ref/../x' } });
       assert.equal(res.statusCode, 400);
       assert.equal(requests.length, 0);
     });
@@ -244,7 +311,6 @@ async function run() {
     const frontendHtml = '<img src="/.netlify/functions/google-place-image?placeId=place_a" />';
     assert.equal(frontendHtml.includes('google_test_key'), false);
     assert.equal(requests.some((request) => /streetview/i.test(request.url)), false);
-    assert.equal(requests.some((request) => /maps\.googleapis\.com\/maps\/api\/place\/photo/i.test(request.url)), false);
     assert.equal(logs.some((entry) => JSON.stringify(entry).includes('PHOTO FINAL IMAGE')), true);
     assert.equal(JSON.stringify(logs).includes('google_test_key'), false);
     assert.equal(JSON.stringify(warnings).includes('google_test_key'), false);

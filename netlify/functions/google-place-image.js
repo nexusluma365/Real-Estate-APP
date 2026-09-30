@@ -1,6 +1,8 @@
-// GET /.netlify/functions/google-place-image?placeId=...
+// GET /.netlify/functions/google-place-image?placeId=...&photoRef=...
 //
-// Server-side proxy for Google Places (New) photos. The browser never receives
+// Server-side proxy for Google Places photos. Listings come from the legacy
+// Places API, so `photoRef` (a legacy photo_reference) is tried first, then a
+// fresh legacy Place Details lookup, then Places API (New) as a last resort. The browser never receives
 // the Google API key; it only receives a binary image response or a controlled
 // no-photo response.
 
@@ -25,6 +27,7 @@ exports.handler = async (event) => {
 
   const q = event.queryStringParameters || {};
   const inputPhotoName = validPhotoName(q.photoName) ? cleanName(q.photoName) : '';
+  const inputPhotoRef = validPhotoRef(q.photoRef) ? clean(q.photoRef) : '';
   const placeId = clean(q.placeId);
 
   if (!placeId) {
@@ -35,6 +38,22 @@ exports.handler = async (event) => {
   if (q.photoName && !inputPhotoName) {
     logFailure(placeId, 'request', 400, 'invalid_photoName');
     return noPhotoResponse(400);
+  }
+
+  if (q.photoRef && !inputPhotoRef) {
+    logFailure(placeId, 'request', 400, 'invalid_photoRef');
+    return noPhotoResponse(400);
+  }
+
+  if (inputPhotoRef) {
+    const suppliedImage = await fetchLegacyPhoto(inputPhotoRef, key, placeId);
+    if (suppliedImage.ok) return imageResponse(suppliedImage, placeId);
+  }
+
+  const freshPhotoRef = await fetchFreshLegacyPhotoRef(placeId, key);
+  if (freshPhotoRef && freshPhotoRef !== inputPhotoRef) {
+    const freshImage = await fetchLegacyPhoto(freshPhotoRef, key, placeId);
+    if (freshImage.ok) return imageResponse(freshImage, placeId);
   }
 
   if (inputPhotoName) {
@@ -55,6 +74,68 @@ exports.handler = async (event) => {
 
 function googlePlacesApiKey() {
   return String(process.env.GOOGLE_PLACES_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+}
+
+async function fetchFreshLegacyPhotoRef(placeId, key) {
+  const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+  url.searchParams.set('place_id', placeId);
+  url.searchParams.set('fields', 'photo');
+  url.searchParams.set('key', key);
+
+  try {
+    const resp = await fetch(url, { method: 'GET' });
+    const data = await resp.json().catch(() => ({}));
+    const photos = data && data.result && Array.isArray(data.result.photos) ? data.result.photos : [];
+    const fresh = photos.find((photo) => validPhotoRef(photo && photo.photo_reference));
+
+    console.log('PHOTO LEGACY PLACE DETAILS', {
+      placeId,
+      status: resp.status,
+      googleStatus: data && data.status,
+      photoCount: photos.length,
+    });
+
+    if (!resp.ok || (data.status && data.status !== 'OK')) {
+      logFailure(placeId, 'legacy_place_details', resp.status, data.error_message || data.status || 'google_error');
+      return '';
+    }
+    if (!fresh) {
+      logFailure(placeId, 'legacy_place_details', resp.status, 'no_google_photos');
+      return '';
+    }
+    return clean(fresh.photo_reference);
+  } catch (err) {
+    logFailure(placeId, 'legacy_place_details', 'FETCH_ERROR', err.message || String(err));
+    return '';
+  }
+}
+
+async function fetchLegacyPhoto(photoRef, key, placeId) {
+  const url = new URL('https://maps.googleapis.com/maps/api/place/photo');
+  url.searchParams.set('maxwidth', PHOTO_MAX_WIDTH);
+  url.searchParams.set('photo_reference', photoRef);
+  url.searchParams.set('key', key);
+
+  try {
+    const resp = await fetch(url, { method: 'GET', redirect: 'follow' });
+    const contentType = cleanContentType(resp.headers.get('content-type'));
+
+    console.log('PHOTO LEGACY RESPONSE', {
+      placeId,
+      status: resp.status,
+      contentType,
+      redirected: !!resp.redirected,
+    });
+
+    if (resp.ok && contentType.startsWith('image/')) {
+      return imageFromResponse(resp, placeId, contentType);
+    }
+    logFailure(placeId, 'legacy_photo_response', resp.status, resp.ok ? 'non_image_response' : 'photo_not_ok');
+    return { ok: false };
+  } catch (err) {
+    logFailure(placeId, 'legacy_photo_response', 'FETCH_ERROR', err.message || String(err));
+    return { ok: false };
+  }
 }
 
 function googlePlacePhotosEnabled() {
@@ -212,6 +293,10 @@ function clean(value) {
 
 function cleanName(value) {
   return clean(value).replace(/^\/+/, '');
+}
+
+function validPhotoRef(value) {
+  return /^[A-Za-z0-9_-]{20,2048}$/.test(clean(value));
 }
 
 function validPhotoName(value) {

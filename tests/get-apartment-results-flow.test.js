@@ -86,7 +86,12 @@ function legacyPlace({
     user_ratings_total: reviewCount,
     business_status: 'OPERATIONAL',
     types: ['apartment_building', 'point_of_interest', 'establishment'],
-    photos: photoName ? [{ photo_reference: photoName }] : [],
+    photos: photoName
+      ? [{
+          photo_reference: `AWn5SU_legacy_ref_${id}`,
+          html_attributions: ['<a href="https://maps.google.com/maps/contrib/123">Jane Doe</a>'],
+        }]
+      : [],
   };
 }
 
@@ -190,7 +195,10 @@ async function run() {
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
     assert.equal(body.properties[0].propertyId, 'place_concord_1');
     assert.equal(body.properties[0].photoName, null);
-    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1');
+    assert.equal(body.properties[0].photoReference, 'AWn5SU_legacy_ref_place_concord_1');
+    assert.equal(body.properties[0].image, '/.netlify/functions/google-place-image?placeId=place_concord_1&photoRef=AWn5SU_legacy_ref_place_concord_1');
+    assert.deepEqual(body.properties[0].authorAttributions, [{ displayName: 'Jane Doe', uri: 'https://maps.google.com/maps/contrib/123' }]);
+    assert.equal(body.resultsVersion, 2);
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
@@ -200,6 +208,21 @@ async function run() {
     assert(urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
     assert(urls.some((url) => url.includes('/maps/api/place/details/json')));
 
+    const paidBaseCachedResult = {
+      provider: 'google_places',
+      resultsVersion: 2,
+      category: 'questionnaire',
+      criteria: { category: 'questionnaire', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 1600, bedrooms: 1 },
+      properties: Array.from({ length: 8 }, (_, i) => ({
+        propertyId: `paid10_cached_${i + 1}`,
+        name: `Paid Checkout Apartments ${i + 1}`,
+        phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
+        website: `https://paidcheckoutapartments${i + 1}.test`,
+        photoName: `places/paid10_cached_${i + 1}/photos/cached_photo_${i + 1}`,
+        image: `/.netlify/functions/google-place-image?placeId=paid10_cached_${i + 1}&photoName=places%2Fpaid10_cached_${i + 1}%2Fphotos%2Fcached_photo_${i + 1}`,
+        source: 'Google Places',
+      })),
+    };
     const paidBaseCheckout = await loadHandler({
       lead: {
         preferred_city: 'Concord, NC',
@@ -211,20 +234,7 @@ async function run() {
         paid27: false,
         purchasedCategories: [],
       },
-      cached: {
-        provider: 'google_places',
-        category: 'questionnaire',
-        criteria: { category: 'questionnaire', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 1600, bedrooms: 1 },
-        properties: Array.from({ length: 8 }, (_, i) => ({
-          propertyId: `paid10_cached_${i + 1}`,
-          name: `Paid Checkout Apartments ${i + 1}`,
-          phone: `(704) 777-02${String(i + 1).padStart(2, '0')}`,
-          website: `https://paidcheckoutapartments${i + 1}.test`,
-          photoName: `places/paid10_cached_${i + 1}/photos/cached_photo_${i + 1}`,
-          image: `/.netlify/functions/google-place-image?placeId=paid10_cached_${i + 1}&photoName=places%2Fpaid10_cached_${i + 1}%2Fphotos%2Fcached_photo_${i + 1}`,
-          source: 'Google Places',
-        })),
-      },
+      cached: paidBaseCachedResult,
     });
     const paidBaseCheckoutRes = await paidBaseCheckout.handler({
       httpMethod: 'GET',
@@ -236,6 +246,23 @@ async function run() {
     assert.equal(paidBaseCheckoutBody.category, 'questionnaire');
     assert.equal(paidBaseCheckoutBody.properties.length, 8);
     assert.equal(paidBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments 1');
+
+    // Results cached before photo references were saved must be regenerated.
+    urls.length = 0;
+    const staleVersionGoogle = installLegacyGoogleMock(urls, concordPlaces);
+    const { resultsVersion: _staleVersion, ...staleCachedResult } = paidBaseCachedResult;
+    const staleVersion = await loadHandler({
+      lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
+      entitlements: { paid10: true, purchasedCategories: [] },
+      cached: staleCachedResult,
+    });
+    const staleVersionBody = JSON.parse((await staleVersion.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_paid10' },
+    })).body);
+    assert.equal(staleVersionBody.ok, true);
+    assert.equal(staleVersionGoogle.searchCalls, 6);
+    assert.equal(staleVersionBody.properties[0].name, 'Concord Reserve Apartments');
 
     const prepUnlock = await loadHandler({
       lead: {
@@ -428,7 +455,7 @@ async function run() {
     assert.equal(freshBody.properties[0].phone, '(704) 555-0301');
     assert.equal(freshBody.properties[0].website, 'https://new-concord-1.test');
     assert.equal(freshBody.properties[0].photoName, null);
-    assert.match(freshBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_new_1$/);
+    assert.match(freshBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_new_1&photoRef=AWn5SU_legacy_ref_place_new_1$/);
     assert.equal(fresh.savedResults.length, 1);
     assert.equal(newApi.searchCalls, 6);
 

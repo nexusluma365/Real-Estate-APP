@@ -43,7 +43,8 @@ async function run() {
     directions: `https://maps.google.com/?cid=miamigoogle${i + 1}`,
     rating: 4.4,
     reviewCount: 50 + i,
-    photoName: i === 7 ? '' : `places/google_miami_${i + 1}/photos/photo_1`,
+    photoName: null,
+    image: i === 7 ? '' : `/.netlify/functions/google-place-image?placeId=google_miami_${i + 1}&photoRef=AWn5SU_ref_${i + 1}`,
     authorAttributions: i === 0 ? [{ displayName: 'Google contributor', uri: 'https://example.com/attribution' }] : [],
     source: 'Google Places',
     matchScore: 88 - i,
@@ -136,9 +137,11 @@ async function run() {
   assert.equal(getElementById('listSection').style.display, 'block');
   assert.equal(getElementById('resultCount').textContent, '8 matches');
   assert.equal((html.match(/<article class="listing/g) || []).length, 8);
-  assert.equal((html.match(/\/\.netlify\/functions\/google-place-image/g) || []).length, 0);
+  assert.equal((html.match(/<img src="\/\.netlify\/functions\/google-place-image\?placeId=google_miami_\d&amp;photoRef=AWn5SU_ref_\d"/g) || []).length, 7);
+  assert.equal((html.match(/onerror="listingImageFallback\(this\)"/g) || []).length, 7);
   assert.equal((html.match(/data-property-id=/g) || []).length, 8);
-  assert.equal((html.match(/photo-placeholder/g) || []).length, 8);
+  assert.equal((html.match(/photo-placeholder/g) || []).length, 1);
+  assert.equal((html.match(/class="photo-attribution"/g) || []).length, 1);
   assert.doesNotMatch(html, /Apartment search/);
 }
 

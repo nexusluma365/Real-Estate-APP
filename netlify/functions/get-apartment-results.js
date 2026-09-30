@@ -17,6 +17,9 @@ const { getStripe } = require('./_lib/stripe');
 const RESULTS_CATEGORY = 'questionnaire';
 const LEGACY_CATEGORIES = new Set(['modern', 'luxury', 'apartment_prep']);
 const MAX_RESULTS = 8;
+// Bump when the saved listing shape changes so stale cached results regenerate.
+const RESULTS_VERSION = 2;
+const CLOSED_BUSINESS_STATUSES = new Set(['CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY']);
 const GOOGLE_CANDIDATE_LIMIT = 24;
 const VALID_STATE_CODES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
@@ -210,7 +213,7 @@ exports.handler = async (event) => {
     }
 
     const properties = (await rankWithOpenAI(rawProperties, criteria)).slice(0, MAX_RESULTS);
-    const result = { provider: 'google_places', message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
+    const result = { provider: 'google_places', resultsVersion: RESULTS_VERSION, message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
     await saveApartmentResults(leadId, category, result);
     listingLog('LISTINGS SAVED', { leadId, category, count: properties.length });
     return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result });
@@ -362,6 +365,7 @@ async function fetchLegacyPlaceDetails(searchPlace, key) {
     'user_ratings_total',
     'type',
     'business_status',
+    'photo',
   ].join(','));
   url.searchParams.set('key', key);
 
@@ -404,6 +408,7 @@ function realApartmentResults(properties) {
     if (!property || !property.propertyId || !property.name) return false;
     if (seen.has(property.propertyId)) return false;
     seen.add(property.propertyId);
+    if (CLOSED_BUSINESS_STATUSES.has(property.businessStatus)) return false;
     const types = Array.isArray(property.types) ? property.types.join(' ') : '';
     if (bannedTypePattern.test(types)) return false;
     const text = `${property.name} ${property.address || ''}`;
@@ -452,16 +457,19 @@ function normalizePlace(place, criteria) {
   const photos = Array.isArray(place.photos) ? place.photos : [];
   const selectedPhoto = photos.find((photo) => photo && (typeof photo.name === 'string' || typeof photo.photo_reference === 'string')) || null;
   const photoName = selectedPhoto && typeof selectedPhoto.name === 'string' && selectedPhoto.name.startsWith('places/') ? selectedPhoto.name : null;
-  const authorAttributions = selectedPhoto && Array.isArray(selectedPhoto.authorAttributions) ? selectedPhoto.authorAttributions : [];
+  const photoReference = selectedPhoto && typeof selectedPhoto.photo_reference === 'string' ? clean(selectedPhoto.photo_reference) : null;
+  const authorAttributions = selectedPhoto && Array.isArray(selectedPhoto.authorAttributions)
+    ? selectedPhoto.authorAttributions
+    : legacyAttributions(selectedPhoto && selectedPhoto.html_attributions);
   const placeId = place.id || place.place_id || '';
   const name = (place.displayName && place.displayName.text) || place.name || '';
-  const address = place.formattedAddress || place.formatted_address || '';
+  const address = (place.formattedAddress || place.formatted_address || '').replace(/,\s*(USA|United States)$/i, '');
   listingLog('Google Places property photo', {
     property: name,
     placeId,
     hasPhotos: photos.length > 0,
     photoCount: photos.length,
-    firstPhotoResource: photoName,
+    firstPhotoResource: photoName || (photoReference ? 'photo_reference' : null),
   });
   const property = {
     propertyId: placeId,
@@ -471,8 +479,9 @@ function normalizePlace(place, criteria) {
     phone: place.nationalPhoneNumber || place.internationalPhoneNumber || place.formatted_phone_number || place.international_phone_number || '',
     website: place.websiteUri || place.website || '',
     photoName,
+    photoReference,
     authorAttributions,
-    image: newPhotoUrl(photoName, placeId),
+    image: newPhotoUrl(photoName, placeId, photoReference),
     rating: typeof place.rating === 'number' ? place.rating : null,
     reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : typeof place.user_ratings_total === 'number' ? place.user_ratings_total : null,
     directions: place.googleMapsUri || place.url || (placeId ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name || address || placeId)}` : ''),
@@ -493,14 +502,27 @@ function newAddressComponentsToLegacy(components) {
   }));
 }
 
-function newPhotoUrl(name, placeId) {
+function newPhotoUrl(name, placeId, photoReference) {
   const value = clean(name);
   const id = clean(placeId);
+  const ref = clean(photoReference);
   if (!value && !id) return '';
   const url = new URL('/.netlify/functions/google-place-image', 'https://rentready.local');
   if (id) url.searchParams.set('placeId', id);
+  if (ref) url.searchParams.set('photoRef', ref);
   if (value) url.searchParams.set('photoName', value);
   return localUrl(url);
+}
+
+// Legacy photos carry attributions as HTML strings like '<a href="...">Name</a>'.
+function legacyAttributions(htmlAttributions) {
+  if (!Array.isArray(htmlAttributions)) return [];
+  return htmlAttributions.map((html) => {
+    const text = String(html || '');
+    const href = (text.match(/href="([^"]+)"/i) || [])[1] || '';
+    const displayName = text.replace(/<[^>]*>/g, '').trim();
+    return displayName ? { displayName, uri: /^https:\/\//i.test(href) ? href : '' } : null;
+  }).filter(Boolean);
 }
 
 function localUrl(url) {
@@ -601,6 +623,7 @@ function defaultRank(properties, criteria) {
 
 function isUsableCachedResult(cached, criteria) {
   if (!cached || cached.provider !== 'google_places') return false;
+  if (cached.resultsVersion !== RESULTS_VERSION) return false;
   if (!cached.criteria || cached.criteria.city !== criteria.city) return false;
   if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
   if (Number(cached.criteria.rentBudget || 0) !== Number(criteria.rentBudget || 0)) return false;
