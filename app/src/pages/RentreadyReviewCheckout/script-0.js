@@ -7,7 +7,8 @@
   var RESULTS_URL = '/after-payment-results/';
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
-  var PAYMENT_DECLINED_MESSAGE = 'Your Payment Did not go through Please Try again';
+  var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
+  var PAY_BUTTON_LABEL = 'Unlock My RentReady Check — $10';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
     bad_credit: 'Worried about your credit? Your RentReady check looks at more than one part of your rental situation.',
@@ -349,7 +350,7 @@
     } catch (error) {
       if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
       btn.disabled = false;
-      btn.innerHTML = 'Continue to Your Approval Odds <span>→</span>';
+      btn.textContent = PAY_BUTTON_LABEL;
       showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);
     }
   }

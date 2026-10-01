@@ -13,7 +13,7 @@ if (!script) {
   throw new Error('Checkout inline script was not found');
 }
 
-assert.match(script, /Your Payment Did not go through Please Try again/);
+assert.match(script, /Your payment didn't go through\. Please check your card details and try again\./);
 
 function createElement(id) {
   const classes = new Set();

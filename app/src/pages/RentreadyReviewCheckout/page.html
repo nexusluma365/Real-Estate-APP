@@ -19,15 +19,31 @@
   <main class="content">
     <section class="main">
       <div class="hero-copy">
+        <p class="eyebrow">Your RentReady Check Is Ready</p>
+        <h1>See What Could Help or Hurt Your Next Apartment Application</h1>
+        <p class="lead">We reviewed the answers you provided. Unlock your personalized RentReady Check to see what looks good, what may need attention, and what to prepare before you spend money on your next application.</p>
         <p class="intent-context" id="checkoutIntentContext">Save money on Application Fees</p>
-        <h1>See Your Rental Approval Odds Before You Apply.</h1>
-        <p class="lead-kicker">Your Personalized RentReady Check Is Ready</p>
-        <p class="lead">You've answered the questions. Now see what looks good, what may need attention, and what to prepare before your next apartment application.</p>
       </div>
-      <hr class="rule">
 
-      <h2>Payment details</h2>
-      <p class="copy">Finish your one-time RentReady check to see your personalized rental outlook and next steps.</p>
+      <div class="includes">
+        <h2>Your RentReady Check Includes</h2>
+        <ul class="includes-list">
+          <li><b aria-hidden="true">✓</b><span><strong>Know What Property Managers Look For on Applications</strong>See the things they may check before saying yes or no.</span></li>
+          <li><b aria-hidden="true">✓</b><span><strong>See Your Chance of Approval Before You Apply</strong>Know where you stand before wasting money on application fees.</span></li>
+          <li><b aria-hidden="true">✓</b><span><strong>See What Could Stop You From Getting Approved</strong>Find out what may cause a problem before you apply.</span></li>
+          <li><b aria-hidden="true">✓</b><span><strong>Know What You Can Do Next</strong>See simple steps that may help you get ready for your next application.</span></li>
+          <li><b aria-hidden="true">✓</b><span><strong>See Apartment Listings That Fit Your Search</strong>Find apartments in the area you chose, including second-chance options when available.</span></li>
+        </ul>
+      </div>
+
+      <div class="unlock-head">
+        <div>
+          <h2>Unlock Your Results — $10</h2>
+          <p class="unlock-desc">See your chances, what could hold you back, and apartments that fit your search.</p>
+          <p class="unlock-sub">One-time payment. No subscription. No credit pull.</p>
+        </div>
+        <div class="secure-badge"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span><strong>Secure Checkout</strong>Your payment is securely processed.</span></div>
+      </div>
       <div class="payment-form">
         <div>
           <label class="field-label" for="cardNumber">Credit card number</label>
@@ -48,17 +64,18 @@
           </div>
         </div>
       </div>
-      <p class="error" id="paymentError"></p>
+      <p class="error" id="paymentError" role="alert"></p>
       <p class="setup-note" id="setupNote"></p>
 
       <div class="next-step">
-        <button class="cta" id="payBtn" type="button" disabled>Continue to Your Approval Odds <span>→</span></button>
+        <button class="cta" id="payBtn" type="button" disabled>Unlock My RentReady Check — $10</button>
+        <p class="cta-note">Secure payment • One-time $10 charge • Immediate access</p>
       </div>
     </section>
 
     <aside class="summary">
       <div class="summary-head">
-        <p>RentReady Review</p>
+        <p>Order summary</p>
         <h2>Your Rental Readiness Check</h2>
       </div>
       <div class="summary-body">
@@ -66,13 +83,7 @@
           <div><strong>Personalized RentReady Check</strong><span>One-time access · No subscription</span></div>
           <div class="price">$10</div>
         </div>
-        <div class="benefits">
-          <div class="benefit"><b>✓</b><span>See Your Rental Readiness Outlook</span></div>
-          <div class="benefit"><b>✓</b><span>See What May Need Attention</span></div>
-          <div class="benefit"><b>✓</b><span>Know What to Prepare Before Applying</span></div>
-          <div class="benefit"><b>✓</b><span>Know What to Ask Before You Apply</span></div>
-        </div>
-        <p class="plus">Plus: See your next recommended step based on the information you provided.</p>
+        <p class="answers-label">Based on your answers</p>
         <div class="mini-table">
           <div class="mini-row"><span>Applicant</span><strong id="summaryName">Applicant</strong></div>
           <div class="mini-row"><span>City</span><strong id="summaryCity">Not provided</strong></div>

@@ -1,26 +1,17 @@
 
-const ANSWERS_STORAGE_KEY = 'rrn_answers_v1';
 const RESULTS_URL = '/rentready-review-checkout';
 const FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
 
-function loadAnswers() {
-  try { return JSON.parse(sessionStorage.getItem(ANSWERS_STORAGE_KEY) || 'null'); }
-  catch (_e) { return null; }
-}
-
-const answers = loadAnswers();
-
-// Only list steps that reflect information the visitor actually provided.
-const steps = [];
-if (answers && answers.annual_income) steps.push('Income information received');
-if (answers && answers.rent_budget) steps.push('Rent budget received');
-if (answers && answers.credit_score) steps.push('Credit range received');
-if (answers && answers.move_timeline) steps.push('Move timeline received');
-steps.push('RentReady summary prepared');
-
-if (!steps.length) {
-  steps.push('Answers received', 'RentReady summary prepared');
-}
+// These steps describe processing the questionnaire answers only. They must
+// not imply a credit pull, screening report, or landlord review.
+const steps = [
+  'Income information reviewed',
+  'Rental details reviewed',
+  'Credit information reviewed',
+  'Application factors reviewed',
+];
+const STEP_MS = 430;
+const READY_HOLD_MS = 650;
 
 const list = document.getElementById('checklist');
 steps.forEach((label, i) => {
@@ -35,10 +26,23 @@ const progFill = document.getElementById('progFill');
 const statusLine = document.getElementById('statusLine');
 const total = steps.length;
 
+function showReady() {
+  const eyebrow = document.getElementById('eyebrow');
+  const title = document.getElementById('title');
+  const subtitle = document.getElementById('subtitle');
+  if (eyebrow) eyebrow.textContent = 'Review complete';
+  if (title) {
+    title.innerHTML = 'Your RentReady Check <strong>Is Ready</strong>';
+    title.classList.add('is-ready');
+  }
+  if (subtitle) subtitle.textContent = 'Taking you to your RentReady Check now.';
+}
+
 let i = 0;
 function tick() {
   if (i >= total) {
-    statusLine.textContent = 'Redirecting to your results...';
+    showReady();
+    statusLine.textContent = 'Opening your RentReady Check...';
     try {
       sessionStorage.setItem(FLOW_ACCESS_KEY, JSON.stringify({
         step: 'prescreen-checkout',
@@ -46,13 +50,13 @@ function tick() {
         at: Date.now(),
       }));
     } catch (_e) {}
-    setTimeout(() => { window.location.href = RESULTS_URL; }, 250);
+    setTimeout(() => { window.location.href = RESULTS_URL; }, READY_HOLD_MS);
     return;
   }
   document.getElementById('row-' + i).classList.add('done');
   i++;
   progFill.style.width = Math.round((i / total) * 100) + '%';
   statusLine.textContent = i < total ? 'Reviewing your answers...' : 'Almost ready...';
-  setTimeout(tick, 260);
+  setTimeout(tick, STEP_MS);
 }
-setTimeout(tick, 220);
+setTimeout(tick, 260);
