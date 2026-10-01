@@ -12,6 +12,7 @@ for (const file of files) {
 
   assert.doesNotMatch(html, /<span class="field-label">Country<\/span>/);
   assert.doesNotMatch(html, /<div class="country-field">United States<\/div>/);
+  const visibleText = html.replace(/<[^>]+>/g, '');
 
   [
     'Your RentReady Check Is Ready',
@@ -39,7 +40,14 @@ for (const file of files) {
     'Your Rental Readiness Check',
     'Personalized RentReady Check',
     'This is not a rental application, landlord approval, or guarantee of approval.',
-  ].forEach((text) => assert.ok(html.includes(text), `${text} should be present`));
+    // Mobile-only compact copy.
+    'We reviewed your answers. Unlock your personalized RentReady Check to see where you stand before your next apartment application.',
+    'See Apartments That Fit Your Search',
+    'Second-chance options when available.',
+    'See your results and apartments that fit your search.',
+    'One-time payment • No subscription • No credit pull',
+    'Based on the answers you just provided.',
+  ].forEach((text) => assert.ok(text.includes('<') ? html.includes(text) : visibleText.includes(text), `${text} should be present`));
 
   assert.doesNotMatch(html, /RentReady Outlook/);
   assert.doesNotMatch(html, /One-time personalized review/);
