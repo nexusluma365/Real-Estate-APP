@@ -233,9 +233,9 @@ async function handleEmailCreditKit() {
   if (!answers) {
     document.getElementById('content').innerHTML = `
       <div class="card center">
-        <div class="eyebrow">Pre-Screen Required</div>
-        <div class="h2">Complete your RentReady pre-screen first.</div>
-        <a class="btn-primary" href="/after-payment-results/">Go To My Pre-Screen <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <div class="eyebrow">RentReady Results Required</div>
+        <div class="h2">Complete your RentReady Results first.</div>
+        <a class="btn-primary" href="/after-payment-results/">Go To My RentReady Results <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       </div>`;
     return;
   }

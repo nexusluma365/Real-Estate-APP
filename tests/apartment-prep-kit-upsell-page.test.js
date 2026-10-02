@@ -137,7 +137,7 @@ async function run() {
 
   assert.deepEqual(declined.chargeCalls, ['apartment_prep']);
   assert.equal(declined.elements.sheetScrim.classList.contains('payment-failed'), true);
-  assert.equal(declined.elements.sheetScrim.title.textContent, 'Sorry We Having Trouble, but No worries');
+  assert.equal(declined.elements.sheetScrim.title.textContent, 'We Couldn’t Complete Your Purchase Yet');
   assert.deepEqual(declined.grants, [
     { step: 'apartment-list', details: { status: 'upsell-declined', city: 'Miami' } },
   ]);
@@ -146,7 +146,7 @@ async function run() {
 }
 
 run()
-  .then(() => console.log('apartment prep kit upsell page test passed'))
+  .then(() => console.log('second chance rental plan upsell page test passed'))
   .catch((err) => {
     console.error(err);
     process.exit(1);

@@ -6,7 +6,7 @@ import { useLegacyPage } from '../../legacy/useLegacyPage';
 
 export default function Home() {
   const containerRef = useLegacyPage({
-    title: 'RentReady - Know Where You Stand Before You Apply',
+    title: 'RentReady - See Where You Stand Before You Apply',
     styles,
     bodyHtml,
     scripts: [script0],

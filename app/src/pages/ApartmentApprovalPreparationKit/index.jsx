@@ -1,4 +1,4 @@
-// Integrated legacy page source: Apartment Approval Preparation Kit.
+// Integrated legacy page source: Second Chance Rental Plan.
 // The imported .html/.css/.js files are the source of truth for this route.
 import bodyHtml from './page.html?raw';
 import styles from './page.css?raw';
@@ -8,7 +8,7 @@ import { useLegacyPage } from '../../legacy/useLegacyPage';
 
 export default function ApartmentApprovalPreparationKit() {
   const containerRef = useLegacyPage({
-    title: "RentReady — Apartment Approval Preparation Kit",
+    title: "RentReady — Second Chance Rental Plan",
     headExtras,
     styles,
     bodyHtml,

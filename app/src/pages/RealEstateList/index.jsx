@@ -8,7 +8,7 @@ import { useLegacyPage } from '../../legacy/useLegacyPage';
 
 export default function RealEstateList() {
   const containerRef = useLegacyPage({
-    title: "RentReady — Your Apartment Matches",
+    title: "RentReady — Your Apartment Options",
     headExtras,
     styles,
     bodyHtml,

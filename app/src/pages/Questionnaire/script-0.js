@@ -66,10 +66,10 @@ const QUESTIONS = [
   {
     id: 'welcome',
     field: null,
-    prompt: "I'll ask you a few quick questions about what you're looking for and where you currently stand.",
+    prompt: "I'll ask a few quick questions about your situation and the apartment you're looking for.",
     helper: 'No credit pull. No approval promise. No guarantee.',
     type: 'start',
-    nextLabel: 'Start',
+    nextLabel: 'Start My RentReady Check',
   },
   {
     id: 'first_name',
@@ -218,10 +218,10 @@ const QUESTIONS = [
   {
     id: 'review',
     field: null,
-    prompt: 'Your RentReady check is ready to review.',
-    helper: 'Review your answers, then continue to see where your rental profile stands. This is not a landlord approval or rental application.',
+    prompt: 'Your answers are ready to review.',
+    helper: 'Check your answers, then continue to get your results. This is not a landlord approval or rental application.',
     type: 'review',
-    nextLabel: 'Continue to Your Approval Odds',
+    nextLabel: 'Get My Results',
   },
 ];
 
@@ -842,7 +842,7 @@ async function submitLead() {
       btn.disabled = false;
       btn.classList.remove('is-processing');
       if (typeof btn.removeAttribute === 'function') btn.removeAttribute('aria-busy');
-      btn.innerHTML = 'Continue to Your Approval Odds <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
+      btn.innerHTML = 'Get My Results <span class="ic"><svg width="16" height="16" style="stroke:#fff"><use href="#i-right"/></svg></span>';
     }
     isSubmitting = false;
   }

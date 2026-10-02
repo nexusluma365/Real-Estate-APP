@@ -8,11 +8,11 @@ const css = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/page.cs
 const js = fs.readFileSync(path.join(root, 'app/src/pages/Questionnaire/script-0.js'), 'utf8');
 
 assert.ok(html.includes('data-agent-number-one'), 'questionnaire should mount Aria flow');
-assert.ok(html.includes("Let's See Where You Stand Before You Apply"), 'intro should use rental-readiness headline');
-assert.ok(html.includes('Answer a few quick questions about your apartment search, income, credit range, and rental situation.'), 'intro should use rental-readiness supporting copy');
+assert.ok(html.includes("Let's See Where You Stand"), 'intro should use see-where-you-stand headline');
+assert.ok(html.includes("Tell us about your apartment search and rental situation. We'll use your answers to prepare your RentReady Results and help you understand what could help or hurt your next application."), 'intro should use RentReady Results supporting copy');
 assert.ok(html.includes('aria-robot'), 'decorative ARIA robot should be present');
 assert.ok(html.includes('Takes Just a Few Minutes'), 'agent should show updated trust row');
-assert.ok(html.includes('Your Information, Your Outlook'), 'agent should show updated trust row');
+assert.ok(html.includes('Based on What You Tell Us'), 'agent should show updated trust row');
 assert.ok(html.includes('Final approval and rental requirements are determined by each property.'), 'agent should keep final approval disclaimer');
 assert.ok(html.includes('agentConversation'), 'chat transcript mount should exist');
 assert.ok(html.includes('agentResponseMount'), 'one-question response mount should exist');

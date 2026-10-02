@@ -44,6 +44,7 @@
   .welcome-line .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 6px rgba(28,140,99,.12);}
   .hero h1{max-width:700px;margin-left:auto;margin-right:auto;font-size:clamp(46px,6.2vw,76px);line-height:.96;font-weight:800;color:#1d1d1f;}
   .hero-sub{max-width:620px;margin:24px auto 0;font-size:18px;line-height:1.55;font-weight:600;color:#46514B;}
+  .hero-note{max-width:620px;margin:12px auto 0;font-size:16px;line-height:1.5;font-weight:700;color:var(--good);}
   @media (max-width:760px){
     .hero{min-height:640px;background:
       linear-gradient(180deg,rgba(255,255,255,.96) 0%,rgba(255,255,255,.84) 44%,rgba(255,255,255,.24) 100%),

@@ -22,11 +22,13 @@
     const sheetCancel = document.getElementById('sheetCancel');
     const sheetConfirm = document.getElementById('sheetConfirm');
     const keysCtaBtn = document.getElementById('keysCtaBtn');
+    const purchaseButtons = Array.from(document.querySelectorAll('[data-upsell-purchase]')).concat(keysCtaBtn ? [keysCtaBtn] : []);
     const continueListingsLink = document.getElementById('continueListingsLink');
+    const continueListingsLinks = Array.from(document.querySelectorAll('[data-continue-listings]')).concat(continueListingsLink ? [continueListingsLink] : []);
     const pageRoot = document.querySelector('.apartment-prep-page');
     const sheetSub = sheetScrim.querySelector('.sub');
     const sheetTitle = sheetScrim.querySelector('h4');
-    const originalConfirmText = 'Continue to Listings';
+    const originalConfirmText = 'Continue to Apartment Options';
 
     if (learnMoreBtn) {
       learnMoreBtn.addEventListener('click', (e) => {
@@ -34,7 +36,11 @@
         scrollToHowSection();
       });
     }
-    if (keysCtaBtn) keysCtaBtn.addEventListener('click', handleApartmentPrepPurchase);
+    purchaseButtons.forEach((button) => {
+      if (!button || button.dataset.purchaseBound === '1') return;
+      button.dataset.purchaseBound = '1';
+      button.addEventListener('click', handleApartmentPrepPurchase);
+    });
     sheetCancel.addEventListener('click', () => {
       sheetScrim.classList.remove('open');
       resetSheetMessage();
@@ -50,13 +56,14 @@
       window.location.href = sheetConfirm.dataset.target || realEstateListUrl();
     });
 
-    if (continueListingsLink) {
-      continueListingsLink.addEventListener('click', (e) => {
+    continueListingsLinks.forEach((link) => {
+      if (!link) return;
+      link.addEventListener('click', (e) => {
         e.preventDefault();
         try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', city: selectedCity() }); } catch (_e) {}
         window.location.href = realEstateListUrl();
       });
-    }
+    });
 
     requireUpsellAccess();
 
@@ -97,15 +104,13 @@
     }
 
     async function handleApartmentPrepPurchase() {
-      if (!keysCtaBtn || keysCtaBtn.dataset.busy === '1') return;
+      if (!purchaseButtons.length || purchaseButtons.some((button) => button && button.dataset.busy === '1')) return;
       if (!window.rrnLeadId || !rrnLeadId()) {
         showDeclinedPopup();
         return;
       }
 
-      keysCtaBtn.dataset.busy = '1';
-      keysCtaBtn.classList.add('is-loading');
-      keysCtaBtn.disabled = true;
+      setCheckoutButtonsBusy(true);
       showPaymentStatus('processing');
 
       let status = 'failed';
@@ -161,10 +166,21 @@
     }
 
     function resetCheckoutButton() {
-      if (!keysCtaBtn) return;
-      keysCtaBtn.classList.remove('is-loading');
-      keysCtaBtn.disabled = false;
-      keysCtaBtn.dataset.busy = '0';
+      setCheckoutButtonsBusy(false);
+    }
+
+    function setCheckoutButtonsBusy(isBusy) {
+      purchaseButtons.forEach((button) => {
+        if (!button) return;
+        if (button.classList && typeof button.classList.toggle === 'function') {
+          button.classList.toggle('is-loading', isBusy);
+        } else if (button.classList) {
+          if (isBusy) button.classList.add('is-loading');
+          else button.classList.remove('is-loading');
+        }
+        button.disabled = isBusy;
+        button.dataset.busy = isBusy ? '1' : '0';
+      });
     }
 
     function showDeclinedPopup() {
@@ -183,14 +199,14 @@
       if (state === 'success') {
         sheetScrim.classList.add('payment-success');
         sheetTitle.textContent = 'Thank You';
-        sheetSub.textContent = 'Your RentReady Kit download link is being sent to your email. Taking you to your apartment listings now.';
+        sheetSub.textContent = 'Your Second Chance Rental Plan download link is being sent to your email. Taking you to your apartment options now.';
       } else if (state === 'failed') {
         sheetScrim.classList.add('payment-failed');
-        sheetTitle.textContent = 'Sorry We Having Trouble, but No worries';
-        sheetSub.textContent = 'Taking you to your apartment listings now.';
+        sheetTitle.textContent = 'We Couldn’t Complete Your Purchase Yet';
+        sheetSub.textContent = 'Taking you to your apartment options now.';
       } else {
         sheetScrim.classList.add('payment-processing');
-        sheetTitle.textContent = 'Processing your RentReady Kit';
+        sheetTitle.textContent = 'Processing your Second Chance Rental Plan';
         sheetSub.textContent = 'Please wait while we complete your $47 purchase.';
       }
       sheetScrim.classList.add('open');
@@ -220,8 +236,8 @@
       if (pageRoot) pageRoot.classList.remove('is-payment-overlay-open');
       sheetScrim.classList.remove('auto-redirect');
       sheetScrim.classList.remove('payment-status', 'payment-processing', 'payment-success', 'payment-failed');
-      sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
-      sheetSub.textContent = `You can continue to your RentReady listings for ${selectedCity()} and try the Apartment Approval Preparation Kit again when you’re ready.`;
+      sheetTitle.textContent = "We Couldn’t Complete Your Purchase Yet.";
+      sheetSub.textContent = `You can continue to apartment options for ${selectedCity()} and try the Second Chance Rental Plan again when you’re ready.`;
       sheetConfirm.textContent = originalConfirmText;
       delete sheetConfirm.dataset.target;
     }

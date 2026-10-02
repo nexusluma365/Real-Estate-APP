@@ -8,7 +8,7 @@ import { useLegacyPage } from '../../legacy/useLegacyPage';
 
 export default function AfterPaymentResults() {
   const containerRef = useLegacyPage({
-    title: "RentReady Network — Your rental profile scan",
+    title: "RentReady Network — Your RentReady Results",
     headExtras,
     styles,
     bodyHtml,

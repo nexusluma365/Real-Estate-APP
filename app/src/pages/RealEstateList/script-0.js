@@ -580,9 +580,7 @@ function renderHeroAndSummary(){
   const cityName = cityLabel ? cityLabel.split(",")[0].trim() || cityLabel : "";
   const matchText = `${currentResults.length} ${currentResults.length === 1 ? "apartment community" : "apartment communities"}`;
   const bedroomText = bedroomLabel(criteria.bedrooms).toLowerCase();
-  document.getElementById("heroTitle").textContent = cityName
-    ? `We found your ${cityName} matches.`
-    : "We found your matches.";
+  document.getElementById("heroTitle").textContent = "Your Apartment Options";
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = budgetLabel();
@@ -599,7 +597,7 @@ function heroSubText(matchText, bedroomText, cityName){
     : "Loading your saved RentReady listing criteria.";
   if ((listingState === "empty" || listingState === "error") && serverLoadMessage) return serverLoadMessage;
   return criteria.city
-    ? `${matchText} matched what you're looking for — ${bedroomText}, ${cityName || criteria.city}. Confirm current pricing and availability directly with each property.`
+    ? "We used the area and apartment preferences you shared to find communities worth exploring. Confirm current pricing, availability, and screening details directly with each property."
     : "Enter a city and state to search verified apartment communities.";
 }
 

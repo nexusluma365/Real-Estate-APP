@@ -207,9 +207,9 @@ function renderSkipped() {
     <div class="card">
       <div class="eyebrow">Continuing Without The Game Plan</div>
       <div class="h2">No problem — you can pick this up again any time.</div>
-      <div class="p">Your $10 pre-screen results are still yours. Here's what's next.</div>
+      <div class="p">Your $10 RentReady Results are still yours. Here's what's next.</div>
       <a class="btn-secondary" href="${MEMBERSHIP_URL}">See RentReady Support →</a>
-      <a class="small-link" href="${RESULTS_URL}">Back to my pre-screen results</a>
+      <a class="small-link" href="${RESULTS_URL}">Back to my RentReady Results</a>
     </div>
   `;
 }
@@ -325,10 +325,10 @@ function renderUnlocked(answers) {
   if (!answers) {
     container.innerHTML = `
       <div class="card center">
-        <div class="eyebrow">Pre-Screen Required</div>
-        <div class="h2">Complete your RentReady pre-screen first.</div>
-        <div class="p">Your Game Plan is built from your pre-screen results.</div>
-        <a class="btn-primary" href="${RESULTS_URL}">Go To My Pre-Screen <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <div class="eyebrow">RentReady Results Required</div>
+        <div class="h2">Complete your RentReady Results first.</div>
+        <div class="p">Your Game Plan is built from your RentReady Results.</div>
+        <a class="btn-primary" href="${RESULTS_URL}">Go To My RentReady Results <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       </div>`;
     return;
   }
@@ -342,10 +342,10 @@ function renderUnlocked(answers) {
   if (!ent || !ent.paid10) {
     container.innerHTML = `
       <div class="card center">
-        <div class="eyebrow">Pre-Screen Required</div>
-        <div class="h2">Complete your RentReady pre-screen first.</div>
-        <div class="p">Your Game Plan is built from your pre-screen results.</div>
-        <a class="btn-primary" href="${RESULTS_URL}">Go To My Pre-Screen <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <div class="eyebrow">RentReady Results Required</div>
+        <div class="h2">Complete your RentReady Results first.</div>
+        <div class="p">Your Game Plan is built from your RentReady Results.</div>
+        <a class="btn-primary" href="${RESULTS_URL}">Go To My RentReady Results <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       </div>`;
     return;
   }

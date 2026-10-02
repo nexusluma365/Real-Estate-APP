@@ -30,8 +30,10 @@ assert.doesNotMatch(app, /<Route path="\/" element={<Questionnaire \/>} \/>/);
 ].forEach((route) => assert.match(app, new RegExp(`<Route path="${route}" element={<IntentLanding`)));
 
 [
-  'Worried Bad Credit Could Stop You From Getting Approved for an Apartment?',
-  'See your chances of getting approved and what could help or hurt your chances — before wasting money on application fees.',
+  'SECOND-CHANCE APARTMENT SEARCH',
+  'Looking for a Second-Chance Apartment?',
+  'See where you stand before you apply — and find apartment options that may fit your situation.',
+  'SEE WHERE I STAND',
   'No Credit Pull',
   'Takes Just a Few Minutes',
   'Based on What You Tell Us',
@@ -70,7 +72,7 @@ assert.doesNotMatch(app, /<Route path="\/" element={<Questionnaire \/>} \/>/);
   'Apartment Application Denied? Know What to Do Next | RentReady',
   'Do You Make Enough to Rent the Apartment? | RentReady',
   'First Apartment With Little or No Credit? Start Here | RentReady',
-  'Will You Get Approved for an Apartment? Check First | RentReady',
+  'Wondering About Apartment Approval? Check First | RentReady',
   'Looking for Second Chance Apartments? Start With Your Rental Situation | RentReady',
 ].forEach((title) => assert.ok(intents.includes(title), `${title} SEO title should be configured`));
 
@@ -80,8 +82,8 @@ assert.match(intentIndex, /writeIntent\(intentKey\)/);
 assert.match(homeScript, /rrn_entry_intent_v1/);
 assert.match(questionnaireScript, /entry_intent: ensureEntryIntent\(\)/);
 assert.match(checkoutHtml, /id="checkoutIntentContext"/);
-assert.match(checkoutScript, /Worried about your credit\? Your RentReady check looks at more than one part of your rental situation\./);
-assert.match(checkoutScript, /Save money on Application Fees/);
+assert.match(checkoutScript, /Worried about your credit\? Second-chance options included when available\./);
+assert.match(checkoutScript, /general_renter: 'Second-chance options included when available\.'/);
 
 [
   'intent_landing_view',

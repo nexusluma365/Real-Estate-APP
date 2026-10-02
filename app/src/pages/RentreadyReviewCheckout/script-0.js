@@ -8,18 +8,18 @@
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
-  var PAY_BUTTON_LABEL = 'Unlock My RentReady Check — $10';
+  var PAY_BUTTON_LABEL = 'UNLOCK MY RENTREADY RESULTS — $10';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
-    bad_credit: 'Worried about your credit? Your RentReady check looks at more than one part of your rental situation.',
-    eviction: 'Renting after an eviction? See what may be worth checking before your next application.',
-    broken_lease: 'Have a past broken lease? See what may need attention before you apply again.',
-    denied_application: 'Recently denied? Use this check to better understand what to prepare before your next application.',
-    income_requirements: 'Not sure if your income fits your rent target? Your RentReady check will help you see the numbers together.',
-    no_credit: 'Little or no credit history? See what you may want to prepare before your first application.',
-    approval_requirements: "Wondering if you're ready to apply? See how the rental information you provided fits together.",
-    second_chance: 'Looking for another chance to rent? Start by understanding your current rental situation.',
-    general_renter: 'Save money on Application Fees',
+    bad_credit: 'Worried about your credit? Second-chance options included when available.',
+    eviction: 'Renting after an eviction? Second-chance options included when available.',
+    broken_lease: 'Have a past broken lease? Second-chance options included when available.',
+    denied_application: 'Recently denied? Second-chance options included when available.',
+    income_requirements: 'Second-chance options included when available.',
+    no_credit: 'Little or no credit history? Second-chance options included when available.',
+    approval_requirements: 'Second-chance options included when available.',
+    second_chance: 'Second-chance options included when available.',
+    general_renter: 'Second-chance options included when available.',
   };
   var stripe = null;
   var elements = null;
@@ -279,7 +279,7 @@
     btn.textContent = 'Starting secure checkout...';
     if (window.rrnShowPaymentOverlay) {
       rrnShowPaymentOverlay({
-        title: 'Processing your RentReady Check',
+        title: 'Unlocking your results',
         message: 'Please wait while we securely confirm your $10 payment.',
       });
     }
@@ -343,7 +343,7 @@
         rrnShowPaymentOverlay({
           state: 'success',
           title: 'Thank You',
-          message: 'Your RentReady Check is ready. Taking you to your results now.',
+          message: 'Your results are unlocked. Taking you to them now.',
         });
       }
       deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);

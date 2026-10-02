@@ -13,8 +13,8 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
   'Reviewing credit-related factors',
   'Organizing the information you shared',
   'Comparing common rental screening factors',
-  'Preparing your personalized rental outlook',
-  'YOUR RENTREADY OUTLOOK IS READY',
+  'Preparing your personalized RentReady Results',
+  'YOUR RENTREADY RESULTS ARE READY',
 ].forEach(text => assert.match(html, new RegExp(text)));
 
 [
@@ -34,28 +34,31 @@ const js = fs.readFileSync(path.join(root, 'app/src/pages/AfterPaymentResults/sc
   'matchingApartmentsCta',
 ].forEach(id => assert.match(html, new RegExp(`id="${id}"`)));
 
-assert.match(html, /YOUR RENTAL READINESS OUTLOOK/i);
+assert.match(html, /WHERE YOU STAND/i);
 assert.match(html, /WHAT YOUR RATING MEANS/i);
-assert.match(html, /YOUR RENTREADY CHECK IS COMPLETE/i);
+assert.match(html, /<h1>Here's Where You Stand<\/h1>/);
+assert.match(html, /See what looks good, what may need attention, and what you can do before your next apartment application\./);
 const confirmationEmailMessage = 'We’ve also sent a confirmation email to the email address you provided. If you don’t see it in your inbox, please check your spam or junk folder.';
 assert.equal((html.match(new RegExp(confirmationEmailMessage, 'g')) || []).length, 2);
 assert.match(html, /id="modalOutlookCopy"[\s\S]*?<p class="results-email-note">We’ve also sent a confirmation email/);
 assert.match(html, /id="outlookCopy"[\s\S]*?<p class="outlook-email-note">We’ve also sent a confirmation email/);
-assert.match(html, /Here's Where You Stand\./);
-assert.match(html, /View Your Rental Outlook ↓/);
+assert.match(html, /View Your Results ↓/);
 assert.match(html, /CONTINUE TO APARTMENT OPTIONS/);
 assert.match(html, /It is not a property approval or credit decision/);
 assert.match(html, /YOUR NEXT STEP/);
-assert.match(html, /Before You Apply Again, Prepare Your Rental Profile\./);
-assert.match(html, /Your RentReady Review showed you where you currently stand\./);
-assert.match(html, /No need to start over — your search details move forward with you\./);
-assert.match(html, /PREPARE FOR MY NEXT APPLICATION →/);
-assert.doesNotMatch(html, /No thanks — continue to apartment listings/);
-assert.doesNotMatch(html, /id="continueListingsLink"/);
-assert.match(html, /Your RentReady review stays with you as you continue your apartment search\./);
+assert.match(html, /You’re One Step Away From Your Apartment Options/);
+assert.match(html, /Your RentReady Results are complete\. Continue to the next step to see how you can prepare for your apartment search and move forward to your apartment options\./);
+assert.match(html, /Your search details are saved and ready to go\./);
+assert.match(html, /CONTINUE TO MY APARTMENT OPTIONS →/);
+assert.doesNotMatch(html, /You can prepare further with the optional RentReady Prep Kit or continue to apartment options based on your search\./);
+assert.doesNotMatch(html, /SEE THE RENTREADY PREP KIT — \$47/);
+assert.doesNotMatch(html, /Ready to Continue Your Apartment Search\?/);
+assert.doesNotMatch(html, /Want Help Preparing Before You Apply\?/);
+assert.doesNotMatch(html, /SEE APARTMENTS THAT FIT MY SEARCH/);
+assert.match(html, /Your results stay with you as you continue your apartment search\./);
 assert.match(html, /YOU'RE READY FOR THE NEXT STEP/);
 assert.match(html, /Keep Your Search Moving With Better Information\./);
-assert.match(html, /You now know where your profile stands\. When you continue to an apartment list/);
+assert.match(html, /You now know where you stand\. When you continue to an apartment list/);
 assert.match(html, /See What Could Affect Approval/);
 assert.match(html, /Know which parts of your profile may get a closer look\./);
 assert.match(html, /Know What to Have Ready/);
