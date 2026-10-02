@@ -8,18 +8,18 @@
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
-  var PAY_BUTTON_LABEL = 'UNLOCK MY RENTREADY RESULTS — $10';
+  var PAY_BUTTON_LABEL = 'UNLOCK MY RESULTS — $10';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
-    bad_credit: 'Worried about your credit? Second-chance options included when available.',
-    eviction: 'Renting after an eviction? Second-chance options included when available.',
-    broken_lease: 'Have a past broken lease? Second-chance options included when available.',
-    denied_application: 'Recently denied? Second-chance options included when available.',
-    income_requirements: 'Second-chance options included when available.',
-    no_credit: 'Little or no credit history? Second-chance options included when available.',
-    approval_requirements: 'Second-chance options included when available.',
-    second_chance: 'Second-chance options included when available.',
-    general_renter: 'Second-chance options included when available.',
+    bad_credit: 'Second-chance options may be included when available.',
+    eviction: 'Second-chance options may be included when available.',
+    broken_lease: 'Second-chance options may be included when available.',
+    denied_application: 'Second-chance options may be included when available.',
+    income_requirements: 'Second-chance options may be included when available.',
+    no_credit: 'Second-chance options may be included when available.',
+    approval_requirements: 'Second-chance options may be included when available.',
+    second_chance: 'Second-chance options may be included when available.',
+    general_renter: 'Second-chance options may be included when available.',
   };
   var stripe = null;
   var elements = null;

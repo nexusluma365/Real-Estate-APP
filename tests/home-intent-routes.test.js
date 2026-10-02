@@ -82,8 +82,8 @@ assert.match(intentIndex, /writeIntent\(intentKey\)/);
 assert.match(homeScript, /rrn_entry_intent_v1/);
 assert.match(questionnaireScript, /entry_intent: ensureEntryIntent\(\)/);
 assert.match(checkoutHtml, /id="checkoutIntentContext"/);
-assert.match(checkoutScript, /Worried about your credit\? Second-chance options included when available\./);
-assert.match(checkoutScript, /general_renter: 'Second-chance options included when available\.'/);
+assert.match(checkoutScript, /bad_credit: 'Second-chance options may be included when available\.'/);
+assert.match(checkoutScript, /general_renter: 'Second-chance options may be included when available\.'/);
 
 [
   'intent_landing_view',
