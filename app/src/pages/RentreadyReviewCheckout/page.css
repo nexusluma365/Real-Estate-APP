@@ -100,7 +100,7 @@ h2{font-size:24px;line-height:1.1;margin-bottom:12px}
   .includes{margin:18px 0 20px;padding:15px 16px}
   .includes h2{font-size:19px;margin-bottom:11px}
   .includes-list{gap:10px}
-  .includes-list li{grid-template-columns:1fr;justify-items:center;gap:8px;text-align:center}
+  .includes-list li{width:fit-content;max-width:100%;margin:0 auto;grid-template-columns:21px minmax(0,auto);justify-items:start;align-items:center;gap:10px;text-align:left}
   .includes-list li.desktop-benefit{display:none}
   .includes-list li strong{font-size:14.5px;line-height:1.3}
   .includes-list li strong{margin-bottom:0}
