@@ -91,7 +91,11 @@ async function run() {
     const forwardedBody = JSON.parse(forwardedRes.body);
     assert.equal(forwardedBody.mode, 'forwarded');
     assert.equal(forwardedBody.ok, true);
-    assert.deepEqual(forwardedPayload, { leadId: 'lead_inline' });
+    assert.equal(forwardedPayload.leadId, 'lead_inline');
+    assert.equal(forwardedPayload.lead_id, 'lead_inline');
+    assert.equal(forwardedPayload.handoff.lead_id, 'lead_inline');
+    assert.equal(forwardedPayload.handoff.email, 'inline@example.com');
+    assert.equal(forwardedPayload.handoff.agent_status, 'sales-ready');
     forwarded.restore();
 
     let duplicateFetchCount = 0;

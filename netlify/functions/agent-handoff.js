@@ -88,7 +88,7 @@ exports.handler = async (event) => {
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: actualLeadId }),
+        body: JSON.stringify({ leadId: actualLeadId, lead_id: actualLeadId, handoff }),
       });
       const text = await res.text().catch(() => '');
       if (res.ok) {
