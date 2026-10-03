@@ -4,6 +4,7 @@
 // sessionStorage flags, so a refresh, a back-button, or a returning
 // customer on a new tab all see their real purchase state.
 const { getEntitlements } = require('./_lib/store');
+const { listingAccessStatus } = require('./_lib/listing-access');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
@@ -34,6 +35,10 @@ exports.handler = async (event) => {
         purchasedCategories,
         membershipStatus: e.membershipStatus || 'inactive',
         membershipPlan: e.membershipPlan || null,
+        listingAccessStatus: listingAccessStatus(e),
+        listingSubscriptionStatus: e.listingSubscriptionStatus || 'inactive',
+        listingSubscriptionCurrentPeriodEnd: e.listingSubscriptionCurrentPeriodEnd || null,
+        listingSubscriptionCancelAtPeriodEnd: !!e.listingSubscriptionCancelAtPeriodEnd,
       }),
     };
   } catch (err) {

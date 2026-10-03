@@ -161,7 +161,7 @@ async function run() {
         move_timeline: 'asap',
       },
       entitlements: {
-        paid27: true,
+        paid27: true, listingSubscriptionStatus: 'active',
         purchasedCategories: ['luxury'],
       },
       cached: {
@@ -230,7 +230,7 @@ async function run() {
         beds_needed: '1',
       },
       entitlements: {
-        paid10: true,
+        paid10: true, listingSubscriptionStatus: 'active',
         paid27: false,
         purchasedCategories: [],
       },
@@ -253,7 +253,7 @@ async function run() {
     const { resultsVersion: _staleVersion, ...staleCachedResult } = paidBaseCachedResult;
     const staleVersion = await loadHandler({
       lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
-      entitlements: { paid10: true, purchasedCategories: [] },
+      entitlements: { paid10: true, listingSubscriptionStatus: 'active', purchasedCategories: [] },
       cached: staleCachedResult,
     });
     const staleVersionBody = JSON.parse((await staleVersion.handler({
@@ -271,7 +271,7 @@ async function run() {
         beds_needed: '1',
       },
       entitlements: {
-        paid47: true,
+        paid47: true, listingSubscriptionStatus: 'active',
         purchasedCategories: ['apartment_prep'],
       },
       cached: {
@@ -314,7 +314,17 @@ async function run() {
       upsellIntent: {
         id: 'pi_prescreen',
         status: 'succeeded',
-        metadata: { leadId: 'lead_prescreen_recover', product: 'prescreen' },
+        metadata: {},
+        invoice: {
+          subscription: {
+            id: 'sub_prescreen',
+            status: 'active',
+            current_period_start: 1791020000,
+            current_period_end: 1793612000,
+            cancel_at_period_end: false,
+            metadata: { leadId: 'lead_prescreen_recover', product: 'listing_membership' },
+          },
+        },
         customer: 'cus_test',
         payment_method: 'pm_test',
       },
@@ -334,6 +344,12 @@ async function run() {
       leadId: 'lead_prescreen_recover',
       patch: {
         paid10: true,
+        listingSubscriptionId: 'sub_prescreen',
+        listingSubscriptionStatus: 'active',
+        listingAccessStatus: 'active',
+        listingSubscriptionStartedAt: '2026-10-03T09:33:20.000Z',
+        listingSubscriptionCurrentPeriodEnd: '2026-11-02T09:33:20.000Z',
+        listingSubscriptionCancelAtPeriodEnd: false,
         stripeCustomerId: 'cus_test',
         defaultPaymentMethodId: 'pm_test',
       },
@@ -348,8 +364,11 @@ async function run() {
         beds_needed: '1',
       },
       entitlements: {
+        paid10: true,
         paid27: false,
         paid47: false,
+        listingSubscriptionStatus: 'active',
+        listingAccessStatus: 'active',
         purchasedCategories: [],
       },
       upsellIntent: {
@@ -371,17 +390,8 @@ async function run() {
     const prepRecoveryBody = JSON.parse(prepRecoveryRes.body);
     assert.equal(prepRecoveryRes.statusCode, 200);
     assert.equal(prepRecoveryBody.ok, true);
-    assert.deepEqual(prepRecovery.retrieveCalls, ['pi_prep_upsell']);
-    assert.deepEqual(prepRecovery.patchCalls[0], {
-      leadId: 'lead_prep_recover',
-      patch: {
-        paid27: true,
-        paid47: true,
-        addPurchasedCategory: 'apartment_prep',
-        stripeCustomerId: 'cus_test',
-        defaultPaymentMethodId: 'pm_test',
-      },
-    });
+    assert.deepEqual(prepRecovery.retrieveCalls, []);
+    assert.deepEqual(prepRecovery.patchCalls, []);
 
     urls.length = 0;
     installLegacyGoogleMock(urls, concordPlaces);
@@ -413,9 +423,9 @@ async function run() {
     });
     const recoveryBody = JSON.parse(recoveryRes.body);
 
-    assert.equal(recoveryRes.statusCode, 200);
-    assert.equal(recoveryBody.ok, true);
-    assert.equal(recoveryBody.criteria.category, 'questionnaire');
+    assert.equal(recoveryRes.statusCode, 403);
+    assert.equal(recoveryBody.ok, false);
+    assert.equal(recoveryBody.error.code, 'LISTING_ACCESS_DENIED');
     assert.deepEqual(recovery.retrieveCalls, ['pi_modern_upsell']);
 
     urls.length = 0;
@@ -438,7 +448,7 @@ async function run() {
         beds_needed: 'studio',
       },
       entitlements: {
-        paid27: true,
+        paid27: true, listingSubscriptionStatus: 'active',
         purchasedCategories: ['luxury'],
       },
     });
@@ -477,7 +487,7 @@ async function run() {
         beds_needed: 'studio',
       },
       entitlements: {
-        paid27: true,
+        paid27: true, listingSubscriptionStatus: 'active',
         purchasedCategories: ['luxury'],
       },
     });
@@ -495,7 +505,7 @@ async function run() {
     installLegacyGoogleMock(urls, concordPlaces);
     const postFlow = await loadHandler({
       lead: null,
-      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
+      entitlements: { paid27: true, listingSubscriptionStatus: 'active', purchasedCategories: ['luxury'] },
     });
     const postAnswers = { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' };
     const postRes = await postFlow.handler({
@@ -551,7 +561,7 @@ async function run() {
     for (const city of ['Austin, TX', 'New York, NY', 'Mount Vernon, WA']) {
       const varied = await loadHandler({
         lead: { preferred_city: 'Concord, NC', rent_budget: 2100, beds_needed: '2' },
-        entitlements: { paid27: true, purchasedCategories: ['modern'] },
+        entitlements: { paid27: true, listingSubscriptionStatus: 'active', purchasedCategories: ['modern'] },
         cached: {
           provider: 'google_places',
           criteria: { category: 'modern', city: 'Concord, NC', searchArea: 'Concord, NC', rentBudget: 2100, bedrooms: 2 },
@@ -585,7 +595,7 @@ async function run() {
     installLegacyGoogleMock(urls, concordPlaces);
     const override = await loadHandler({
       lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
-      entitlements: { paid10: true, purchasedCategories: [] },
+      entitlements: { paid10: true, listingSubscriptionStatus: 'active', purchasedCategories: [] },
     });
     const overrideRes = await override.handler({
       httpMethod: 'POST',
@@ -605,7 +615,7 @@ async function run() {
 
     const badOverride = await loadHandler({
       lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
-      entitlements: { paid10: true, purchasedCategories: [] },
+      entitlements: { paid10: true, listingSubscriptionStatus: 'active', purchasedCategories: [] },
     });
     const badOverrideRes = await badOverride.handler({
       httpMethod: 'POST',
@@ -617,7 +627,7 @@ async function run() {
 
     const postNoAnswers = await loadHandler({
       lead: null,
-      entitlements: { paid27: true, purchasedCategories: ['luxury'] },
+      entitlements: { paid27: true, listingSubscriptionStatus: 'active', purchasedCategories: ['luxury'] },
     });
     const postNoAnswersRes = await postNoAnswers.handler({
       httpMethod: 'POST',

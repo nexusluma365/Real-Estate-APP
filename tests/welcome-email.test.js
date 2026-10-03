@@ -21,6 +21,7 @@ async function run() {
   const oldCloudflareUrl = process.env.CLOUDFLARE_DOWNLOAD_EMAIL_URL;
   const oldCloudflareWelcomeUrl = process.env.CLOUDFLARE_WELCOME_EMAIL_URL;
   const oldCloudflareSecret = process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET;
+  const oldEmailLinkSecret = process.env.EMAIL_LINK_SECRET;
   const oldFetch = global.fetch;
 
   try {
@@ -28,6 +29,7 @@ async function run() {
     process.env.URL = 'https://werentreadygo.com';
     process.env.CLOUDFLARE_DOWNLOAD_EMAIL_URL = 'https://worker.test/send-download';
     process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET = 'trigger_secret';
+    process.env.EMAIL_LINK_SECRET = 'test_email_link_secret_123456789';
 
     const sent = [];
     global.fetch = async (url, options) => {
@@ -42,7 +44,7 @@ async function run() {
     assert.equal(sent[0].url, 'https://worker.test/send-welcome');
     assert.equal(sent[0].headers.Authorization, 'Bearer trigger_secret');
     assert.equal(sent[0].body.leadId, 'lead_123');
-    assert.equal(sent[0].body.resultsUrl, 'https://werentreadygo.com/after-payment-results/');
+    assert.match(sent[0].body.resultsUrl, /^https:\/\/werentreadygo\.com\/real-estate-list\?token=/);
 
     // No email on file (or invalid) must not call out at all.
     sent.length = 0;
@@ -74,8 +76,9 @@ async function run() {
     assert.equal(sent[0].body.action, 'sendWelcomeEmail');
     assert.equal(sent[0].body.to, 'renter@example.com');
     assert.equal(sent[0].body.firstName, 'Rae');
-    assert.equal(sent[0].body.resultsUrl, 'https://werentreadygo.com/after-payment-results/');
+    assert.match(sent[0].body.resultsUrl, /^https:\/\/werentreadygo\.com\/real-estate-list\?token=/);
     assert.equal(sent[0].body.templateBaseUrl, 'https://werentreadygo.com');
+    assert.equal(sent[0].body.membershipPrice, '$9.99/month');
 
     // A failed primary send must throw, so callers can log it (but they choose to
     // swallow it rather than fail the payment confirmation).
@@ -94,6 +97,8 @@ async function run() {
     else process.env.CLOUDFLARE_WELCOME_EMAIL_URL = oldCloudflareWelcomeUrl;
     if (oldCloudflareSecret === undefined) delete process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET;
     else process.env.CLOUDFLARE_DOWNLOAD_EMAIL_SECRET = oldCloudflareSecret;
+    if (oldEmailLinkSecret === undefined) delete process.env.EMAIL_LINK_SECRET;
+    else process.env.EMAIL_LINK_SECRET = oldEmailLinkSecret;
     global.fetch = oldFetch;
   }
 }

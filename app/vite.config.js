@@ -20,5 +20,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Hashed bundle files go to /static/ so they can be cached forever
+    // (netlify.toml). /assets/ stays reserved for un-hashed files from
+    // public/assets (checkout-client.js), which must always revalidate.
+    assetsDir: 'static',
   },
 });

@@ -4,6 +4,7 @@
 // production email provider secrets; Apps Script remains a fallback.
 const { getLead } = require('./store');
 const { normalizeEmail, isValidEmail } = require('./email');
+const { sign } = require('./sign');
 
 function siteBaseUrl() {
   const siteUrl = process.env.URL || process.env.DEPLOY_URL || 'https://werentreadygo.com';
@@ -48,7 +49,8 @@ async function sendWelcomeEmail(leadId) {
   if (!isValidEmail(email)) return;
 
   const baseUrl = siteBaseUrl();
-  const resultsUrl = `${baseUrl}/after-payment-results/`;
+  const token = sign({ product: 'apartment-results', leadId, category: 'questionnaire' }, 30 * 24 * 60 * 60 * 1000);
+  const resultsUrl = `${baseUrl}/real-estate-list?token=${encodeURIComponent(token)}`;
   if (await sendViaCloudflare({ leadId, resultsUrl })) return;
 
   const gasUrl = process.env.GOOGLE_SCRIPT_URL;
@@ -61,10 +63,12 @@ async function sendWelcomeEmail(leadId) {
       action: 'sendWelcomeEmail',
       to: email,
       firstName: lead.first_name || '',
-      subject: 'Welcome to RentReady — You’re All Set',
+      subject: 'Your RentReady listing membership is active',
       resultsUrl,
       templateBaseUrl: baseUrl,
       supportEmail: supportEmail(),
+      membershipPrice: '$9.99/month',
+      membershipCopy: 'Your RentReady listing membership is active. Your membership renews monthly until canceled.',
     }),
   });
   const data = await res.json().catch(() => ({}));

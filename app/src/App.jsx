@@ -1,5 +1,30 @@
-import { Suspense, lazy } from 'react';
+import { Component, Suspense, lazy as reactLazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+// After a new deploy, a visitor who still has the previous app shell open
+// asks for page chunks whose hashed filenames no longer exist. Instead of a
+// blank screen, reload once to pick up the new shell (guarded so a genuinely
+// offline visitor doesn't loop).
+const CHUNK_RELOAD_KEY = 'rrn_chunk_reload_v1';
+function lazy(factory) {
+  return reactLazy(() =>
+    factory()
+      .then((mod) => {
+        try { sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch (_e) {}
+        return mod;
+      })
+      .catch((err) => {
+        let alreadyReloaded = false;
+        try { alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1'; } catch (_e) {}
+        if (!alreadyReloaded) {
+          try { sessionStorage.setItem(CHUNK_RELOAD_KEY, '1'); } catch (_e) {}
+          window.location.reload();
+          return new Promise(() => {});
+        }
+        throw err;
+      })
+  );
+}
 
 // Lazy-loaded per route so each page's own CSS/JS/HTML (some of which
 // embeds large base64 images straight from the original design) only
@@ -22,6 +47,34 @@ const Legal = lazy(() => import('./pages/Legal/index.jsx'));
 const Home = lazy(() => import('./pages/Home/index.jsx'));
 const IntentLanding = lazy(() => import('./pages/IntentLanding/index.jsx'));
 
+class PageLoadBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(err) {
+    console.error('RentReady page failed to load', err);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 24, background: '#F3F6F3', color: '#1A4731', fontFamily: "-apple-system, BlinkMacSystemFont, 'DM Sans', 'Helvetica Neue', Arial, sans-serif", textAlign: 'center' }}>
+        <div style={{ maxWidth: 420 }}>
+          <h1 style={{ fontSize: 26, margin: '0 0 10px' }}>This page didn't finish loading</h1>
+          <p style={{ color: '#637268', lineHeight: 1.55, margin: '0 0 22px' }}>Check your connection, then refresh. Your answers are saved on this device.</p>
+          <button type="button" onClick={() => window.location.reload()} style={{ border: 0, borderRadius: 999, padding: '14px 26px', background: '#1A4731', color: '#fff', fontWeight: 800, letterSpacing: '.04em', cursor: 'pointer' }}>REFRESH</button>
+        </div>
+      </main>
+    );
+  }
+}
+
 // Every path here matches the original standalone .html page's URL exactly
 // (netlify.toml's pretty_urls + existing redirects already made these the
 // canonical, user-facing paths). Same URLs in, same URLs out — only how the
@@ -30,6 +83,7 @@ const IntentLanding = lazy(() => import('./pages/IntentLanding/index.jsx'));
 export default function App() {
   return (
     <BrowserRouter>
+      <PageLoadBoundary>
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -87,6 +141,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </PageLoadBoundary>
     </BrowserRouter>
   );
 }

@@ -8,7 +8,7 @@
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
-  var PAY_BUTTON_LABEL = 'UNLOCK MY RESULTS — $10';
+  var PAY_BUTTON_LABEL = 'START MY LISTING ACCESS — $9.99/MONTH';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
     bad_credit: 'Second-chance options may be included when available.',
@@ -34,6 +34,16 @@
     catch (_e) { return {}; }
   }
 
+  function returnAccessToken(){
+    try { return new URLSearchParams(window.location.search || '').get('token') || ''; }
+    catch (_e) { return ''; }
+  }
+
+  function rememberAnswers(answers){
+    try { sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers)); } catch (_e) {}
+    try { localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers)); } catch (_e) {}
+  }
+
   function rrTrack(eventName, detail){
     try {
       window.dataLayer = window.dataLayer || [];
@@ -42,7 +52,7 @@
     } catch (_e) {}
   }
 
-  // Google Ads conversion for the $10 RentReady Check. Paste the label from the
+  // Google Ads conversion for the $9.99 RentReady unlock. Paste the label from the
   // conversion action's event snippet (send_to: 'AW-18213168150/<label>').
   var GOOGLE_ADS_ID = 'AW-18213168150';
   var GOOGLE_ADS_PURCHASE_LABEL = '';
@@ -50,7 +60,7 @@
   function trackGooglePurchase(transactionId){
     try {
       if (typeof window.gtag !== 'function') return;
-      var purchase = { value: 10.0, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
+      var purchase = { value: 9.99, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
       window.gtag('event', 'purchase', Object.assign({ send_to: GOOGLE_ADS_ID }, purchase));
       if (GOOGLE_ADS_PURCHASE_LABEL) {
         window.gtag('event', 'conversion', Object.assign({ send_to: GOOGLE_ADS_ID + '/' + GOOGLE_ADS_PURCHASE_LABEL }, purchase));
@@ -110,7 +120,8 @@
   }
 
   function label(value, map){
-    return map[value] || String(value || '').replace(/_/g, ' ') || 'Not provided';
+    var raw = String(value || '').replace(/_/g, ' ').trim();
+    return map[value] || (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Not provided');
   }
 
   function showError(message){
@@ -194,6 +205,12 @@
     document.getElementById('summaryName').textContent = full;
     document.getElementById('summaryCity').textContent = answers.preferred_city || 'Not provided';
     document.getElementById('summaryMove').textContent = label(answers.move_timeline, {
+      // Values the current questionnaire saves:
+      asap: 'ASAP',
+      '1_month': 'Within 30 days',
+      '3_months': '1-3 months',
+      '6_months': '3-6 months',
+      // Legacy values from earlier questionnaire versions:
       immediately: 'Immediately',
       under_30: 'Under 30 days',
       '30_60_days': '30-60 days',
@@ -202,6 +219,7 @@
       one_to_three_months: 'in 1-3 months',
     });
     document.getElementById('summaryCredit').textContent = label(answers.credit_score, {
+      below_580: 'Review',
       under_580: 'Review',
       '580_619': 'Review',
       '620_659': 'Review',
@@ -213,8 +231,24 @@
   }
 
   async function init(){
+    var token = returnAccessToken();
     var answers = readAnswers();
     var btn = document.getElementById('payBtn');
+    if (!answers.lead_id && token) {
+      try {
+        var access = await fetchJson('/.netlify/functions/return-access?token=' + encodeURIComponent(token));
+        if (access && access.lead && access.lead.lead_id) {
+          answers = access.lead;
+          rememberAnswers(answers);
+        }
+        if (access && access.entitlements && access.entitlements.listingAccessStatus === 'active') {
+          window.location.href = '/real-estate-list?token=' + encodeURIComponent(token);
+          return;
+        }
+      } catch (err) {
+        showSetupNote(err.message || 'This secure access link could not be verified.');
+      }
+    }
     if (!answers.lead_id) {
       window.location.replace(START_URL);
       return;
@@ -226,7 +260,7 @@
     try {
       try {
         var ent = await fetchJson('/.netlify/functions/get-entitlements?leadId=' + encodeURIComponent(answers.lead_id));
-        if (ent && ent.paid10) {
+        if (ent && ent.listingAccessStatus === 'active') {
           grantResultsAccess();
           window.location.href = RESULTS_URL;
           return;
@@ -235,10 +269,16 @@
         console.warn('Could not load existing entitlement status', err);
       }
 
-      if (!window.Stripe) throw new Error('Stripe did not load. Refresh the page and try again.');
+      // Stripe.js loads async (it no longer blocks first paint), so wait for
+      // it here instead of assuming it is already on the page.
+      var StripeCtor = window.Stripe;
+      if (!StripeCtor && window.rrnLoadStripeJs) {
+        try { StripeCtor = await rrnLoadStripeJs(); } catch (_e) { StripeCtor = null; }
+      }
+      if (!StripeCtor) throw new Error('Stripe did not load. Refresh the page and try again.');
       var publishableKey = await getStripePublishableKey();
       if (!publishableKey) throw new Error('Stripe publishable key is not configured.');
-      stripe = Stripe(publishableKey);
+      stripe = StripeCtor(publishableKey);
       elements = stripe.elements({
         fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap' }],
       });
@@ -279,8 +319,8 @@
     btn.textContent = 'Starting secure checkout...';
     if (window.rrnShowPaymentOverlay) {
       rrnShowPaymentOverlay({
-        title: 'Unlocking your results',
-        message: 'Please wait while we securely confirm your $10 payment.',
+        title: 'Unlocking your apartment results',
+        message: 'Please wait while we securely activate your $9.99/month listing membership.',
       });
     }
 
@@ -343,7 +383,7 @@
         rrnShowPaymentOverlay({
           state: 'success',
           title: 'Thank You',
-          message: 'Your results are unlocked. Taking you to them now.',
+          message: 'Your listing membership is active. Your RentReady Results are ready.',
         });
       }
       deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);

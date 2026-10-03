@@ -5,6 +5,30 @@ const { normalizeAgentLead } = require('./_lib/agent-number-one');
 
 const AGENT_HANDOFF_TIMEOUT_MS = 25000;
 
+// The email lookup is unauthenticated (anyone can type any email), so it only
+// returns the fields the returning-renter listing redirect actually uses —
+// never phone, income, credit range, last name, or agent/activity history.
+const PUBLIC_LOOKUP_FIELDS = [
+  'lead_id',
+  'email',
+  'first_name',
+  'preferred_city',
+  'city',
+  'rent_budget',
+  'beds_needed',
+  'move_timeline',
+  'move_reason',
+  'entry_intent',
+];
+
+function publicLeadSummary(lead) {
+  const summary = {};
+  PUBLIC_LOOKUP_FIELDS.forEach((field) => {
+    if (lead[field] !== undefined && lead[field] !== null && lead[field] !== '') summary[field] = lead[field];
+  });
+  return summary;
+}
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -88,7 +112,7 @@ exports.handler = async function handler(event) {
     return json(200, {
       ok: true,
       registered: !!(lead && lead.lead_id),
-      lead: lead && lead.lead_id ? lead : undefined,
+      lead: lead && lead.lead_id ? publicLeadSummary(lead) : undefined,
     });
   }
 

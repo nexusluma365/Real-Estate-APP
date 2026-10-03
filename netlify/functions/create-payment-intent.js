@@ -1,17 +1,23 @@
 // POST /.netlify/functions/create-payment-intent
 // Body: { leadId, email, answers }
 //
-// This is the ONLY place a customer ever types card details. It creates a
-// Stripe Customer (or reuses one already tied to this leadId), and a
-// PaymentIntent for $10 with `setup_future_usage: 'off_session'` so the
-// same card can be charged again later for the $27 upsell without asking for
-// it again.
+// Kept at the legacy endpoint name so the existing checkout page does not
+// need a routing rewrite. It now creates a real $9.99/month Stripe
+// Subscription and returns the first invoice PaymentIntent client secret for
+// the existing card form to confirm.
 const { getStripe } = require('./_lib/stripe');
-const { saveLead, getLead, patchEntitlements } = require('./_lib/store');
+const { saveLead, getLead, getEntitlements, patchEntitlements } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
 
-const PRESCREEN_AMOUNT_CENTS = 1000;
+function listingPriceId() {
+  return (
+    process.env.STRIPE_LISTING_PRICE_MONTHLY ||
+    process.env.STRIPE_PRICE_LISTING_MONTHLY ||
+    process.env.STRIPE_RENTREADY_LISTING_PRICE_MONTHLY ||
+    ''
+  ).trim();
+}
 
 async function findCustomerByLeadId(stripe, leadId) {
   try {
@@ -22,7 +28,7 @@ async function findCustomerByLeadId(stripe, leadId) {
     return existing.data[0] || null;
   } catch (err) {
     // A search issue should not stop a fresh checkout from starting. Creating
-    // a new customer is safer than blocking the $10 PaymentIntent.
+    // a new customer is safer than blocking the $9.99 PaymentIntent.
     console.warn('customer search failed, creating a new customer', err);
     return null;
   }
@@ -52,7 +58,15 @@ exports.handler = async (event) => {
 
   try {
     const stripe = getStripe();
+    const priceId = listingPriceId();
+    if (!priceId) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ ok: false, error: 'STRIPE_LISTING_PRICE_MONTHLY is not configured.' }),
+      };
+    }
     const existingLead = await getLead(normalizedLeadId).catch(() => null);
+    const existingEntitlements = await getEntitlements(normalizedLeadId).catch(() => null);
     const manychatContactId = normalizeManyChatContactId(
       (answers && (answers.manychat_contact_id || answers.manychatContactId)) ||
       (existingLead && existingLead.manychat_contact_id)
@@ -62,9 +76,11 @@ exports.handler = async (event) => {
     // Reuse an existing Stripe Customer for this leadId if one exists
     // (e.g. the customer refreshed the page after the intent was created
     // but before paying), otherwise create a new one.
-    const existing = await findCustomerByLeadId(stripe, normalizedLeadId);
+    const existing = existingEntitlements && existingEntitlements.stripeCustomerId
+      ? await stripe.customers.retrieve(existingEntitlements.stripeCustomerId).catch(() => null)
+      : await findCustomerByLeadId(stripe, normalizedLeadId);
     const customer =
-      existing ||
+      (existing && !existing.deleted ? existing : null) ||
       (await stripe.customers.create({
         email: normalizedEmail,
         metadata,
@@ -73,14 +89,24 @@ exports.handler = async (event) => {
       await stripe.customers.update(existing.id, { metadata: { ...(existing.metadata || {}), ...metadata } });
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: PRESCREEN_AMOUNT_CENTS,
-      currency: 'usd',
-      customer: customer.id,
-      setup_future_usage: 'off_session',
-      payment_method_types: ['card'],
-      metadata: { ...metadata, product: 'prescreen' },
-    });
+    const subscription = await stripe.subscriptions.create(
+      {
+        customer: customer.id,
+        items: [{ price: priceId }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: {
+          save_default_payment_method: 'on_subscription',
+          payment_method_types: ['card'],
+        },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { ...metadata, product: 'listing_membership', plan: 'monthly' },
+      },
+      { idempotencyKey: `${normalizedLeadId}:listing-subscription:start` }
+    );
+    const paymentIntent = subscription.latest_invoice && subscription.latest_invoice.payment_intent;
+    if (!paymentIntent || !paymentIntent.client_secret) {
+      throw new Error('Stripe did not return a subscription payment client secret.');
+    }
 
     // Save the questionnaire answers server-side so later functions (PDF
     // generation, the $97 relevance check, email delivery) have an
@@ -89,7 +115,13 @@ exports.handler = async (event) => {
       if (answers) {
         await saveLead(normalizedLeadId, { ...answers, email: normalizedEmail, ...(manychatContactId ? { manychat_contact_id: manychatContactId } : {}) });
       }
-      await patchEntitlements(normalizedLeadId, { stripeCustomerId: customer.id, ...(manychatContactId ? { manychat_contact_id: manychatContactId, manychatContactId } : {}) });
+      await patchEntitlements(normalizedLeadId, {
+        stripeCustomerId: customer.id,
+        listingSubscriptionId: subscription.id,
+        listingSubscriptionStatus: subscription.status || 'incomplete',
+        listingAccessStatus: 'inactive',
+        ...(manychatContactId ? { manychat_contact_id: manychatContactId, manychatContactId } : {}),
+      });
     } catch (err) {
       console.warn('pre-payment lead save failed', err);
     }
@@ -100,6 +132,7 @@ exports.handler = async (event) => {
         ok: true,
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
+        subscriptionId: subscription.id,
       }),
     };
   } catch (err) {

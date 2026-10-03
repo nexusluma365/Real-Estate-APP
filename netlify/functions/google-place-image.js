@@ -25,7 +25,22 @@ exports.handler = async (event) => {
     return text(503, 'Google imagery is not configured.');
   }
 
-  const q = event.queryStringParameters || {};
+  let q = event.queryStringParameters || {};
+  if (q.pt) {
+    // Preview cards reference photos through an encrypted token so the
+    // unpaid page never sees the Google place ID.
+    let sealed = null;
+    try {
+      sealed = require('./_lib/sign').unseal(String(q.pt), 'preview-photo');
+    } catch (_err) {
+      sealed = null;
+    }
+    if (!sealed || !sealed.placeId) {
+      logFailure('', 'request', 400, 'invalid_preview_token');
+      return noPhotoResponse(400);
+    }
+    q = { placeId: sealed.placeId, photoRef: sealed.photoRef || '', photoName: sealed.photoName || '' };
+  }
   const inputPhotoName = validPhotoName(q.photoName) ? cleanName(q.photoName) : '';
   const inputPhotoRef = validPhotoRef(q.photoRef) ? clean(q.photoRef) : '';
   const placeId = clean(q.placeId);

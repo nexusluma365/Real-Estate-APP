@@ -13,8 +13,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>RentReady Network</title>
+<meta name="theme-color" content="#1A4731" />
+<!-- DM Sans is the brand typeface named in every page's font stack; load it
+     once here (display=swap, so text renders immediately) so Windows and
+     Android desktops get it instead of falling back to Arial. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..800&display=swap" rel="stylesheet">
 <!--
-  These two scripts were previously included with a <script src="..."> tag
+  Stripe.js is loaded async so it never blocks first paint; pages that
+  need it await window.rrnLoadStripeJs() (checkout-client.js), which reuses
+  this tag. These two scripts were previously included with a <script src="..."> tag
   on 8 of the individual pages (checkout-client.js) and 1 page
   (js.stripe.com/v3 — used directly by rentready-review-checkout.html).
   Neither has any load-time side effects — they only define globals
@@ -23,7 +32,8 @@
   page loaded them individually, and guarantees they're always ready by
   the time a page's own script runs.
 -->
-<script src="https://js.stripe.com/v3/"></script>
+<link rel="preconnect" href="https://js.stripe.com" crossorigin>
+<script src="https://js.stripe.com/v3/" async></script>
 <script src="/assets/checkout-client.js"></script>
 <style>
   a[href*="netlify.com"][style*="fixed"],

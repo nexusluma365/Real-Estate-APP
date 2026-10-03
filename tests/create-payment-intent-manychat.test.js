@@ -7,9 +7,10 @@ function loadHandler() {
   delete require.cache[fnPath];
 
   const customersCreated = [];
-  const paymentIntentsCreated = [];
+  const subscriptionsCreated = [];
   const savedLeads = [];
   const entitlementPatches = [];
+  process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_listing_monthly';
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -25,10 +26,16 @@ function loadHandler() {
           },
           update: async () => ({}),
         },
-        paymentIntents: {
+        subscriptions: {
           create: async (payload) => {
-            paymentIntentsCreated.push(payload);
-            return { id: 'pi_manychat', client_secret: 'pi_manychat_secret' };
+            subscriptionsCreated.push(payload);
+            return {
+              id: 'sub_manychat',
+              status: 'incomplete',
+              latest_invoice: {
+                payment_intent: { id: 'pi_manychat', client_secret: 'pi_manychat_secret' },
+              },
+            };
           },
         },
       }),
@@ -41,6 +48,7 @@ function loadHandler() {
     loaded: true,
     exports: {
       getLead: async () => null,
+      getEntitlements: async () => ({ stripeCustomerId: null }),
       saveLead: async (leadId, answers) => savedLeads.push({ leadId, answers }),
       patchEntitlements: async (leadId, patch) => entitlementPatches.push({ leadId, patch }),
     },
@@ -49,7 +57,7 @@ function loadHandler() {
   return {
     handler: require('../netlify/functions/create-payment-intent').handler,
     customersCreated,
-    paymentIntentsCreated,
+    subscriptionsCreated,
     savedLeads,
     entitlementPatches,
   };
@@ -77,13 +85,16 @@ async function run() {
     leadId: 'lead_123',
     manychat_contact_id: '123456789',
   });
-  assert.deepEqual(flow.paymentIntentsCreated[0].metadata, {
+  assert.deepEqual(flow.subscriptionsCreated[0].metadata, {
     leadId: 'lead_123',
     manychat_contact_id: '123456789',
-    product: 'prescreen',
+    product: 'listing_membership',
+    plan: 'monthly',
   });
+  assert.deepEqual(flow.subscriptionsCreated[0].items, [{ price: 'price_listing_monthly' }]);
   assert.equal(flow.savedLeads[0].answers.manychat_contact_id, '123456789');
   assert.equal(flow.entitlementPatches[0].patch.manychat_contact_id, '123456789');
+  assert.equal(flow.entitlementPatches[0].patch.listingSubscriptionId, 'sub_manychat');
 
   const invalid = loadHandler();
   await invalid.handler({
@@ -98,7 +109,7 @@ async function run() {
       },
     }),
   });
-  assert.equal(invalid.paymentIntentsCreated[0].metadata.manychat_contact_id, undefined);
+  assert.equal(invalid.subscriptionsCreated[0].metadata.manychat_contact_id, undefined);
 }
 
 run()

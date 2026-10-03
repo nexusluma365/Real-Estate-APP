@@ -86,16 +86,53 @@ function rrnApartmentPaymentIntentId(product) {
   }
 }
 
-async function rrnLoadStripeJs() {
-  if (window.Stripe) return window.Stripe;
-  await new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://js.stripe.com/v3/';
-    s.onload = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
+let rrnStripeJsPromise = null;
+const STRIPE_JS_URL = 'https://js.stripe.com/v3/';
+const STRIPE_JS_TIMEOUT_MS = 15000;
+
+// Stripe.js is loaded with `async` in index.html so it never blocks the
+// page from painting. Callers await this instead of reading window.Stripe
+// directly: it reuses the in-flight <script> tag (no duplicate download),
+// retries once with a fresh tag if that one failed, and times out cleanly.
+function rrnLoadStripeJs() {
+  if (window.Stripe) return Promise.resolve(window.Stripe);
+  if (rrnStripeJsPromise) return rrnStripeJsPromise;
+  rrnStripeJsPromise = new Promise((resolve, reject) => {
+    let settled = false;
+    let poll = null;
+    let timer = null;
+    const finish = (ok, err) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      clearTimeout(timer);
+      if (ok && window.Stripe) resolve(window.Stripe);
+      else {
+        rrnStripeJsPromise = null;
+        reject(err || new Error('Stripe did not load. Refresh the page and try again.'));
+      }
+    };
+    const inject = () => {
+      const s = document.createElement('script');
+      s.src = STRIPE_JS_URL;
+      s.async = true;
+      s.onload = () => finish(true);
+      s.onerror = () => finish(false);
+      document.head.appendChild(s);
+    };
+    const existing = document.querySelector('script[src^="https://js.stripe.com/v3"]');
+    if (existing) {
+      existing.addEventListener('load', () => finish(true), { once: true });
+      existing.addEventListener('error', inject, { once: true });
+    } else {
+      inject();
+    }
+    // Covers the case where the existing tag already finished loading
+    // before we attached listeners.
+    poll = setInterval(() => { if (window.Stripe) finish(true); }, 100);
+    timer = setTimeout(() => finish(false), STRIPE_JS_TIMEOUT_MS);
   });
-  return window.Stripe;
+  return rrnStripeJsPromise;
 }
 
 async function rrnGetConfig() {

@@ -1,5 +1,16 @@
 
+const PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
+const CHECKOUT_URL = '/rentready-review-checkout';
+
+function goToUnlock(){
+  try { rrTrack('listing_preview_unlock_clicked', { lead_id: currentLeadId(), city: criteria.city }); } catch (_e) {}
+  const token = returnAccessToken();
+  window.location.href = CHECKOUT_URL + (token ? '?token=' + encodeURIComponent(token) : '');
+}
+
 async function confirmListingAccess(){
+  if (PREVIEW_MODE) return true;
+  if (returnAccessToken()) return true;
   const params = new URLSearchParams(window.location.search);
   const answers = readAnswers();
   const leadId = answers.lead_id || params.get("leadId") || "";
@@ -7,7 +18,7 @@ async function confirmListingAccess(){
   if (leadId && window.rrnFetchEntitlements) {
     try {
       const ent = await rrnFetchEntitlements(leadId);
-      if (ent && (ent.paid10 || ent.paid27 || ent.paid47)) return true;
+      if (ent && ent.listingAccessStatus === "active") return true;
     } catch (_e) {}
   }
 
@@ -19,11 +30,53 @@ async function confirmListingAccess(){
 async function requireListingAccess(){
   const allowed = await confirmListingAccess();
   if (!allowed) {
-    document.body.style.opacity = "0";
-    window.location.replace("/after-payment-results/");
+    showListingAccessModal();
     return false;
   }
   return true;
+}
+
+function returnAccessToken(){
+  try { return new URLSearchParams(window.location.search || "").get("token") || ""; }
+  catch (_e) { return ""; }
+}
+
+function showListingAccessModal(message){
+  let overlay = document.getElementById("listingAccessOverlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "listingAccessOverlay";
+    overlay.innerHTML = `
+      <div class="listing-access-modal" role="dialog" aria-modal="true" aria-labelledby="listingAccessTitle">
+        <p class="listing-access-kicker">RentReady membership</p>
+        <h2 id="listingAccessTitle">Your Listing Access Is Inactive</h2>
+        <p id="listingAccessCopy">Your RentReady listing membership is no longer active. Renew your $9.99/month membership to continue viewing your apartment matches and listing details.</p>
+        <div class="listing-access-actions">
+          <button class="btn btn-primary" type="button" id="renewListingAccessBtn">RENEW LISTING ACCESS — $9.99/MONTH</button>
+          <button class="btn btn-secondary" type="button" id="differentCardBtn">Use a Different Card</button>
+        </div>
+      </div>
+    `;
+    const style = document.createElement("style");
+    style.textContent = `
+      #listingAccessOverlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:18px;background:rgba(10,25,18,.62);backdrop-filter:blur(12px)}
+      .listing-access-modal{width:min(520px,100%);border-radius:22px;background:#f8fbf7;color:#153d2b;box-shadow:0 26px 80px rgba(0,0,0,.28);padding:28px;border:1px solid rgba(26,71,49,.14);text-align:left}
+      .listing-access-kicker{margin:0 0 8px;text-transform:uppercase;letter-spacing:.12em;font-size:12px;font-weight:900;color:#5f7c6d}
+      .listing-access-modal h2{margin:0 0 12px;font-size:clamp(26px,4vw,38px);line-height:1.02;letter-spacing:0;color:#123d2a}
+      .listing-access-modal p{margin:0;color:#587063;line-height:1.55;font-weight:650}
+      .listing-access-actions{display:grid;gap:10px;margin-top:22px}
+      .listing-access-actions .btn{width:100%;justify-content:center;min-height:52px}
+      @media(max-width:520px){.listing-access-modal{border-radius:18px;padding:22px}.listing-access-actions .btn{font-size:13px;white-space:normal}}
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(overlay);
+    const renew = () => goToUnlock();
+    document.getElementById("renewListingAccessBtn")?.addEventListener("click", renew);
+    document.getElementById("differentCardBtn")?.addEventListener("click", renew);
+  }
+  const copy = document.getElementById("listingAccessCopy");
+  if (copy && message) copy.textContent = message;
+  overlay.style.display = "grid";
 }
 
 /* =====================================================================
@@ -56,6 +109,21 @@ let loadingStatusTimer = null;
 const bedroomLabel = n => n === 0 ? "Studio" : (n >= 4 ? "4+ Bedrooms" : n + (n===1?" Bedroom":" Bedrooms"));
 const money = n => "$" + n.toLocaleString("en-US");
 const htmlEscape = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+// Listing data comes from Google Places / OpenAI, so everything inserted
+// into HTML is escaped and every link is restricted to http(s)/tel.
+const safeHttpUrl = value => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  // Same-origin relative paths (e.g. our own image proxy) are kept as-is.
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  try {
+    const url = new URL(raw, window.location.origin);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : "";
+  } catch (_e) {
+    return "";
+  }
+};
+const telHref = value => String(value ?? "").replace(/[^0-9+]/g, "");
 const jsString = value => JSON.stringify(String(value ?? "")).replace(/[<>&]/g, ch => ({ "<":"\\u003c", ">":"\\u003e", "&":"\\u0026" }[ch]));
 
 function readAnswers(){
@@ -220,6 +288,7 @@ async function loadVerifiedApartmentResults(){
   const answers = readAnswers();
   const urlParams = new URLSearchParams(window.location.search);
   const leadId = urlParams.get("leadId") || answers.lead_id || answers.leadId || "";
+  const accessToken = returnAccessToken();
   const upsellPaymentIntentId = urlParams.get("upsellPaymentIntentId") || "";
   const prescreenPaymentIntentId =
     urlParams.get("prescreenPaymentIntentId") ||
@@ -230,7 +299,7 @@ async function loadVerifiedApartmentResults(){
     (window.rrnApartmentPaymentIntentId ? rrnApartmentPaymentIntentId("apartment_prep") : "");
   hasSavedLead = !!leadId;
   listingErrorMessage = "";
-  if (!leadId) {
+  if (!leadId && !accessToken) {
     listingState = "error";
     serverResults = [];
     nearbyAreas = [];
@@ -242,6 +311,8 @@ async function loadVerifiedApartmentResults(){
   try {
     const payload = {
       leadId,
+      token: accessToken,
+      preview: PREVIEW_MODE,
       answers,
       requestCriteria: {
         city: criteria.city,
@@ -282,7 +353,12 @@ async function loadVerifiedApartmentResults(){
       });
       data = await res.json().catch(()=>({}));
     }
-    if (!res.ok || !data.ok) throw new Error(errorMessage(data) || "Could not load apartment results.");
+    if (!res.ok || !data.ok) {
+      if (res.status === 403 && errorCode(data) === "LISTING_ACCESS_DENIED") {
+        showListingAccessModal(errorMessage(data) || undefined);
+      }
+      throw new Error(errorMessage(data) || "Could not load apartment results.");
+    }
     if (data.criteria) {
       criteria.city = data.criteria.city || criteria.city;
       criteria.area = data.criteria.searchArea || data.criteria.city || criteria.area;
@@ -340,19 +416,21 @@ async function resyncSavedQuestionnaire(answers){
 function serverPropertyToResult(property){
   const phone = property.phone || "";
   const apt = {
-    id: property.propertyId,
+    // IDs are embedded in inline onclick handlers, so restrict them to the
+    // characters Google place IDs (and preview IDs) actually use.
+    id: String(property.propertyId || "").replace(/[^A-Za-z0-9_.:-]/g, ""),
     name: property.name || "Apartment community",
     area: property.area || criteria.city,
     address: property.address || "",
     phone,
     phoneDisplay: phone,
-    website: property.website || "",
-    mapsUrl: property.directions || "",
+    website: safeHttpUrl(property.website),
+    mapsUrl: safeHttpUrl(property.directions),
     photoName: property.photoName || "",
     authorAttributions: Array.isArray(property.authorAttributions) ? property.authorAttributions : [],
     rating: typeof property.rating === "number" ? property.rating : null,
     reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : null,
-    photo: property.image || "",
+    photo: safeHttpUrl(property.image),
     locationLabel: property.address || criteria.city,
     style: criteria.style,
     highRise: null,
@@ -399,7 +477,7 @@ const ICONS = {
 function ratingHtml(apt){
   if(!apt.rating) return "";
   const count = typeof apt.reviewCount === "number" ? ` <span class="rc">(${apt.reviewCount})</span>` : "";
-  return `<span class="listing-rating">${ICONS.star} ${apt.rating.toFixed(1)}${count}</span>`;
+  return `<span class="listing-rating">${ICONS.star} ${Number(apt.rating).toFixed(1)}${count}</span>`;
 }
 function rentRangeHtml(apt){
   if(!apt.estRent) return "Contact for pricing";
@@ -415,7 +493,7 @@ function listingFactsHtml(apt, crit){
         apt.petFriendly === true ? "Pet friendly" : "",
       ].filter(Boolean);
   if (!facts.length) return "";
-  return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${fact}`).join(" ");
+  return facts.map((fact, i) => `${i ? "<span>·</span>" : ""}${htmlEscape(fact)}`).join(" ");
 }
 function photoHtml(apt) {
   if (apt.photo && apt.id) {
@@ -436,7 +514,7 @@ function photoAttributionHtml(apt){
   const attribution = Array.isArray(apt.authorAttributions) ? apt.authorAttributions[0] : null;
   if (!attribution) return "";
   const label = htmlEscape(attribution.displayName || "Google contributor");
-  const href = htmlEscape(attribution.uri || "");
+  const href = htmlEscape(safeHttpUrl(attribution.uri));
   return href
     ? `<a class="photo-attribution" href="${href}" target="_blank" rel="noopener" aria-label="Photo attribution">${label}</a>`
     : `<span class="photo-attribution">${label}</span>`;
@@ -473,6 +551,7 @@ const MAX_IMAGE_RESOLUTION_CONCURRENCY = 2;
 let imageResolutionRunning = 0;
 
 function queueListingImageResolution(node){
+  if (PREVIEW_MODE) return;
   if (!node || !node.dataset || !node.dataset.propertyId) return;
   const key = `${node.dataset.propertyId}|${node.dataset.propertyName}|${node.dataset.propertyAddress}`;
   if (imageResolutionDone.has(key) || imageResolutionActive.has(key)) return;
@@ -518,25 +597,29 @@ async function resolveListingImage(job){
   }, 14000);
   const data = await res.json().catch(()=>null);
   if (!res.ok || !data || data.ok !== true || !data.imageUrl) return;
+  const resolvedUrl = safeHttpUrl(data.imageUrl);
+  if (!resolvedUrl || !node.parentNode) return;
   const img = document.createElement("img");
-  img.src = data.imageUrl;
+  img.src = resolvedUrl;
   img.alt = `${payload.name || "Apartment community"} exterior`;
   img.loading = "lazy";
   img.onerror = function(){ listingImageFallback(this); };
   node.replaceWith(img);
 }
 function callLineHtml(apt){
+  if (PREVIEW_MODE) return `<div class="preview-locked-line"><span class="preview-lock">🔒</span><span>Contact details unlock with your results</span></div>`;
   if(apt.phone){
-    return `<div class="call-line">${ICONS.phone}<span>Call for availability:</span><a href="tel:${apt.phone}">${apt.phoneDisplay}</a></div>`;
+    return `<div class="call-line">${ICONS.phone}<span>Call for availability:</span><a href="tel:${htmlEscape(telHref(apt.phone))}">${htmlEscape(apt.phoneDisplay)}</a></div>`;
   }
   return `<div class="no-phone">No phone listed — visit the property website to check availability</div>`;
 }
 function actionButtonsHtml(apt){
+  if (PREVIEW_MODE) return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">Start Listing Access — $9.99/month</button></div>`;
   const secondary = apt.phone
-    ? (apt.website ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} Maps</a>` : "")
-    : (apt.website ? `<a class="btn btn-primary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-primary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>` : "");
+    ? (apt.website ? `<a class="btn btn-secondary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener">${ICONS.map} Maps</a>` : "")
+    : (apt.website ? `<a class="btn btn-primary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-primary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>` : "");
   return `<div class="listing-actions">
-      <button class="btn btn-primary" onclick="openPropertyModal('${apt.id}')">View apartment</button>
+      <button class="btn btn-primary" type="button" onclick="openPropertyModal('${apt.id}')">View apartment</button>
       ${secondary}
     </div>`;
 }
@@ -549,24 +632,24 @@ function listingHtml(result, index, isTop){
     <div class="listing-photo">
       ${photoHtml(apt)}
       <div class="photo-actions">
-        <button class="icon-btn" type="button" onclick="shareProperty('${apt.id}')" aria-label="Share ${apt.name}">${ICONS.share}</button>
-        <button class="icon-btn" type="button" onclick="hideProperty('${apt.id}')" aria-label="Hide ${apt.name}">${ICONS.hide}</button>
-        <button class="icon-btn" type="button" onclick="openPropertyModal('${apt.id}')" aria-label="More options for ${apt.name}">${ICONS.more}</button>
+        <button class="icon-btn" type="button" onclick="shareProperty('${apt.id}')" aria-label="Share ${htmlEscape(apt.name)}">${ICONS.share}</button>
+        <button class="icon-btn" type="button" onclick="hideProperty('${apt.id}')" aria-label="Hide ${htmlEscape(apt.name)}">${ICONS.hide}</button>
+        <button class="icon-btn" type="button" onclick="openPropertyModal('${apt.id}')" aria-label="More options for ${htmlEscape(apt.name)}">${ICONS.more}</button>
       </div>
       <span class="status-pill"><span class="status-dot"></span> Verified community</span>
     </div>
     <div class="listing-main">
       <div class="listing-top-row">
         <div class="listing-name-wrap">
-          <span class="listing-name">${apt.name}</span>
+          <span class="listing-name">${htmlEscape(apt.name)}</span>
           ${isTop ? `<span class="best-badge">Best match</span>` : ""}
         </div>
       </div>
-      <div class="listing-loc">${ICONS.pin} ${apt.locationLabel || apt.address || apt.area} ${ratingHtml(apt)}</div>
+      <div class="listing-loc">${ICONS.pin} ${htmlEscape(apt.locationLabel || apt.address || apt.area)} ${ratingHtml(apt)}</div>
       <div class="listing-price">${rentRangeHtml(apt)}</div>
       ${facts ? `<div class="listing-details">${facts}</div>` : ""}
-      <p class="listing-reason">${rr.matchReason}</p>
-      <div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+      <p class="listing-reason">${htmlEscape(rr.matchReason)}</p>
+      <div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${htmlEscape(t)}</span>`).join("")}</div>
       <div class="listing-footer">
         ${callLineHtml(apt)}
         ${actionButtonsHtml(apt)}
@@ -580,12 +663,14 @@ function renderHeroAndSummary(){
   const cityName = cityLabel ? cityLabel.split(",")[0].trim() || cityLabel : "";
   const matchText = `${currentResults.length} ${currentResults.length === 1 ? "apartment community" : "apartment communities"}`;
   const bedroomText = bedroomLabel(criteria.bedrooms).toLowerCase();
-  document.getElementById("heroTitle").textContent = "Your Apartment Options";
+  document.getElementById("heroTitle").textContent = PREVIEW_MODE ? "We Found Apartments That Match Your Search" : "Your Apartment Options";
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = budgetLabel();
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = heroSubText(matchText, bedroomText, cityName);
+  document.getElementById("heroSub").textContent = PREVIEW_MODE
+    ? `Preview ${matchText} based on your search. Start $9.99/month listing access to see property names, full locations, contact details, and your RentReady results.`
+    : heroSubText(matchText, bedroomText, cityName);
   document.getElementById("nearbyCopy").textContent = nearbyAreas.length
     ? `Explore apartment communities near ${criteria.city}.`
     : `Nearby options will appear here when verified results are available.`;
@@ -828,7 +913,7 @@ async function shareProperty(id){
   const result = currentResults.find(r => r.verified.id === id);
   if (!result) return;
   const apt = result.verified;
-  const url = apt.website || apt.mapsUrl || window.location.href;
+  const url = PREVIEW_MODE ? window.location.origin + "/" : (apt.website || apt.mapsUrl || window.location.href);
   const text = `${apt.name} - ${apt.address || apt.area || criteria.city}`;
   try {
     if (navigator.share) {
@@ -887,30 +972,38 @@ function openPropertyModal(id){
   if(!result) return;
   const { verified: apt, rentReady: rr } = result;
   const webBtn = apt.website
-    ? `<a class="btn btn-secondary" href="${apt.website}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>`
+    ? `<a class="btn btn-secondary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener">${ICONS.globe} Check availability</a>`
     : `<span class="btn btn-secondary" style="opacity:.5; pointer-events:none;">${ICONS.globe} No website listed</span>`;
-  const callBlock = apt.phone
-    ? `<div class="modal-call">${ICONS.phone} <span>Call for availability: <a class="num" href="tel:${apt.phone}">${apt.phoneDisplay}</a></span></div>`
+  const mapsBtn = apt.mapsUrl
+    ? `<a class="btn btn-secondary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>`
+    : "";
+  const callBlock = PREVIEW_MODE
+    ? callLineHtml(apt)
+    : apt.phone
+    ? `<div class="modal-call">${ICONS.phone} <span>Call for availability: <a class="num" href="tel:${htmlEscape(telHref(apt.phone))}">${htmlEscape(apt.phoneDisplay)}</a></span></div>`
     : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to check availability</span></div>`;
+  const actions = PREVIEW_MODE
+    ? `<button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">Start Listing Access — $9.99/month</button>`
+    : `${webBtn}${mapsBtn}`;
+  const address = apt.address || apt.locationLabel || apt.area || "";
 
   document.getElementById("modalContent").innerHTML = `
     <div class="modal-photo">
       ${photoHtml(apt)}
-      <button class="close-x" onclick="closePropertyModal()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button class="close-x" type="button" onclick="closePropertyModal()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="modal-name">${apt.name}</div>
-      <div class="modal-meta"><span class="listing-loc" style="margin:0;">${ICONS.pin} ${apt.address}</span>${ratingHtml(apt)}</div>
+      <div class="modal-name">${htmlEscape(apt.name)}</div>
+      <div class="modal-meta">${address ? `<span class="listing-loc" style="margin:0;">${ICONS.pin} ${htmlEscape(address)}</span>` : ""}${ratingHtml(apt)}</div>
 
-      <div class="modal-section"><h4>Why we matched it</h4><p>${rr.matchReason}</p></div>
-      <div class="modal-section"><h4>Location</h4><p>${rr.locationSummary}</p></div>
-      <div class="modal-section"><h4>Best for</h4><p>${rr.bestFor}</p></div>
-      <div class="modal-section"><h4>Amenities</h4><div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div></div>
+      <div class="modal-section"><h4>Why we matched it</h4><p>${htmlEscape(rr.matchReason)}</p></div>
+      <div class="modal-section"><h4>Location</h4><p>${htmlEscape(rr.locationSummary)}</p></div>
+      <div class="modal-section"><h4>Best for</h4><p>${htmlEscape(rr.bestFor)}</p></div>
+      <div class="modal-section"><h4>Amenities</h4><div class="listing-tags">${rr.tags.map(t=>`<span class="tag">${htmlEscape(t)}</span>`).join("")}</div></div>
 
       ${callBlock}
       <div class="modal-actions">
-        ${webBtn}
-        <a class="btn btn-secondary" href="${apt.mapsUrl}" target="_blank" rel="noopener">${ICONS.map} View on maps</a>
+        ${actions}
       </div>
       <p class="modal-disclosure">Pricing, availability and screening requirements can change — confirm current details directly with the property before applying or paying any fees.</p>
     </div>
@@ -920,6 +1013,7 @@ function openPropertyModal(id){
 }
 function closePropertyModal(){ modalOverlay.classList.remove("open"); }
 modalOverlay.addEventListener("click", e => { if(e.target === modalOverlay) closePropertyModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && modalOverlay.classList.contains("open")) closePropertyModal(); });
 
 function setupQuestionnaireBackTarget(){
   if (!window.history || window.__rrnListingBackTargetReady) return;
@@ -937,6 +1031,13 @@ function setupQuestionnaireBackTarget(){
 
 window.addEventListener("load", async ()=>{
   if (!(await requireListingAccess())) return;
+  document.body.classList.toggle("preview-mode", PREVIEW_MODE);
+  if (PREVIEW_MODE) {
+    const edit = document.getElementById("searchEditBtn");
+    if (edit) edit.style.display = "none";
+    const sectionTitle = document.querySelector("#listSection .section-head h2");
+    if (sectionTitle) sectionTitle.textContent = "Your apartment match preview";
+  }
   setupQuestionnaireBackTarget();
   applyAnswerCriteria();
   await loadVerifiedApartmentResults();

@@ -13,6 +13,7 @@
 const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentResults } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
+const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
 
 const RESULTS_CATEGORY = 'questionnaire';
 const LEGACY_CATEGORIES = new Set(['modern', 'luxury', 'apartment_prep']);
@@ -95,6 +96,7 @@ function parseRequest(event) {
   // requestCriteria (a recovery path), this takes precedence over the saved lead.
   const searchOverride = body.searchOverride && typeof body.searchOverride === 'object' ? body.searchOverride : null;
   const token = body.token || q.token;
+  const preview = body.preview === true || body.preview === '1' || q.preview === '1';
 
   if (token) {
     const data = verify(token);
@@ -105,7 +107,7 @@ function parseRequest(event) {
     category = normalizeResultsCategory(data.category);
   }
 
-  return { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria, searchOverride };
+  return { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria, searchOverride, preview };
 }
 
 function normalizeResultsCategory(value) {
@@ -120,7 +122,7 @@ exports.handler = async (event) => {
 
   const parsed = parseRequest(event);
   if (parsed.error) return parsed.error;
-  const { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria } = parsed;
+  const { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria, preview } = parsed;
   const searchOverride = parsed.searchOverride ? normalizeSearchOverride(parsed.searchOverride) : null;
   if (searchOverride && !searchOverride.city) {
     return errorResponse(400, 'SEARCH_CRITERIA_INVALID', 'Please enter a U.S. city and state, like Austin, TX.');
@@ -133,14 +135,14 @@ exports.handler = async (event) => {
   try {
     listingLog('request', { leadId, method: event.httpMethod, category });
     let entitlements = await getEntitlements(leadId);
-    const hasListingAccess = (e) => !!(e && (e.paid10 || e.paid27 || e.paid47));
+    const hasListingAccess = (e) => hasActiveListingAccess(e);
     if (!hasListingAccess(entitlements) && prescreenPaymentIntentId) {
       entitlements = await recoverPrescreenEntitlement(leadId, prescreenPaymentIntentId, entitlements);
     }
     if (!hasListingAccess(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
-    if (!hasListingAccess(entitlements)) {
+    if (!hasListingAccess(entitlements) && !preview) {
       return errorResponse(403, 'LISTING_ACCESS_DENIED', 'This apartment list is not unlocked yet.');
     }
 
@@ -177,7 +179,7 @@ exports.handler = async (event) => {
     }
     listingLog('criteria', { leadId, city: criteria.city, searchArea: criteria.searchArea, rentBudget: criteria.rentBudget, bedrooms: criteria.bedrooms });
     const cached = await getApartmentResults(leadId, category);
-    if (isUsableCachedResult(cached, criteria)) return json(200, { ok: true, ...cached });
+    if (isUsableCachedResult(cached, criteria)) return json(200, previewResponse({ ok: true, ...cached }, preview));
 
     if (!googlePlacesApiKey()) {
       listingWarn('google places api key missing', { leadId, city: criteria.city });
@@ -191,12 +193,12 @@ exports.handler = async (event) => {
       if (err instanceof GooglePlacesError) {
         if (isAnyUsableCachedResult(cached, criteria)) {
           listingWarn('google places failed; returning cached google listings', { leadId, status: err.status, count: cached.properties.length });
-          return json(200, {
+          return json(200, previewResponse({
             ok: true,
             ...cached,
             message: cached.message || 'Showing your latest verified Google apartment matches while fresh results reload.',
             providerWarning: err.status,
-          });
+          }, preview));
         }
         const code = isGoogleSetupStatus(err.status) ? 'GOOGLE_PLACES_CONFIG_ERROR' : 'GOOGLE_PLACES_ERROR';
         listingWarn('google places failed', { leadId, status: err.status, message: err.message });
@@ -216,19 +218,73 @@ exports.handler = async (event) => {
         message: "We couldn't find apartment communities for this search yet. Try a broader nearby city or refresh in a moment.",
         properties: [],
       };
-      return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...empty });
+      return json(200, previewResponse({ ok: true, leadId, category, generatedAt: new Date().toISOString(), ...empty }, preview));
     }
 
     const properties = (await rankWithOpenAI(rawProperties, criteria)).slice(0, MAX_RESULTS);
     const result = { provider: 'google_places', resultsVersion: RESULTS_VERSION, message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
     await saveApartmentResults(leadId, category, result);
     listingLog('LISTINGS SAVED', { leadId, category, count: properties.length });
-    return json(200, { ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result });
+    return json(200, previewResponse({ ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result }, preview));
   } catch (err) {
     console.error('get-apartment-results error', err);
     return json(500, { ok: false, error: 'Could not load apartment results right now.' });
   }
 };
+
+
+function previewResponse(payload, preview) {
+  if (!preview || !payload || !Array.isArray(payload.properties)) return payload;
+  // Unpaid visitors must not receive anything that identifies the property.
+  // The Google place ID, photo resource names and photo URLs all contain the
+  // place ID (which can be looked up on Google Maps for free), so preview
+  // cards get an anonymous ID and an encrypted, short-lived photo token.
+  const { criteria, nearbyAreas, ...rest } = payload;
+  return {
+    ...rest,
+    criteria,
+    nearbyAreas: [],
+    preview: true,
+    properties: payload.properties.map((property, index) => ({
+      propertyId: `preview_${index + 1}`,
+      name: `Apartment Match ${index + 1}`,
+      area: criteria && criteria.city ? criteria.city : 'Your search area',
+      address: '',
+      phone: '',
+      website: '',
+      directions: '',
+      photoName: '',
+      image: previewPhotoUrl(property),
+      authorAttributions: [],
+      rating: property.rating || null,
+      reviewCount: property.reviewCount || null,
+      matchScore: property.matchScore || 80,
+      matchReasons: ['This apartment community matches the search details you provided.'],
+      summary: 'Unlock to see the property name, address, contact details, and availability links.',
+      availabilityNote: 'Full property details unlock with an active RentReady listing membership.',
+      source: property.source || 'Google Places',
+    })),
+  };
+}
+
+const PREVIEW_PHOTO_TTL_MS = 6 * 60 * 60 * 1000;
+
+function previewPhotoUrl(property) {
+  if (!property || !property.image || !property.propertyId) return '';
+  try {
+    const { seal } = require('./_lib/sign');
+    const token = seal({
+      placeId: property.propertyId,
+      photoRef: property.photoReference || '',
+      photoName: property.photoName || '',
+    }, PREVIEW_PHOTO_TTL_MS, 'preview-photo');
+    return `/.netlify/functions/google-place-image?pt=${encodeURIComponent(token)}`;
+  } catch (err) {
+    // EMAIL_LINK_SECRET missing: show the placeholder rather than leak the place ID.
+    listingWarn('preview photo token unavailable', { message: err.message || String(err) });
+    return '';
+  }
+}
 
 function clientAnswersMatchLead(answers, leadId) {
   const answerLeadId = String(answers.lead_id || answers.leadId || '').trim();
@@ -255,18 +311,25 @@ function leadFromFallbackCriteria(criteria, leadId) {
 async function recoverPrescreenEntitlement(leadId, paymentIntentId, current) {
   let pi;
   try {
-    pi = await getStripe().paymentIntents.retrieve(paymentIntentId);
+    pi = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ['invoice.subscription'] });
   } catch (err) {
     console.warn('prescreen entitlement recovery lookup failed', err.code || err.message);
     return current;
   }
 
   const metadata = pi.metadata || {};
-  if (pi.status !== 'succeeded' || metadata.leadId !== leadId || String(metadata.product || '').toLowerCase() !== 'prescreen') {
+  const invoice = pi.invoice && typeof pi.invoice === 'object' ? pi.invoice : null;
+  const subscription = invoice && invoice.subscription && typeof invoice.subscription === 'object'
+    ? invoice.subscription
+    : null;
+  const subscriptionMetadata = (subscription && subscription.metadata) || {};
+  const effectiveLeadId = metadata.leadId || subscriptionMetadata.leadId;
+  const product = String(metadata.product || subscriptionMetadata.product || '').toLowerCase();
+  if (pi.status !== 'succeeded' || effectiveLeadId !== leadId || !['prescreen', 'listing_membership'].includes(product) || !subscription) {
     return current;
   }
 
-  const patch = { paid10: true };
+  const patch = { paid10: true, ...subscriptionStatusPatch(subscription) };
   if (pi.customer) patch.stripeCustomerId = pi.customer;
   if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
 
@@ -345,13 +408,35 @@ async function fetchGooglePlacesLegacy(criteria, key) {
     if (resultsByPlaceId.size >= GOOGLE_CANDIDATE_LIMIT) break;
   }
 
-  const detailedPlaces = [];
-  for (const place of Array.from(resultsByPlaceId.values()).slice(0, GOOGLE_CANDIDATE_LIMIT)) {
-    detailedPlaces.push(await fetchLegacyPlaceDetails(place, key));
-  }
+  // Detail lookups used to run one at a time (up to 24 x ~7s), which could
+  // exceed the Netlify function time limit. Run them with bounded
+  // concurrency while keeping the original candidate order.
+  const candidates = Array.from(resultsByPlaceId.values()).slice(0, GOOGLE_CANDIDATE_LIMIT);
+  const detailedPlaces = await mapWithConcurrency(candidates, GOOGLE_DETAILS_CONCURRENCY, (place) => fetchLegacyPlaceDetails(place, key));
   const normalized = realApartmentResults(detailedPlaces.map((place) => normalizePlace(place, criteria)).filter((place) => place.propertyId && place.name));
   listingLog('LISTINGS NORMALIZED', { count: normalized.length });
   return normalized;
+}
+
+const GOOGLE_DETAILS_CONCURRENCY = 6;
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+  let firstError = null;
+  async function run() {
+    while (next < items.length && !firstError) {
+      const index = next++;
+      try {
+        results[index] = await worker(items[index], index);
+      } catch (err) {
+        if (!firstError) firstError = err;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  if (firstError) throw firstError;
+  return results;
 }
 
 async function fetchLegacyPlaceDetails(searchPlace, key) {

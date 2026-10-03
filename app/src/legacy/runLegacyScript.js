@@ -40,8 +40,16 @@ export function runLegacyScript(scriptText) {
     // script's top-level `function foo(){}` declarations become real
     // globals exactly like they did as a plain page script — some pages
     // rely on inline `onclick="foo()"` handlers finding these globals.
+    //
+    // The text is wrapped in a plain block so top-level `const`/`let`
+    // declarations are scoped to this run. Without it, running the same page
+    // script a second time (React StrictMode in dev, or a re-mount of the
+    // same route) throws "Identifier has already been declared" and the page
+    // never initialises. Function declarations inside a sloppy-mode block are
+    // still exposed as globals (Annex B), so inline `onclick="foo()"`
+    // handlers keep working exactly as before.
     const scriptEl = document.createElement('script');
-    scriptEl.textContent = scriptText;
+    scriptEl.textContent = `{\n${scriptText}\n}`;
     document.body.appendChild(scriptEl);
     document.body.removeChild(scriptEl);
 

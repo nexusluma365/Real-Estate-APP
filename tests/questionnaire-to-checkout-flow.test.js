@@ -258,7 +258,7 @@ function runResultsProcessing(sessionStorage, localStorage) {
   context.window.localStorage = localStorage;
 
   vm.runInNewContext(processingScript, context);
-  assert.equal(context.window.location.href, '/rentready-review-checkout');
+  assert.equal(context.window.location.href, '/real-estate-list.html?preview=1');
   assert.equal(JSON.parse(sessionStorage.getItem('rrn_flow_access_v1')).step, 'prescreen-checkout');
 }
 

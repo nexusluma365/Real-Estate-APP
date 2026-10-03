@@ -58,7 +58,7 @@ const AGENT_STATE_KEY = 'rrn_agent_number_one_v1';
 const FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
 const ENTRY_INTENT_KEY = 'rrn_entry_intent_v1';
 const POST_SUBMIT_REDIRECT_URL = '/results-processing.html';
-const REGISTERED_EMAIL_REDIRECT_URL = '/real-estate-list.html';
+const REGISTERED_EMAIL_REDIRECT_URL = '/real-estate-list.html?preview=1';
 const POST_SUBMIT_REDIRECT_DELAY_MS = 900;
 const VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
 
@@ -401,7 +401,9 @@ function startTyping(question, key) {
     typingState.interval = setInterval(() => {
       index += 1;
       typingState.text = question.prompt.slice(0, index);
-      renderConversation();
+      // Only the typing bubble changes on each tick; rebuilding the whole
+      // conversation every 22ms caused visible jank on low-end phones.
+      if (!updateTypingBubble()) renderConversation();
       if (index >= question.prompt.length) {
         clearTypingTimers();
         typingState.phase = 'done';
@@ -411,6 +413,24 @@ function startTyping(question, key) {
       }
     }, 22);
   }, 520);
+}
+
+function updateTypingBubble() {
+  const mount = document.getElementById('agentConversation');
+  const bubble = mount && typeof mount.querySelector === 'function' ? mount.querySelector('.agent-bubble.is-typing') : null;
+  if (!bubble) return false;
+  bubble.textContent = typingState.text || '';
+  mount.scrollTop = mount.scrollHeight;
+  return true;
+}
+
+function finishTypingNow() {
+  const question = QUESTIONS[agentState.stepIndex];
+  clearTypingTimers();
+  typingState.key = question ? currentTypingKey(question) : typingState.key;
+  typingState.phase = 'done';
+  typingState.text = question ? question.prompt : typingState.text;
+  render();
 }
 
 function incomingAgentHtml(question) {
@@ -567,6 +587,25 @@ function showError(message) {
   err.classList.add('show');
 }
 
+function phoneDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidPhone(value) {
+  const digits = phoneDigits(value);
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+function validationMessage(question) {
+  if (question.type === 'email') return 'Enter a valid email address to continue.';
+  if (question.type === 'tel') return 'Enter a valid phone number, including area code.';
+  if (question.type === 'number' && question.min && question.max) {
+    const prefix = question.prefix || '';
+    return `Enter an amount between ${prefix}${N(question.min)} and ${prefix}${N(question.max)}${question.suffix || ''}.`;
+  }
+  return 'Answer this question to continue.';
+}
+
 function currentQuestionValue() {
   const question = QUESTIONS[agentState.stepIndex];
   if (!question.field) return true;
@@ -574,7 +613,9 @@ function currentQuestionValue() {
     const input = document.getElementById('agentInput');
     const value = String((input && input.value) || '').trim();
     if (question.required && !value) return '';
-    if (question.type === 'email' && input && !input.checkValidity()) return '';
+    if (question.type === 'email' && input && typeof input.checkValidity === 'function' && !input.checkValidity()) return '';
+    if (question.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) return '';
+    if (question.type === 'tel' && !isValidPhone(value)) return '';
     agentState.answers[question.field] = value;
     return value;
   }
@@ -584,8 +625,9 @@ function currentQuestionValue() {
   }
   if (question.type === 'number') {
     const input = document.getElementById('agentInput');
-    const value = Number(input && input.value);
-    if (question.required && !Number.isFinite(value)) return '';
+    const rawValue = String((input && input.value) || '').replace(/[$,\s]/g, '');
+    const value = Number(rawValue);
+    if (question.required && (!rawValue || !Number.isFinite(value))) return '';
     if (question.min && value < question.min) return '';
     if (question.max && value > question.max) return '';
     agentState.answers[question.field] = value;
@@ -623,7 +665,11 @@ function redirectRegisteredEmailLead(lead) {
   const params = new URLSearchParams({ category });
   if (payload.lead_id) params.set('leadId', payload.lead_id);
   if (payload.preferred_city) params.set('city', payload.preferred_city);
-  window.location.href = `${REGISTERED_EMAIL_REDIRECT_URL}?${params.toString()}`;
+  // REGISTERED_EMAIL_REDIRECT_URL already carries a query string
+  // (?preview=1), so append with "&" — a second "?" corrupted the preview flag
+  // and sent returning renters to a locked list instead of their preview.
+  const joiner = REGISTERED_EMAIL_REDIRECT_URL.includes('?') ? '&' : '?';
+  window.location.href = `${REGISTERED_EMAIL_REDIRECT_URL}${joiner}${params.toString()}`;
 }
 
 async function checkRegisteredEmail(value) {
@@ -669,13 +715,17 @@ async function advanceAgent() {
     render();
     return;
   }
+  if (!isIncomingMessageReady()) {
+    finishTypingNow();
+    return;
+  }
   if (agentState.stepIndex === 1 && Date.now() < startGuardUntil) {
     const input = document.getElementById('agentInput');
     if (!String((input && input.value) || '').trim()) return;
   }
   const value = currentQuestionValue();
   if (question.required && !value) {
-    showError(question.type === 'email' ? 'Enter a valid email address to continue.' : 'Answer this question to continue.');
+    showError(validationMessage(question));
     return;
   }
   if (question.field) {

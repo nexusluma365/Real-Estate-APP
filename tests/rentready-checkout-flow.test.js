@@ -177,7 +177,7 @@ async function run() {
   assert.equal(
     requests.some((request) => String(request.url).includes('create-payment-intent')),
     false,
-    'PaymentIntent should not be created before the user clicks the CTA'
+    'Subscription checkout should not be created before the user clicks the CTA'
   );
 
   elementsById.billingZip.value = '12345';
@@ -186,7 +186,7 @@ async function run() {
   assert.equal(
     requests.some((request) => String(request.url).includes('create-payment-intent')),
     true,
-    'PaymentIntent should be created when the user clicks the CTA'
+    'Subscription checkout should be created when the user clicks the CTA'
   );
   assert.equal(
     JSON.parse(storage.rrn_flow_access_v1).step,

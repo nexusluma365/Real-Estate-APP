@@ -7,13 +7,28 @@
 [functions]
   node_bundler = "esbuild"
 
+# Security headers for every response. The SPA's real routes
+# (/check-my-rental-readiness, /rentready-review-checkout, ...) don't end in
+# .html, so the .html-only rule below never applied to them.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Content-hashed Vite bundles: a new deploy always produces new filenames,
+# so these can be cached permanently.
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/*.html"
   [headers.values]
     Cache-Control = "no-store, no-cache, must-revalidate"
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "SAMEORIGIN"
-    Referrer-Policy = "strict-origin-when-cross-origin"
 
 [[headers]]
   for = "/*.jpg"

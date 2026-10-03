@@ -15,8 +15,48 @@ const { getEntitlements, patchEntitlements } = require('./_lib/store');
 const { sendWelcomeEmail } = require('./_lib/welcome-email');
 const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
+const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
+
+async function syncListingSubscription(stripe, subscription, options = {}) {
+  if (!subscription || !subscription.id) return;
+  const metadata = subscription.metadata || {};
+  const leadId = metadata.leadId;
+  if (!leadId) return;
+  const currentEntitlements = (await getEntitlements(leadId)) || {};
+  const patch = {
+    paid10: hasActiveListingAccess(subscriptionStatusPatch(subscription)) ? true : !!currentEntitlements.paid10,
+    stripeCustomerId: subscription.customer || currentEntitlements.stripeCustomerId || null,
+    ...subscriptionStatusPatch(subscription),
+    ...manychatMetadata(metadata.manychat_contact_id),
+  };
+  const defaultPaymentMethod =
+    subscription.default_payment_method ||
+    (subscription.latest_invoice &&
+      typeof subscription.latest_invoice === 'object' &&
+      subscription.latest_invoice.payment_intent &&
+      typeof subscription.latest_invoice.payment_intent === 'object' &&
+      subscription.latest_invoice.payment_intent.payment_method);
+  if (defaultPaymentMethod) patch.defaultPaymentMethodId = typeof defaultPaymentMethod === 'string' ? defaultPaymentMethod : defaultPaymentMethod.id;
+
+  const nextEntitlements = await patchEntitlements(leadId, patch);
+  if (hasActiveListingAccess(nextEntitlements) && !currentEntitlements.listingSubscriptionWelcomeSentAt) {
+    try {
+      await sendWelcomeEmail(leadId);
+      await patchEntitlements(leadId, { listingSubscriptionWelcomeSentAt: new Date().toISOString() });
+    } catch (err) {
+      console.error('stripe-webhook listing welcome email error', err);
+      if (options.throwOnEmailFailure) throw err;
+    }
+  }
+
+  if (subscription.customer && defaultPaymentMethod) {
+    await stripe.customers.update(subscription.customer, {
+      invoice_settings: { default_payment_method: typeof defaultPaymentMethod === 'string' ? defaultPaymentMethod : defaultPaymentMethod.id },
+    }).catch((err) => console.error('stripe-webhook customer default payment update error', err));
+  }
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -24,7 +64,8 @@ exports.handler = async (event) => {
   }
 
   const stripe = getStripe();
-  const sig = event.headers['stripe-signature'];
+  const headers = event.headers || {};
+  const sig = headers['stripe-signature'] || headers['Stripe-Signature'];
   let stripeEvent;
 
   try {
@@ -89,16 +130,7 @@ exports.handler = async (event) => {
       case 'customer.subscription.updated':
       case 'customer.subscription.created': {
         const sub = stripeEvent.data.object;
-        const leadId = sub.metadata && sub.metadata.leadId;
-        const plan = sub.metadata && sub.metadata.plan;
-        if (leadId) {
-          await patchEntitlements(leadId, {
-            membershipStatus: sub.status === 'active' ? 'active' : 'inactive',
-            membershipPlan: sub.status === 'active' ? plan || null : null,
-            stripeSubscriptionId: sub.id,
-            ...manychatMetadata(sub.metadata && sub.metadata.manychat_contact_id),
-          });
-        }
+        await syncListingSubscription(stripe, sub);
         break;
       }
 
@@ -106,7 +138,32 @@ exports.handler = async (event) => {
         const sub = stripeEvent.data.object;
         const leadId = sub.metadata && sub.metadata.leadId;
         if (leadId) {
-          await patchEntitlements(leadId, { membershipStatus: 'inactive', membershipPlan: null });
+          await patchEntitlements(leadId, {
+            ...subscriptionStatusPatch(sub),
+            listingSubscriptionStatus: sub.status || 'canceled',
+            listingAccessStatus: 'inactive',
+          });
+        }
+        break;
+      }
+
+      case 'invoice.payment_succeeded':
+      case 'invoice.paid': {
+        const invoice = stripeEvent.data.object;
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription && invoice.subscription.id;
+        if (subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['latest_invoice.payment_intent'] });
+          await syncListingSubscription(stripe, sub, { throwOnEmailFailure: true });
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = stripeEvent.data.object;
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription && invoice.subscription.id;
+        if (subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          await syncListingSubscription(stripe, sub);
         }
         break;
       }
@@ -118,8 +175,10 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: JSON.stringify({ received: true }) };
   } catch (err) {
     console.error('stripe-webhook processing error', err);
-    // Return 200 anyway so Stripe doesn't hammer retries for a bug on our
-    // side once we've logged it — adjust if you'd rather see retries.
-    return { statusCode: 200, body: JSON.stringify({ received: true, note: 'logged error' }) };
+    // Non-2xx tells Stripe to retry delivery, so a temporary storage outage
+    // can't silently lose a paid entitlement. Entitlement patches are
+    // idempotent and welcome/download emails are guarded by "first purchase"
+    // checks, so retries cannot double-grant or double-email.
+    return { statusCode: 500, body: JSON.stringify({ received: false, error: 'processing_failed' }) };
   }
 };

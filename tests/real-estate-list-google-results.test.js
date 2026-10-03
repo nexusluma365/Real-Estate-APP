@@ -67,7 +67,7 @@ async function run() {
       history: { state: {}, replaceState() {}, pushState() {} },
       addEventListener() {},
       matchMedia: () => ({ matches: true }),
-      rrnFetchEntitlements: async () => ({ paid10: true, paid27: false, purchasedCategories: [] }),
+      rrnFetchEntitlements: async () => ({ paid10: true, listingAccessStatus: 'active', listingSubscriptionStatus: 'active', paid27: false, purchasedCategories: [] }),
       rrnHasRecentFlowAccess: () => true,
       rrnPrescreenPaymentIntentId: () => 'pi_prescreen_saved',
       rrnApartmentPaymentIntentId: (product) => (product === 'apartment_prep' ? 'pi_apartment_prep_saved' : null),
@@ -123,7 +123,7 @@ async function run() {
 
   vm.runInNewContext(script, context);
   assert.equal(await context.requireListingAccess(), true);
-  context.window.rrnFetchEntitlements = async () => ({ paid10: false, paid27: false, paid47: true, purchasedCategories: ['apartment_prep'] });
+  context.window.rrnFetchEntitlements = async () => ({ paid10: false, paid27: false, paid47: true, listingAccessStatus: 'active', listingSubscriptionStatus: 'active', purchasedCategories: ['apartment_prep'] });
   context.window.rrnHasRecentFlowAccess = () => false;
   context.rrnFetchEntitlements = context.window.rrnFetchEntitlements;
   context.rrnHasRecentFlowAccess = context.window.rrnHasRecentFlowAccess;

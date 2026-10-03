@@ -15,30 +15,28 @@ for (const file of files) {
   const visibleText = html.replace(/<[^>]+>/g, '');
 
   [
-    'YOUR RENTREADY RESULTS ARE READY',
-    'See Where You Stand. Then See Your Apartment Options.',
-    'See what may help or hurt your next application, then continue to apartment options based on your search.',
+    'YOUR APARTMENT MATCHES ARE READY',
+    'Unlock the Apartment Matches You Just Previewed.',
+    'You already saw your matches.',
     'Second-chance options may be included when available.',
-    'Your RentReady Results Include',
-    'Unlock Your Results',
+    'Your $9.99/Month Membership Includes',
+    'Start Listing Access',
+    'See Full Apartment Details',
     'See What May Help or Hurt Your Application',
-    'See What May Need Attention Before You Apply',
     'Know What Property Managers May Look For',
-    'Know What You Can Do Next',
-    'Continue to Apartment Options Based on Your Search',
-    'Unlock Your Results — $10',
-    'See your personalized results and continue to apartment options based on your search.',
-    'One-time payment • No subscription • No credit pull',
+    'Get the Full Matches You Just Previewed',
+    'RentReady Listing Membership — $9.99/month',
+    '$9.99 monthly • Renews until canceled • No credit pull',
     'Secure Checkout',
     'Your payment is securely processed.',
-    'UNLOCK MY RESULTS — $10',
-    'Secure payment • One-time $10 • Immediate access',
+    'START MY LISTING ACCESS — $9.99/MONTH',
+    '$9.99 billed monthly until canceled • Secure payment • Immediate access',
     'Your Search',
     'Your Answers',
     'Unlock Results',
     'This is not a rental application, landlord approval, or guarantee of approval.',
-    'RentReady Results + Apartment Options',
-    'One-time payment • No subscription',
+    'RentReady Listing Membership',
+    '$9.99 billed monthly until canceled',
   ].forEach((text) => assert.ok(text.includes('<') ? html.includes(text) : visibleText.includes(text), `${text} should be present`));
 
   assert.doesNotMatch(html, /RentReady Outlook/);
@@ -46,7 +44,7 @@ for (const file of files) {
   assert.doesNotMatch(html, /One-time personalized review/);
   assert.doesNotMatch(html, /Better Your Approval odds/);
   assert.doesNotMatch(html, /View Listings/);
-  // The $10 checkout stays single-purpose: no $47 kit or listings promotion.
+  // The $9.99 checkout stays single-purpose: no $47 kit promotion.
   assert.doesNotMatch(html, /\$47|Preparation Kit|real-estate-list/);
   // The payment form must come before the legal disclaimer in source order.
   assert.ok(html.indexOf('id="payBtn"') < html.indexOf('This is not a rental application'));
@@ -62,7 +60,7 @@ assert.match(processingHtml, /No credit pull\. Based only on the information you
   'Checking common rental factors...',
   'Preparing your RentReady Results...',
   'Preparing your apartment search...',
-  'Your RentReady Results <strong>Are Ready</strong>',
+  'Your Apartment Matches <strong>Are Ready</strong>',
 ].forEach((text) => assert.ok(processingJs.includes(text), `${text} should be in the transition`));
 // The transition only reflects the visitor's own answers.
 const processingCopy = processingHtml + processingJs.replace(/^\s*\/\/.*$/gm, '');

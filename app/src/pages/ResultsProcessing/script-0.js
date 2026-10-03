@@ -1,5 +1,5 @@
 
-const RESULTS_URL = '/rentready-review-checkout';
+const RESULTS_URL = '/real-estate-list.html?preview=1';
 const FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
 
 // These steps describe processing the questionnaire answers only. They must
@@ -38,17 +38,17 @@ function showReady() {
   const subtitle = document.getElementById('subtitle');
   if (eyebrow) eyebrow.textContent = 'Review complete';
   if (title) {
-    title.innerHTML = 'Your RentReady Results <strong>Are Ready</strong>';
+    title.innerHTML = 'Your Apartment Matches <strong>Are Ready</strong>';
     title.classList.add('is-ready');
   }
-  if (subtitle) subtitle.textContent = 'Taking you to your results now.';
+  if (subtitle) subtitle.textContent = 'Taking you to a preview of your apartment matches now.';
 }
 
 let i = 0;
 function tick() {
   if (i >= total) {
     showReady();
-    statusLine.textContent = 'Opening your results...';
+    statusLine.textContent = 'Opening your apartment matches...';
     try {
       sessionStorage.setItem(FLOW_ACCESS_KEY, JSON.stringify({
         step: 'prescreen-checkout',
