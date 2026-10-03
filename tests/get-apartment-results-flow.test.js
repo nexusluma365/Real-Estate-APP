@@ -21,6 +21,14 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
       getEntitlements: async () => entitlements,
       getApartmentResults: async () => cached || null,
       saveApartmentResults: async (leadId, category, results) => savedResults.push({ leadId, category, results }),
+      getPropertyVerification: async (propertyId) => ({
+        propertyId,
+        screeningStatus: 'unverified',
+        verificationVersion: 'screening-v1',
+        verificationExpiresAt: '2999-01-01T00:00:00.000Z',
+      }),
+      savePropertyVerification: async () => {},
+      saveUserListingMatches: async () => {},
       patchEntitlements:
         patchEntitlements ||
         (async (leadId, patch) => {
@@ -246,6 +254,36 @@ async function run() {
     assert.equal(paidBaseCheckoutBody.category, 'questionnaire');
     assert.equal(paidBaseCheckoutBody.properties.length, 8);
     assert.equal(paidBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments 1');
+    assert.equal(paidBaseCheckoutBody.properties[0].propertyId, 'paid10_cached_1');
+    assert.match(paidBaseCheckoutBody.properties[0].matchId, /^match_/);
+
+    const previewBaseCheckout = await loadHandler({
+      lead: {
+        preferred_city: 'Concord, NC',
+        rent_budget: 1600,
+        beds_needed: '1',
+      },
+      entitlements: {
+        paid10: false,
+        paid27: false,
+        paid47: false,
+        purchasedCategories: [],
+      },
+      cached: paidBaseCachedResult,
+    });
+    const previewBaseCheckoutRes = await previewBaseCheckout.handler({
+      httpMethod: 'GET',
+      queryStringParameters: { leadId: 'lead_paid10', preview: '1' },
+    });
+    const previewBaseCheckoutBody = JSON.parse(previewBaseCheckoutRes.body);
+    assert.equal(previewBaseCheckoutRes.statusCode, 200);
+    assert.equal(previewBaseCheckoutBody.preview, true);
+    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Apartment Match 1');
+    assert.equal(previewBaseCheckoutBody.properties[0].address, '');
+    assert.equal(previewBaseCheckoutBody.properties[0].phone, '');
+    assert.equal(previewBaseCheckoutBody.properties[0].website, '');
+    assert.equal(previewBaseCheckoutBody.properties[0].image, '');
+    assert.equal(previewBaseCheckoutBody.properties[0].matchId, paidBaseCheckoutBody.properties[0].matchId);
 
     // Results cached before photo references were saved must be regenerated.
     urls.length = 0;

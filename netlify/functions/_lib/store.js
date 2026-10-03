@@ -83,6 +83,12 @@ function waitingListStore() {
 function propertyImageCacheStore() {
   return createStore('rrn-property-image-cache');
 }
+function propertyVerificationStore() {
+  return createStore('rrn-property-verifications');
+}
+function userListingMatchesStore() {
+  return createStore('rrn-user-listing-matches');
+}
 
 function supabaseConfig() {
   const url = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
@@ -575,6 +581,113 @@ function imageCacheFromRecord(record) {
   };
 }
 
+function propertyVerificationFromRecord(record, propertyId) {
+  if (!record) return null;
+  return {
+    ...(record.raw_verification || {}),
+    propertyId: record.property_id || propertyId,
+    screeningStatus: record.screening_status || 'unverified',
+    verificationSourceUrl: record.verification_source_url || null,
+    verificationSourceDomain: record.verification_source_domain || null,
+    verificationEvidence: record.verification_evidence || null,
+    verificationMethod: record.verification_method || null,
+    verifiedAt: record.verified_at || null,
+    verificationExpiresAt: record.verification_expires_at || null,
+    verificationConfidence: typeof record.verification_confidence === 'number'
+      ? record.verification_confidence
+      : Number(record.verification_confidence || 0),
+    verificationVersion: record.verification_version || null,
+  };
+}
+
+function propertyVerificationRecord(propertyId, verification) {
+  return {
+    property_id: propertyId,
+    screening_status: verification.screeningStatus || 'unverified',
+    verification_source_url: verification.verificationSourceUrl || null,
+    verification_source_domain: verification.verificationSourceDomain || null,
+    verification_evidence: verification.verificationEvidence || null,
+    verification_method: verification.verificationMethod || null,
+    verified_at: verification.verifiedAt || new Date().toISOString(),
+    verification_expires_at: verification.verificationExpiresAt || null,
+    verification_confidence: Number(verification.verificationConfidence || 0),
+    verification_version: verification.verificationVersion || null,
+    raw_verification: { ...verification, propertyId },
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function getPropertyVerification(propertyId) {
+  if (!propertyId) return null;
+  if (supabaseConfig()) {
+    const res = await supabaseRequest(`property_verifications?property_id=eq.${encodeURIComponent(propertyId)}&select=*&limit=1`);
+    const rows = await res.json();
+    return propertyVerificationFromRecord(rows[0], propertyId);
+  }
+  return propertyVerificationStore().get(propertyId, { type: 'json' });
+}
+
+async function savePropertyVerification(propertyId, verification) {
+  if (!propertyId) return null;
+  const next = {
+    ...verification,
+    propertyId,
+    updatedAt: new Date().toISOString(),
+  };
+  if (supabaseConfig()) {
+    await supabaseRequest('property_verifications?on_conflict=property_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(propertyVerificationRecord(propertyId, next)),
+    });
+    return next;
+  }
+  await propertyVerificationStore().setJSON(propertyId, next);
+  return next;
+}
+
+function previewSnapshotForProperty(property, index) {
+  const verification = property.screeningVerification || {};
+  return {
+    propertyId: property.propertyId,
+    city: property.area || '',
+    bedrooms: property.bedrooms || null,
+    matchScore: property.matchScore || null,
+    screeningStatus: verification.screeningStatus || 'unverified',
+    rankOrder: index,
+  };
+}
+
+async function saveUserListingMatches(leadId, category, properties) {
+  if (!leadId || !Array.isArray(properties)) return;
+  const now = new Date().toISOString();
+  const rows = properties
+    .filter((property) => property && property.propertyId)
+    .map((property, index) => ({
+      lead_id: leadId,
+      property_id: property.propertyId,
+      category: category || 'questionnaire',
+      matched_at: now,
+      match_type: property.source || 'google_places',
+      rank_order: index + 1,
+      preview_snapshot: previewSnapshotForProperty(property, index + 1),
+      active: true,
+      updated_at: now,
+    }));
+  if (!rows.length) return;
+  if (supabaseConfig()) {
+    await supabaseRequest('user_listing_matches?on_conflict=lead_id,category,property_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(rows),
+    });
+    return;
+  }
+  for (const row of rows) {
+    await userListingMatchesStore().setJSON(`${leadId}:${category || 'questionnaire'}:${row.property_id}`, row);
+  }
+}
+
 async function getPropertyImageCache(cacheKey) {
   if (!cacheKey) return null;
   if (supabaseConfig()) {
@@ -658,5 +771,8 @@ module.exports = {
   getApartmentResults,
   getPropertyImageCache,
   savePropertyImageCache,
+  getPropertyVerification,
+  savePropertyVerification,
+  saveUserListingMatches,
   saveWaitingListEntry,
 };

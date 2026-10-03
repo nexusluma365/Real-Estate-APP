@@ -10,10 +10,12 @@
 // (JSON body) are supported. The server-side lead record is the source of
 // truth whenever it exists, with same-request questionnaire criteria as a
 // recovery path for paid users whose lead record has not synced yet.
-const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentResults } = require('./_lib/store');
+const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentResults, saveUserListingMatches } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
 const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
+const { attachScreeningVerifications } = require('./_lib/screening-verification');
+const crypto = require('crypto');
 
 const RESULTS_CATEGORY = 'questionnaire';
 const LEGACY_CATEGORIES = new Set(['modern', 'luxury', 'apartment_prep']);
@@ -142,6 +144,12 @@ exports.handler = async (event) => {
     if (!hasListingAccess(entitlements) && upsellPaymentIntentId) {
       entitlements = await recoverApartmentEntitlement(leadId, category, upsellPaymentIntentId, entitlements);
     }
+    console.log('get-apartment-results subscription authorization', {
+      leadId,
+      preview,
+      listingAccess: hasListingAccess(entitlements),
+      subscriptionStatus: entitlements && entitlements.listingSubscriptionStatus,
+    });
     if (!hasListingAccess(entitlements) && !preview) {
       return errorResponse(403, 'LISTING_ACCESS_DENIED', 'This apartment list is not unlocked yet.');
     }
@@ -179,7 +187,11 @@ exports.handler = async (event) => {
     }
     listingLog('criteria', { leadId, city: criteria.city, searchArea: criteria.searchArea, rentBudget: criteria.rentBudget, bedrooms: criteria.bedrooms });
     const cached = await getApartmentResults(leadId, category);
-    if (isUsableCachedResult(cached, criteria)) return json(200, previewResponse({ ok: true, ...cached }, preview));
+    if (isUsableCachedResult(cached, criteria)) {
+      const cachedProperties = await attachScreeningVerifications(cached.properties || []);
+      await saveUserListingMatches(leadId, category, cachedProperties).catch((err) => listingWarn('listing match save failed', { leadId, message: err.message || String(err) }));
+      return json(200, previewResponse({ ok: true, ...cached, properties: cachedProperties }, preview));
+    }
 
     if (!googlePlacesApiKey()) {
       listingWarn('google places api key missing', { leadId, city: criteria.city });
@@ -193,9 +205,12 @@ exports.handler = async (event) => {
       if (err instanceof GooglePlacesError) {
         if (isAnyUsableCachedResult(cached, criteria)) {
           listingWarn('google places failed; returning cached google listings', { leadId, status: err.status, count: cached.properties.length });
+          const cachedProperties = await attachScreeningVerifications(cached.properties || []);
+          await saveUserListingMatches(leadId, category, cachedProperties).catch((saveErr) => listingWarn('listing match save failed', { leadId, message: saveErr.message || String(saveErr) }));
           return json(200, previewResponse({
             ok: true,
             ...cached,
+            properties: cachedProperties,
             message: cached.message || 'Showing your latest verified Google apartment matches while fresh results reload.',
             providerWarning: err.status,
           }, preview));
@@ -221,9 +236,10 @@ exports.handler = async (event) => {
       return json(200, previewResponse({ ok: true, leadId, category, generatedAt: new Date().toISOString(), ...empty }, preview));
     }
 
-    const properties = (await rankWithOpenAI(rawProperties, criteria)).slice(0, MAX_RESULTS);
+    const properties = await attachScreeningVerifications((await rankWithOpenAI(rawProperties, criteria)).slice(0, MAX_RESULTS));
     const result = { provider: 'google_places', resultsVersion: RESULTS_VERSION, message: null, criteria, nearbyAreas: nearbyAreasFromProperties(properties, criteria), properties };
     await saveApartmentResults(leadId, category, result);
+    await saveUserListingMatches(leadId, category, properties).catch((err) => listingWarn('listing match save failed', { leadId, message: err.message || String(err) }));
     listingLog('LISTINGS SAVED', { leadId, category, count: properties.length });
     return json(200, previewResponse({ ok: true, leadId, category, generatedAt: new Date().toISOString(), ...result }, preview));
   } catch (err) {
@@ -234,7 +250,16 @@ exports.handler = async (event) => {
 
 
 function previewResponse(payload, preview) {
-  if (!preview || !payload || !Array.isArray(payload.properties)) return payload;
+  if (!payload || !Array.isArray(payload.properties)) return payload;
+  if (!preview) {
+    return {
+      ...payload,
+      properties: payload.properties.map((property, index) => ({
+        ...property,
+        matchId: matchId(payload.leadId, property.propertyId, index),
+      })),
+    };
+  }
   // Unpaid visitors must not receive anything that identifies the property.
   // The Google place ID, photo resource names and photo URLs all contain the
   // place ID (which can be looked up on Google Maps for free), so preview
@@ -247,6 +272,7 @@ function previewResponse(payload, preview) {
     preview: true,
     properties: payload.properties.map((property, index) => ({
       propertyId: `preview_${index + 1}`,
+      matchId: matchId(payload.leadId, property.propertyId, index),
       name: `Apartment Match ${index + 1}`,
       area: criteria && criteria.city ? criteria.city : 'Your search area',
       address: '',
@@ -254,7 +280,7 @@ function previewResponse(payload, preview) {
       website: '',
       directions: '',
       photoName: '',
-      image: previewPhotoUrl(property),
+      image: '',
       authorAttributions: [],
       rating: property.rating || null,
       reviewCount: property.reviewCount || null,
@@ -262,9 +288,19 @@ function previewResponse(payload, preview) {
       matchReasons: ['This apartment community matches the search details you provided.'],
       summary: 'Unlock to see the property name, address, contact details, and availability links.',
       availabilityNote: 'Full property details unlock with an active RentReady listing membership.',
+      screeningVerification: property.screeningVerification || { screeningStatus: 'unverified' },
       source: property.source || 'Google Places',
     })),
   };
+}
+
+function matchId(leadId, propertyId, index) {
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${leadId || 'lead'}:${propertyId || index}`)
+    .digest('hex')
+    .slice(0, 16);
+  return `match_${hash}`;
 }
 
 const PREVIEW_PHOTO_TTL_MS = 6 * 60 * 60 * 1000;
