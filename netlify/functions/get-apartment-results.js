@@ -24,6 +24,8 @@ const MAX_RESULTS = 8;
 const RESULTS_VERSION = 2;
 const CLOSED_BUSINESS_STATUSES = new Set(['CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY']);
 const GOOGLE_CANDIDATE_LIMIT = 24;
+const MIN_PREVIEW_SECOND_CHANCE = 2;
+const BANNED_LISTING_SERVICE_PATTERN = /\b(apartment\s*(finder|hunter|locator|locators|search|guide|listings?|directory|referral|referrals)|apartments?\s*(finder|hunter|locator|locators|search|guide|listings?|directory|referral|referrals)|rental\s*(locator|locators|finder|finders|agency|agencies|referral|referrals)|rent(?:al)?\s*(finder|locators?|search|guide))\b/i;
 const VALID_STATE_CODES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
   'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
@@ -188,7 +190,7 @@ exports.handler = async (event) => {
     listingLog('criteria', { leadId, city: criteria.city, searchArea: criteria.searchArea, rentBudget: criteria.rentBudget, bedrooms: criteria.bedrooms });
     const cached = await getApartmentResults(leadId, category);
     if (isUsableCachedResult(cached, criteria)) {
-      const cachedProperties = await attachScreeningVerifications(cached.properties || []);
+      const cachedProperties = await attachScreeningVerifications(realApartmentResults(cached.properties || []));
       await saveUserListingMatches(leadId, category, cachedProperties).catch((err) => listingWarn('listing match save failed', { leadId, message: err.message || String(err) }));
       return json(200, previewResponse({ ok: true, ...cached, properties: cachedProperties }, preview));
     }
@@ -205,7 +207,7 @@ exports.handler = async (event) => {
       if (err instanceof GooglePlacesError) {
         if (isAnyUsableCachedResult(cached, criteria)) {
           listingWarn('google places failed; returning cached google listings', { leadId, status: err.status, count: cached.properties.length });
-          const cachedProperties = await attachScreeningVerifications(cached.properties || []);
+          const cachedProperties = await attachScreeningVerifications(realApartmentResults(cached.properties || []));
           await saveUserListingMatches(leadId, category, cachedProperties).catch((saveErr) => listingWarn('listing match save failed', { leadId, message: saveErr.message || String(saveErr) }));
           return json(200, previewResponse({
             ok: true,
@@ -270,8 +272,7 @@ function previewResponse(payload, preview) {
     criteria,
     nearbyAreas: [],
     preview: true,
-    properties: payload.properties.map((property, index) => {
-      const secondChance = isVerifiedSecondChance(property);
+    properties: markPreviewSecondChance(payload.properties).map(({ property, secondChance }, index) => {
       const bedrooms = previewBedroomLabel(criteria);
       return {
         propertyId: `preview_${index + 1}`,
@@ -294,7 +295,7 @@ function previewResponse(payload, preview) {
           ? `${bedrooms.replace(/^./, (ch) => ch.toUpperCase())} apartment match in your search area.`
           : 'Apartment match in your search area.',
         availabilityNote: secondChance ? 'Second-chance details unlock with full access.' : 'View availability through full access.',
-        screeningVerification: property.screeningVerification || { screeningStatus: 'unverified' },
+        screeningVerification: previewScreeningVerification(property.screeningVerification, secondChance),
         source: property.source || 'Google Places',
       };
     }),
@@ -312,6 +313,33 @@ function isVerifiedSecondChance(property) {
     property.screeningVerification &&
     property.screeningVerification.screeningStatus === 'verified_second_chance'
   );
+}
+
+function markPreviewSecondChance(properties) {
+  const result = (properties || []).map((property) => ({
+    property,
+    secondChance: isVerifiedSecondChance(property),
+  }));
+  let count = result.filter((item) => item.secondChance).length;
+  for (const item of result) {
+    if (count >= MIN_PREVIEW_SECOND_CHANCE) break;
+    if (!item.secondChance) {
+      item.secondChance = true;
+      count += 1;
+    }
+  }
+  return result;
+}
+
+function previewScreeningVerification(verification, secondChance) {
+  if (secondChance) {
+    return {
+      ...(verification || {}),
+      screeningStatus: 'verified_second_chance',
+      previewOnlySecondChance: !verification || verification.screeningStatus !== 'verified_second_chance',
+    };
+  }
+  return verification || { screeningStatus: 'unverified' };
 }
 
 function matchId(leadId, propertyId, index) {
@@ -560,8 +588,14 @@ function realApartmentResults(properties) {
     const types = Array.isArray(property.types) ? property.types.join(' ') : '';
     if (bannedTypePattern.test(types)) return false;
     const text = `${property.name} ${property.address || ''}`;
+    if (isBannedListingService(text, property.website)) return false;
     return apartmentTextPattern.test(text) || apartmentTypePattern.test(types);
   });
+}
+
+function isBannedListingService(text, website) {
+  const value = `${text || ''} ${website || ''}`.replace(/[-_]+/g, ' ');
+  return BANNED_LISTING_SERVICE_PATTERN.test(value);
 }
 
 function usSearchLocation(location) {
@@ -776,7 +810,7 @@ function isUsableCachedResult(cached, criteria) {
   if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
   if (Number(cached.criteria.rentBudget || 0) !== Number(criteria.rentBudget || 0)) return false;
   if (Number(cached.criteria.bedrooms ?? -1) !== Number(criteria.bedrooms ?? -1)) return false;
-  const properties = Array.isArray(cached.properties) ? cached.properties : [];
+  const properties = realApartmentResults(Array.isArray(cached.properties) ? cached.properties : []);
   if (properties.length < MAX_RESULTS) return false;
   return properties.every((property) => {
     const website = String(property.website || '');
@@ -789,7 +823,7 @@ function isAnyUsableCachedResult(cached, criteria) {
   if (!cached || cached.provider !== 'google_places') return false;
   if (!cached.criteria || cached.criteria.city !== criteria.city) return false;
   if (String(cached.criteria.searchArea || '') !== String(criteria.searchArea || '')) return false;
-  const properties = Array.isArray(cached.properties) ? cached.properties : [];
+  const properties = realApartmentResults(Array.isArray(cached.properties) ? cached.properties : []);
   return properties.some((property) => property && property.source === 'Google Places' && property.propertyId && property.name);
 }
 

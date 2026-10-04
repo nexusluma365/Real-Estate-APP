@@ -691,7 +691,6 @@ function listingHtml(result, index, isTop){
         <button class="icon-btn" type="button" onclick="hideProperty('${apt.id}')" aria-label="Hide ${htmlEscape(apt.name)}">${ICONS.hide}</button>
         <button class="icon-btn" type="button" onclick="openPropertyModal('${apt.id}')" aria-label="More options for ${htmlEscape(apt.name)}">${ICONS.more}</button>
       </div>
-      <span class="status-pill"><span class="status-dot"></span> Google Places match</span>
     </div>
     <div class="listing-main">
       <div class="screening-row">${screeningBadgeHtml(apt.screeningVerification)}</div>

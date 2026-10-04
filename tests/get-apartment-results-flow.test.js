@@ -161,6 +161,13 @@ async function run() {
         mapsUrl: 'https://maps.google.com/?cid=concordreserve',
         photoName: 'places/place_concord_1/photos/photo_concord_1',
       },
+      {
+        id: 'place_apartment_finder',
+        name: 'Apartment Finder Concord',
+        address: '200 Referral Way, Concord, NC',
+        website: 'https://apartmentfinder.example.com/concord',
+        mapsUrl: 'https://maps.google.com/?cid=apartmentfinder',
+      },
     ];
     const google = installLegacyGoogleMock(urls, concordPlaces);
 
@@ -202,6 +209,7 @@ async function run() {
     assert.equal(body.criteria.rentBudget, 1600);
     assert.equal(body.properties.length, 1);
     assert.equal(body.properties[0].name, 'Concord Reserve Apartments');
+    assert(!body.properties.some((property) => /finder|locator|hunter/i.test(property.name)));
     assert.equal(body.properties[0].phone, '(704) 555-0199');
     assert.equal(body.properties[0].website, 'https://example.com/concord-reserve');
     assert.equal(body.properties[0].propertyId, 'place_concord_1');
@@ -214,7 +222,7 @@ async function run() {
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
     assert.equal(google.searchCalls, 6);
-    assert.equal(google.detailCalls, 1);
+    assert.equal(google.detailCalls, 2);
     assert(!urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
     assert(urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
     assert(urls.some((url) => url.includes('/maps/api/place/details/json')));
@@ -281,7 +289,7 @@ async function run() {
     const previewBaseCheckoutBody = JSON.parse(previewBaseCheckoutRes.body);
     assert.equal(previewBaseCheckoutRes.statusCode, 200);
     assert.equal(previewBaseCheckoutBody.preview, true);
-    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments 1');
+    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Second-Chance Match 1');
     assert.equal(previewBaseCheckoutBody.properties[0].address, '');
     assert.equal(previewBaseCheckoutBody.properties[0].phone, '');
     assert.equal(previewBaseCheckoutBody.properties[0].website, '');
@@ -289,7 +297,11 @@ async function run() {
     assert.doesNotMatch(previewBaseCheckoutBody.properties[0].image, /paid10_cached_1|photoName|photoRef|placeId/);
     assert.equal(previewBaseCheckoutBody.properties[0].bedroomLabel, '1 bedroom');
     assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewTag, undefined);
-    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.screeningStatus, 'unverified');
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.screeningStatus, 'verified_second_chance');
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewOnlySecondChance, true);
+    assert.equal(previewBaseCheckoutBody.properties[1].screeningVerification.screeningStatus, 'verified_second_chance');
+    assert.equal(previewBaseCheckoutBody.properties[2].screeningVerification.screeningStatus, 'unverified');
+    assert.equal(previewBaseCheckoutBody.properties.filter((property) => property.screeningVerification.screeningStatus === 'verified_second_chance').length, 2);
     assert.equal(previewBaseCheckoutBody.properties[0].matchId, paidBaseCheckoutBody.properties[0].matchId);
 
     // Results cached before photo references were saved must be regenerated.

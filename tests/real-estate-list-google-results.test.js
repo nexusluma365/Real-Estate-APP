@@ -142,6 +142,8 @@ async function run() {
   assert.equal((html.match(/data-property-id=/g) || []).length, 8);
   assert.equal((html.match(/photo-placeholder/g) || []).length, 1);
   assert.equal((html.match(/class="photo-attribution"/g) || []).length, 1);
+  assert.doesNotMatch(html, /Google Places match/);
+  assert.doesNotMatch(html, /status-pill/);
   assert.doesNotMatch(html, /Apartment search/);
 }
 
