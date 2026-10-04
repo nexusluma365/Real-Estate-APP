@@ -19,12 +19,10 @@ for (const file of files) {
     'Unlock the Apartment Matches You Just Previewed.',
     'You already saw your matches.',
     'Second-chance options may be included when available.',
-    'Your $9.99/Month Membership Includes',
-    'Start Listing Access',
-    'See Full Apartment Details',
+    'Unlock Your Results',
     'See What May Help or Hurt Your Application',
     'Know What Property Managers May Look For',
-    'Get the Full Matches You Just Previewed',
+    'Continue to Apartment Options Based on Your Search',
     'RentReady Listing Membership — $9.99/month',
     '$9.99 monthly • Renews until canceled • No credit pull',
     'Secure Checkout',
@@ -70,5 +68,9 @@ const previewHtml = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateLis
 const previewVisible = previewHtml.replace(/<[^>]+>/g, '');
 assert.ok(previewVisible.includes('UNLOCK FULL ACCESS'), 'preview CTA should use access-only copy');
 assert.doesNotMatch(previewVisible, /\$9\.99|9\.99\/month|per month/i, 'preview page markup must not show pricing');
+
+const checkoutCss = fs.readFileSync(path.join(root, 'app/src/pages/RentreadyReviewCheckout/page.css'), 'utf8');
+assert.match(checkoutCss, /\.includes-list li\{[^}]*display:flex;[^}]*align-items:flex-start;/, 'checkout benefits should align checks beside text');
+assert.match(checkoutCss, /\.includes-list b\{[^}]*flex:0 0 22px;/, 'checkout check icon should keep fixed left column');
 
 console.log('rentready checkout copy test passed');

@@ -281,15 +281,15 @@ async function run() {
     const previewBaseCheckoutBody = JSON.parse(previewBaseCheckoutRes.body);
     assert.equal(previewBaseCheckoutRes.statusCode, 200);
     assert.equal(previewBaseCheckoutBody.preview, true);
-    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Apartment Match 1');
+    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Paid Checkout Apartments 1');
     assert.equal(previewBaseCheckoutBody.properties[0].address, '');
     assert.equal(previewBaseCheckoutBody.properties[0].phone, '');
     assert.equal(previewBaseCheckoutBody.properties[0].website, '');
     assert.match(previewBaseCheckoutBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?pt=/);
     assert.doesNotMatch(previewBaseCheckoutBody.properties[0].image, /paid10_cached_1|photoName|photoRef|placeId/);
     assert.equal(previewBaseCheckoutBody.properties[0].bedroomLabel, '1 bedroom');
-    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewTag, 'second_chance_apartment');
-    assert.equal(previewBaseCheckoutBody.properties[1].screeningVerification.previewTag, 'second_chance_apartment');
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewTag, undefined);
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.screeningStatus, 'unverified');
     assert.equal(previewBaseCheckoutBody.properties[0].matchId, paidBaseCheckoutBody.properties[0].matchId);
 
     // Results cached before photo references were saved must be regenerated.

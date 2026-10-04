@@ -467,15 +467,13 @@ function serverPropertyToResult(property){
 }
 
 function screeningLabel(verification){
-  if (PREVIEW_MODE && verification && verification.previewTag === "second_chance_apartment") return "SECOND-CHANCE APARTMENT";
   const status = verification && verification.screeningStatus;
-  if (status === "verified_second_chance") return "VERIFIED SECOND-CHANCE MATCH";
+  if (status === "verified_second_chance") return PREVIEW_MODE ? "SECOND-CHANCE MATCH" : "VERIFIED SECOND-CHANCE MATCH";
   if (status === "flexible_screening") return "FLEXIBLE SCREENING";
   return "RENTAL MATCH";
 }
 
 function screeningClass(verification){
-  if (PREVIEW_MODE && verification && verification.previewTag === "second_chance_apartment") return "second-chance";
   const status = verification && verification.screeningStatus;
   if (status === "verified_second_chance") return "second-chance";
   if (status === "flexible_screening") return "flexible";
@@ -484,6 +482,15 @@ function screeningClass(verification){
 
 function screeningBadgeHtml(verification){
   return `<span class="screening-badge ${screeningClass(verification)}">${htmlEscape(screeningLabel(verification))}</span>`;
+}
+
+function isPreviewSecondChance(apt){
+  return !!(
+    PREVIEW_MODE &&
+    apt &&
+    apt.screeningVerification &&
+    apt.screeningVerification.screeningStatus === "verified_second_chance"
+  );
 }
 
 const ICONS = {
@@ -533,7 +540,7 @@ function listingFactsHtml(apt, crit){
 }
 function photoHtml(apt) {
   if (apt.photo && apt.id) {
-    const previewClass = PREVIEW_MODE ? ` class="preview-blur-photo"` : "";
+    const previewClass = isPreviewSecondChance(apt) ? ` class="preview-blur-photo"` : "";
     return `<img${previewClass} src="${htmlEscape(apt.photo)}"
       alt="${htmlEscape(apt.name || "Apartment community")}"
       loading="lazy"
@@ -644,7 +651,12 @@ async function resolveListingImage(job){
   node.replaceWith(img);
 }
 function callLineHtml(apt){
-  if (PREVIEW_MODE) return `<div class="preview-locked-line"><span class="preview-lock">🔒</span><span>To see availability, unlock full access</span></div>`;
+  if (PREVIEW_MODE) {
+    const copy = isPreviewSecondChance(apt)
+      ? "Second-chance details unlock with full access"
+      : "Tap View Availability to continue";
+    return `<div class="preview-locked-line"><span>${htmlEscape(copy)}</span></div>`;
+  }
   if(apt.phone){
     return `<div class="call-line">${ICONS.phone}<span>Call for availability:</span><a href="tel:${htmlEscape(telHref(apt.phone))}" onclick="trackPropertyContact('${htmlEscape(apt.id)}','phone')">${htmlEscape(apt.phoneDisplay)}</a></div>`;
   }
@@ -654,7 +666,10 @@ function trackPropertyContact(id, method){
   try { rrTrack('property_contact_clicked', { lead_id: currentLeadId(), property_id: id, method }); } catch (_e) {}
 }
 function actionButtonsHtml(apt){
-  if (PREVIEW_MODE) return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK FULL ACCESS</button></div>`;
+  if (PREVIEW_MODE) {
+    const label = isPreviewSecondChance(apt) ? "UNLOCK ACCESS" : "VIEW AVAILABILITY";
+    return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">${label}</button></div>`;
+  }
   const secondary = apt.phone
     ? (apt.website ? `<a class="btn btn-secondary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','website')">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','maps')">${ICONS.map} Maps</a>` : "")
     : (apt.website ? `<a class="btn btn-primary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','website')">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-primary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','maps')">${ICONS.map} View on maps</a>` : "");
@@ -667,7 +682,7 @@ function listingHtml(result, index, isTop){
   const { verified: apt, rentReady: rr } = result;
   const facts = listingFactsHtml(apt, criteria);
   return `
-  <article class="listing ${isTop ? "top" : ""}">
+  <article class="listing ${isTop ? "top" : ""} ${isPreviewSecondChance(apt) ? "second-chance-preview" : ""}">
     <div class="listing-num">${index + 1}</div>
     <div class="listing-photo">
       ${photoHtml(apt)}
@@ -676,7 +691,7 @@ function listingHtml(result, index, isTop){
         <button class="icon-btn" type="button" onclick="hideProperty('${apt.id}')" aria-label="Hide ${htmlEscape(apt.name)}">${ICONS.hide}</button>
         <button class="icon-btn" type="button" onclick="openPropertyModal('${apt.id}')" aria-label="More options for ${htmlEscape(apt.name)}">${ICONS.more}</button>
       </div>
-      <span class="status-pill"><span class="status-dot"></span> ${PREVIEW_MODE ? "Preview match" : "Google Places match"}</span>
+      <span class="status-pill"><span class="status-dot"></span> Google Places match</span>
     </div>
     <div class="listing-main">
       <div class="screening-row">${screeningBadgeHtml(apt.screeningVerification)}</div>
@@ -1034,7 +1049,7 @@ function openPropertyModal(id){
     ? `<div class="modal-call">${ICONS.phone} <span>Call for availability: <a class="num" href="tel:${htmlEscape(telHref(apt.phone))}">${htmlEscape(apt.phoneDisplay)}</a></span></div>`
     : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to check availability</span></div>`;
   const actions = PREVIEW_MODE
-    ? `<button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK FULL ACCESS</button>`
+    ? `<button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">${isPreviewSecondChance(apt) ? "UNLOCK ACCESS" : "VIEW AVAILABILITY"}</button>`
     : `${webBtn}${mapsBtn}`;
   const address = apt.address || apt.locationLabel || apt.area || "";
 

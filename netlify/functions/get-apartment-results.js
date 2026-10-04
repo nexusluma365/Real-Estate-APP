@@ -260,40 +260,44 @@ function previewResponse(payload, preview) {
       })),
     };
   }
-  // Unpaid visitors must not receive anything that identifies the property.
-  // The Google place ID, photo resource names and photo URLs all contain the
-  // place ID (which can be looked up on Google Maps for free), so preview
-  // cards get an anonymous ID and an encrypted, short-lived photo token.
+  // Preview cards never expose raw Google place IDs, photo resource names,
+  // contact details, or direct Maps links. Standard listings may show the
+  // property name and a protected photo token; verified second-chance listings
+  // remain name-limited until full access is confirmed.
   const { criteria, nearbyAreas, ...rest } = payload;
   return {
     ...rest,
     criteria,
     nearbyAreas: [],
     preview: true,
-    properties: payload.properties.map((property, index) => ({
-      propertyId: `preview_${index + 1}`,
-      matchId: matchId(payload.leadId, property.propertyId, index),
-      name: `Apartment Match ${index + 1}`,
-      area: criteria && criteria.city ? criteria.city : 'Your search area',
-      address: '',
-      phone: '',
-      website: '',
-      directions: '',
-      bedroomLabel: previewBedroomLabel(criteria),
-      photoName: '',
-      image: previewPhotoUrl(property),
-      authorAttributions: [],
-      rating: property.rating || null,
-      reviewCount: property.reviewCount || null,
-      matchScore: property.matchScore || 80,
-      matchReasons: ['This apartment community matches the search details you provided.'],
-      summary: previewBedroomLabel(criteria)
-        ? `${previewBedroomLabel(criteria).replace(/^./, (ch) => ch.toUpperCase())} apartment match in your search area.`
-        : 'Apartment match in your search area.',
-      availabilityNote: 'To see availability, unlock full access.',
-      screeningVerification: previewScreeningVerification(property.screeningVerification, index),
-      source: property.source || 'Google Places',
-    })),
+    properties: payload.properties.map((property, index) => {
+      const secondChance = isVerifiedSecondChance(property);
+      const bedrooms = previewBedroomLabel(criteria);
+      return {
+        propertyId: `preview_${index + 1}`,
+        matchId: matchId(payload.leadId, property.propertyId, index),
+        name: secondChance ? `Second-Chance Match ${index + 1}` : property.name || `Apartment Match ${index + 1}`,
+        area: criteria && criteria.city ? criteria.city : property.area || 'Your search area',
+        address: '',
+        phone: '',
+        website: '',
+        directions: '',
+        bedroomLabel: bedrooms,
+        photoName: '',
+        image: previewPhotoUrl(property),
+        authorAttributions: [],
+        rating: property.rating || null,
+        reviewCount: property.reviewCount || null,
+        matchScore: property.matchScore || 80,
+        matchReasons: ['This apartment community matches the search details you provided.'],
+        summary: bedrooms
+          ? `${bedrooms.replace(/^./, (ch) => ch.toUpperCase())} apartment match in your search area.`
+          : 'Apartment match in your search area.',
+        availabilityNote: secondChance ? 'Second-chance details unlock with full access.' : 'View availability through full access.',
+        screeningVerification: property.screeningVerification || { screeningStatus: 'unverified' },
+        source: property.source || 'Google Places',
+      };
+    }),
   };
 }
 
@@ -302,16 +306,12 @@ function previewBedroomLabel(criteria) {
   return criteria.bedroomsLabel || bedroomLabel(criteria.bedrooms);
 }
 
-function previewScreeningVerification(verification, index) {
-  if (verification && verification.screeningStatus === 'verified_second_chance') return verification;
-  if (index < 2) {
-    return {
-      ...(verification || {}),
-      screeningStatus: 'unverified',
-      previewTag: 'second_chance_apartment',
-    };
-  }
-  return verification || { screeningStatus: 'unverified' };
+function isVerifiedSecondChance(property) {
+  return !!(
+    property &&
+    property.screeningVerification &&
+    property.screeningVerification.screeningStatus === 'verified_second_chance'
+  );
 }
 
 function matchId(leadId, propertyId, index) {
