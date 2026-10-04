@@ -65,9 +65,14 @@ const processingCopy = processingHtml + processingJs.replace(/^\s*\/\/.*$/gm, ''
 assert.doesNotMatch(processingCopy, /credit report|screening report|landlord review|approved/i);
 
 const previewHtml = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/page.html'), 'utf8');
+const previewScript = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/script-0.js'), 'utf8');
 const previewVisible = previewHtml.replace(/<[^>]+>/g, '');
-assert.ok(previewVisible.includes('UNLOCK FULL ACCESS'), 'preview CTA should use access-only copy');
+assert.doesNotMatch(previewVisible, /UNLOCK FULL ACCESS/i, 'preview hero should not show an unlock access CTA');
 assert.doesNotMatch(previewVisible, /\$9\.99|9\.99\/month|per month/i, 'preview page markup must not show pricing');
+assert.ok(previewScript.includes('PREVIEW_VISIBLE_LIMIT = 5'), 'preview should show five listing cards before checkout CTA');
+assert.ok(previewScript.includes('VIEW MORE'), 'preview should include a View More checkout CTA after visible listings');
+assert.ok(previewScript.includes("We've Found"), 'preview hero should use concise found-matches copy');
+assert.doesNotMatch(previewScript, /Availability locked/, 'preview cards should not show Availability locked text');
 
 const checkoutCss = fs.readFileSync(path.join(root, 'app/src/pages/RentreadyReviewCheckout/page.css'), 'utf8');
 assert.match(checkoutCss, /\.includes-list li\{[^}]*display:flex;[^}]*align-items:flex-start;/, 'checkout benefits should align checks beside text');

@@ -1,5 +1,6 @@
 
 const PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
+const PREVIEW_VISIBLE_LIMIT = 5;
 const CHECKOUT_URL = '/rentready-review-checkout';
 
 function goToUnlock(){
@@ -525,7 +526,6 @@ function listingFactsHtml(apt, crit){
       : bedroomLabel(crit.bedrooms);
     return [
       `${bedroom} match`,
-      "Availability locked",
     ].map((fact, i) => `${i ? "<span>·</span>" : ""}${htmlEscape(fact)}`).join(" ");
   }
   const facts = Array.isArray(apt.facts) && apt.facts.length
@@ -724,7 +724,7 @@ function renderHeroAndSummary(){
   document.getElementById("scBudget").textContent = budgetLabel();
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
   document.getElementById("heroSub").textContent = PREVIEW_MODE
-    ? `${matchText} based on your search. Unlock full access to see names, availability, contact details, and addresses.`
+    ? `We've Found ${currentResults.length} Rental ${currentResults.length === 1 ? "Match" : "Matches"} Based On Your Search`
     : heroSubText(matchText, bedroomText, cityName);
   if (PREVIEW_MODE) {
     try {
@@ -787,11 +787,18 @@ function renderResults(){
   }
   listSection.style.display = "block";
   emptySection.style.display = "none";
-  document.getElementById("resultCount").textContent = currentResults.length + (currentResults.length === 1 ? " match" : " matches");
-  document.getElementById("listingList").innerHTML = currentResults
+  const visibleResults = PREVIEW_MODE ? currentResults.slice(0, PREVIEW_VISIBLE_LIMIT) : currentResults;
+  document.getElementById("resultCount").textContent = visibleResults.length + (visibleResults.length === 1 ? " match" : " matches");
+  document.getElementById("listingList").innerHTML = visibleResults
     .map((r,i) => listingHtml(r, i, i < 3))
-    .join("");
+    .join("") + (PREVIEW_MODE && currentResults.length > visibleResults.length ? viewMoreCtaHtml() : "");
   resolveListingImages(document.getElementById("listingList"));
+}
+
+function viewMoreCtaHtml(){
+  return `<div class="view-more-card">
+    <button class="btn btn-primary preview-unlock-btn view-more-btn" type="button" onclick="goToUnlock()">VIEW MORE</button>
+  </div>`;
 }
 
 function renderEmptyState(){
