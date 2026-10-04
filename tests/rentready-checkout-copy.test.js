@@ -68,7 +68,7 @@ assert.doesNotMatch(processingCopy, /credit report|screening report|landlord rev
 
 const previewHtml = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateList/page.html'), 'utf8');
 const previewVisible = previewHtml.replace(/<[^>]+>/g, '');
-assert.ok(previewVisible.includes('UNLOCK ACCESS'), 'preview CTA should use access-only copy');
+assert.ok(previewVisible.includes('UNLOCK FULL ACCESS'), 'preview CTA should use access-only copy');
 assert.doesNotMatch(previewVisible, /\$9\.99|9\.99\/month|per month/i, 'preview page markup must not show pricing');
 
 console.log('rentready checkout copy test passed');

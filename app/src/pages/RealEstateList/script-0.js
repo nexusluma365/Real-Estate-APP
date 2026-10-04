@@ -434,6 +434,7 @@ function serverPropertyToResult(property){
     rating: typeof property.rating === "number" ? property.rating : null,
     reviewCount: typeof property.reviewCount === "number" ? property.reviewCount : null,
     photo: safeHttpUrl(property.image),
+    bedroomLabel: property.bedroomLabel || "",
     locationLabel: property.address || criteria.city,
     style: criteria.style,
     highRise: null,
@@ -454,7 +455,9 @@ function serverPropertyToResult(property){
     rentReady: {
       propertyId: apt.id,
       matchScore: Number(property.matchScore) || 80,
-      matchReason: reasons.join(" ") || property.summary || "Matched from your saved RentReady search criteria.",
+      matchReason: PREVIEW_MODE
+        ? (property.summary || "Matched from your saved RentReady search criteria.")
+        : (reasons.join(" ") || property.summary || "Matched from your saved RentReady search criteria."),
       locationSummary: property.address ? `Located near ${property.address}.` : `Located around ${criteria.city}.`,
       bestFor: property.summary || `Best for renters searching for apartments in ${criteria.city}.`,
       potentialTradeoff: property.availabilityNote || "Confirm current availability directly with the property.",
@@ -464,6 +467,7 @@ function serverPropertyToResult(property){
 }
 
 function screeningLabel(verification){
+  if (PREVIEW_MODE && verification && verification.previewTag === "second_chance_apartment") return "SECOND-CHANCE APARTMENT";
   const status = verification && verification.screeningStatus;
   if (status === "verified_second_chance") return "VERIFIED SECOND-CHANCE MATCH";
   if (status === "flexible_screening") return "FLEXIBLE SCREENING";
@@ -471,6 +475,7 @@ function screeningLabel(verification){
 }
 
 function screeningClass(verification){
+  if (PREVIEW_MODE && verification && verification.previewTag === "second_chance_apartment") return "second-chance";
   const status = verification && verification.screeningStatus;
   if (status === "verified_second_chance") return "second-chance";
   if (status === "flexible_screening") return "flexible";
@@ -507,6 +512,15 @@ function rentRangeHtml(apt){
   return `${money(apt.estRent.min)} - ${money(apt.estRent.max)} <span>/ mo</span>`;
 }
 function listingFactsHtml(apt, crit){
+  if (PREVIEW_MODE) {
+    const bedroom = apt.bedroomLabel
+      ? apt.bedroomLabel.replace(/^./, ch => ch.toUpperCase())
+      : bedroomLabel(crit.bedrooms);
+    return [
+      `${bedroom} match`,
+      "Availability locked",
+    ].map((fact, i) => `${i ? "<span>·</span>" : ""}${htmlEscape(fact)}`).join(" ");
+  }
   const facts = Array.isArray(apt.facts) && apt.facts.length
     ? apt.facts
     : [
@@ -519,7 +533,8 @@ function listingFactsHtml(apt, crit){
 }
 function photoHtml(apt) {
   if (apt.photo && apt.id) {
-    return `<img src="${htmlEscape(apt.photo)}"
+    const previewClass = PREVIEW_MODE ? ` class="preview-blur-photo"` : "";
+    return `<img${previewClass} src="${htmlEscape(apt.photo)}"
       alt="${htmlEscape(apt.name || "Apartment community")}"
       loading="lazy"
       decoding="async"
@@ -629,7 +644,7 @@ async function resolveListingImage(job){
   node.replaceWith(img);
 }
 function callLineHtml(apt){
-  if (PREVIEW_MODE) return `<div class="preview-locked-line"><span class="preview-lock">🔒</span><span>Contact details unlock with your results</span></div>`;
+  if (PREVIEW_MODE) return `<div class="preview-locked-line"><span class="preview-lock">🔒</span><span>To see availability, unlock full access</span></div>`;
   if(apt.phone){
     return `<div class="call-line">${ICONS.phone}<span>Call for availability:</span><a href="tel:${htmlEscape(telHref(apt.phone))}" onclick="trackPropertyContact('${htmlEscape(apt.id)}','phone')">${htmlEscape(apt.phoneDisplay)}</a></div>`;
   }
@@ -639,7 +654,7 @@ function trackPropertyContact(id, method){
   try { rrTrack('property_contact_clicked', { lead_id: currentLeadId(), property_id: id, method }); } catch (_e) {}
 }
 function actionButtonsHtml(apt){
-  if (PREVIEW_MODE) return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK ACCESS</button></div>`;
+  if (PREVIEW_MODE) return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK FULL ACCESS</button></div>`;
   const secondary = apt.phone
     ? (apt.website ? `<a class="btn btn-secondary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','website')">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','maps')">${ICONS.map} Maps</a>` : "")
     : (apt.website ? `<a class="btn btn-primary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','website')">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-primary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','maps')">${ICONS.map} View on maps</a>` : "");
@@ -661,7 +676,7 @@ function listingHtml(result, index, isTop){
         <button class="icon-btn" type="button" onclick="hideProperty('${apt.id}')" aria-label="Hide ${htmlEscape(apt.name)}">${ICONS.hide}</button>
         <button class="icon-btn" type="button" onclick="openPropertyModal('${apt.id}')" aria-label="More options for ${htmlEscape(apt.name)}">${ICONS.more}</button>
       </div>
-      <span class="status-pill"><span class="status-dot"></span> Google Places match</span>
+      <span class="status-pill"><span class="status-dot"></span> ${PREVIEW_MODE ? "Preview match" : "Google Places match"}</span>
     </div>
     <div class="listing-main">
       <div class="screening-row">${screeningBadgeHtml(apt.screeningVerification)}</div>
@@ -689,13 +704,13 @@ function renderHeroAndSummary(){
   const cityName = cityLabel ? cityLabel.split(",")[0].trim() || cityLabel : "";
   const matchText = `${currentResults.length} ${currentResults.length === 1 ? "apartment community" : "apartment communities"}`;
   const bedroomText = bedroomLabel(criteria.bedrooms).toLowerCase();
-  document.getElementById("heroTitle").textContent = PREVIEW_MODE ? "We Found Apartments That Match Your Search" : "Your Apartment Options";
+  document.getElementById("heroTitle").textContent = PREVIEW_MODE ? "Apartment Matches Ready" : "Your Apartment Options";
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = budgetLabel();
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
   document.getElementById("heroSub").textContent = PREVIEW_MODE
-    ? `Preview ${matchText} based on your search. Unlock access to see property names, photos, addresses, contact information, and your complete results.`
+    ? `${matchText} based on your search. Unlock full access to see names, availability, contact details, and addresses.`
     : heroSubText(matchText, bedroomText, cityName);
   if (PREVIEW_MODE) {
     try {
@@ -1019,7 +1034,7 @@ function openPropertyModal(id){
     ? `<div class="modal-call">${ICONS.phone} <span>Call for availability: <a class="num" href="tel:${htmlEscape(telHref(apt.phone))}">${htmlEscape(apt.phoneDisplay)}</a></span></div>`
     : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to check availability</span></div>`;
   const actions = PREVIEW_MODE
-    ? `<button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK ACCESS</button>`
+    ? `<button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK FULL ACCESS</button>`
     : `${webBtn}${mapsBtn}`;
   const address = apt.address || apt.locationLabel || apt.area || "";
 

@@ -279,19 +279,39 @@ function previewResponse(payload, preview) {
       phone: '',
       website: '',
       directions: '',
+      bedroomLabel: previewBedroomLabel(criteria),
       photoName: '',
-      image: '',
+      image: previewPhotoUrl(property),
       authorAttributions: [],
       rating: property.rating || null,
       reviewCount: property.reviewCount || null,
       matchScore: property.matchScore || 80,
       matchReasons: ['This apartment community matches the search details you provided.'],
-      summary: 'Unlock to see the property name, address, contact details, and availability links.',
-      availabilityNote: 'Full property details unlock with an active RentReady listing membership.',
-      screeningVerification: property.screeningVerification || { screeningStatus: 'unverified' },
+      summary: previewBedroomLabel(criteria)
+        ? `${previewBedroomLabel(criteria).replace(/^./, (ch) => ch.toUpperCase())} apartment match in your search area.`
+        : 'Apartment match in your search area.',
+      availabilityNote: 'To see availability, unlock full access.',
+      screeningVerification: previewScreeningVerification(property.screeningVerification, index),
       source: property.source || 'Google Places',
     })),
   };
+}
+
+function previewBedroomLabel(criteria) {
+  if (!criteria) return '';
+  return criteria.bedroomsLabel || bedroomLabel(criteria.bedrooms);
+}
+
+function previewScreeningVerification(verification, index) {
+  if (verification && verification.screeningStatus === 'verified_second_chance') return verification;
+  if (index < 2) {
+    return {
+      ...(verification || {}),
+      screeningStatus: 'unverified',
+      previewTag: 'second_chance_apartment',
+    };
+  }
+  return verification || { screeningStatus: 'unverified' };
 }
 
 function matchId(leadId, propertyId, index) {

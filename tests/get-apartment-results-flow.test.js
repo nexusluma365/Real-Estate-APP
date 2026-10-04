@@ -45,7 +45,10 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
     id: signPath,
     filename: signPath,
     loaded: true,
-    exports: { verify: () => null },
+    exports: {
+      verify: () => null,
+      seal: (payload) => `sealed_${Buffer.from(JSON.stringify(payload)).toString('base64url')}`,
+    },
   };
   require.cache[stripePath] = {
     id: stripePath,
@@ -282,7 +285,11 @@ async function run() {
     assert.equal(previewBaseCheckoutBody.properties[0].address, '');
     assert.equal(previewBaseCheckoutBody.properties[0].phone, '');
     assert.equal(previewBaseCheckoutBody.properties[0].website, '');
-    assert.equal(previewBaseCheckoutBody.properties[0].image, '');
+    assert.match(previewBaseCheckoutBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?pt=/);
+    assert.doesNotMatch(previewBaseCheckoutBody.properties[0].image, /paid10_cached_1|photoName|photoRef|placeId/);
+    assert.equal(previewBaseCheckoutBody.properties[0].bedroomLabel, '1 bedroom');
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewTag, 'second_chance_apartment');
+    assert.equal(previewBaseCheckoutBody.properties[1].screeningVerification.previewTag, 'second_chance_apartment');
     assert.equal(previewBaseCheckoutBody.properties[0].matchId, paidBaseCheckoutBody.properties[0].matchId);
 
     // Results cached before photo references were saved must be regenerated.
