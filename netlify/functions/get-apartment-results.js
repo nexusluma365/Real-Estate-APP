@@ -25,7 +25,7 @@ const RESULTS_VERSION = 2;
 const CLOSED_BUSINESS_STATUSES = new Set(['CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY']);
 const GOOGLE_CANDIDATE_LIMIT = 24;
 const MIN_PREVIEW_SECOND_CHANCE = 2;
-const BANNED_LISTING_SERVICE_PATTERN = /\b(apartment\s*(finder|hunter|locator|locators|search|guide|listings?|directory|referral|referrals)|apartments?\s*(finder|hunter|locator|locators|search|guide|listings?|directory|referral|referrals)|rental\s*(locator|locators|finder|finders|agency|agencies|referral|referrals)|rent(?:al)?\s*(finder|locators?|search|guide))\b/i;
+const BANNED_LISTING_SERVICE_PATTERN = /\b(apartment\s*(finder|hunters?|locator|locators|search|guide|listings?|directory|referral|referrals)|apartments?\s*(finder|hunters?|locator|locators|search|guide|listings?|directory|referral|referrals)|rental\s*(locator|locators|finder|finders|agency|agencies|referral|referrals)|rent(?:al)?\s*(finder|locators?|search|guide))\b/i;
 const VALID_STATE_CODES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
   'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
@@ -263,9 +263,8 @@ function previewResponse(payload, preview) {
     };
   }
   // Preview cards never expose raw Google place IDs, photo resource names,
-  // contact details, or direct Maps links. Standard listings may show the
-  // property name and a protected photo token; verified second-chance listings
-  // remain name-limited until full access is confirmed.
+  // contact details, direct Maps links, or property names. Full access returns
+  // the exact saved Google listings after payment.
   const { criteria, nearbyAreas, ...rest } = payload;
   return {
     ...rest,
@@ -277,7 +276,7 @@ function previewResponse(payload, preview) {
       return {
         propertyId: `preview_${index + 1}`,
         matchId: matchId(payload.leadId, property.propertyId, index),
-        name: secondChance ? `Second-Chance Match ${index + 1}` : property.name || `Apartment Match ${index + 1}`,
+        name: 'Apartment Match',
         area: criteria && criteria.city ? criteria.city : property.area || 'Your search area',
         address: '',
         phone: '',

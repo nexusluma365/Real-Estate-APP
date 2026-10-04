@@ -81,7 +81,9 @@ assert.match(intentIndex, /href={CHECK_URL}/);
 assert.match(intentIndex, /writeIntent\(intentKey\)/);
 assert.match(homeScript, /rrn_entry_intent_v1/);
 assert.match(questionnaireScript, /entry_intent: ensureEntryIntent\(\)/);
-assert.match(checkoutHtml, /id="checkoutIntentContext"/);
+assert.doesNotMatch(checkoutHtml, /id="checkoutIntentContext"/);
+assert.match(checkoutHtml, /<h1>Unlock Access<\/h1>/);
+assert.match(checkoutHtml, /Unlock your apartment matches, including second-chance options when available\./);
 assert.match(checkoutScript, /bad_credit: 'Second-chance options may be included when available\.'/);
 assert.match(checkoutScript, /general_renter: 'Second-chance options may be included when available\.'/);
 

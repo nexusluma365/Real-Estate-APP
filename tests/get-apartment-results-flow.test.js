@@ -168,6 +168,13 @@ async function run() {
         website: 'https://apartmentfinder.example.com/concord',
         mapsUrl: 'https://maps.google.com/?cid=apartmentfinder',
       },
+      {
+        id: 'place_apartment_hunters',
+        name: 'Apartment Hunters Concord',
+        address: '201 Referral Way, Concord, NC',
+        website: 'https://apartmenthunters.example.com/concord',
+        mapsUrl: 'https://maps.google.com/?cid=apartmenthunters',
+      },
     ];
     const google = installLegacyGoogleMock(urls, concordPlaces);
 
@@ -222,7 +229,7 @@ async function run() {
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
     assert.equal(google.searchCalls, 6);
-    assert.equal(google.detailCalls, 2);
+    assert.equal(google.detailCalls, 3);
     assert(!urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
     assert(urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
     assert(urls.some((url) => url.includes('/maps/api/place/details/json')));
@@ -289,7 +296,9 @@ async function run() {
     const previewBaseCheckoutBody = JSON.parse(previewBaseCheckoutRes.body);
     assert.equal(previewBaseCheckoutRes.statusCode, 200);
     assert.equal(previewBaseCheckoutBody.preview, true);
-    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Second-Chance Match 1');
+    assert.equal(previewBaseCheckoutBody.properties[0].name, 'Apartment Match');
+    assert.equal(previewBaseCheckoutBody.properties[1].name, 'Apartment Match');
+    assert.equal(previewBaseCheckoutBody.properties[2].name, 'Apartment Match');
     assert.equal(previewBaseCheckoutBody.properties[0].address, '');
     assert.equal(previewBaseCheckoutBody.properties[0].phone, '');
     assert.equal(previewBaseCheckoutBody.properties[0].website, '');
