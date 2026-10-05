@@ -83,9 +83,10 @@ const previewScript = fs.readFileSync(path.join(root, 'app/src/pages/RealEstateL
 const previewVisible = previewHtml.replace(/<[^>]+>/g, '');
 assert.doesNotMatch(previewVisible, /UNLOCK FULL ACCESS/i, 'preview hero should not show an unlock access CTA');
 assert.doesNotMatch(previewVisible, /\$9\.99|9\.99\/month|per month/i, 'preview page markup must not show pricing');
-assert.ok(previewScript.includes('PREVIEW_VISIBLE_LIMIT = 5'), 'preview should show five listing cards before checkout CTA');
+assert.ok(previewScript.includes('PREVIEW_VISIBLE_LIMIT = 8'), 'preview should show eight listing cards before checkout');
 assert.ok(previewScript.includes('VIEW MORE'), 'preview should include a View More checkout CTA after visible listings');
-assert.ok(previewScript.includes('Second-Chance Matches'), 'preview hero should emphasize second-chance matches');
+assert.ok(previewScript.includes("We've Found ${PREVIEW_VISIBLE_LIMIT} Matches Based On Your Search Criteria"), 'preview hero should mention eight search-criteria matches');
+assert.ok(previewScript.includes('7-day Free trial'), 'preview unlock buttons should show the 7-day free trial note');
 assert.ok(previewScript.includes('Property details locked'), 'preview cards should lock property details');
 assert.ok(previewScript.includes('Matched based on your search'), 'preview cards should explain the locked match basis');
 assert.doesNotMatch(previewScript, /Availability locked/, 'preview cards should not show Availability locked text');

@@ -1,6 +1,6 @@
 
 const PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
-const PREVIEW_VISIBLE_LIMIT = 5;
+const PREVIEW_VISIBLE_LIMIT = 8;
 const CHECKOUT_URL = '/rentready-review-checkout';
 
 function goToUnlock(){
@@ -666,7 +666,7 @@ function trackPropertyContact(id, method){
 }
 function actionButtonsHtml(apt){
   if (PREVIEW_MODE) {
-    return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK ACCESS</button></div>`;
+    return `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK ACCESS</button><span class="preview-trial-note">7-day Free trial</span></div>`;
   }
   const secondary = apt.phone
     ? (apt.website ? `<a class="btn btn-secondary" href="${htmlEscape(apt.website)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','website')">${ICONS.globe} Check availability</a>` : apt.mapsUrl ? `<a class="btn btn-secondary" href="${htmlEscape(apt.mapsUrl)}" target="_blank" rel="noopener" onclick="trackPropertyContact('${htmlEscape(apt.id)}','maps')">${ICONS.map} Maps</a>` : "")
@@ -716,8 +716,7 @@ function renderHeroAndSummary(){
   const cityName = cityLabel ? cityLabel.split(",")[0].trim() || cityLabel : "";
   const matchText = `${currentResults.length} ${currentResults.length === 1 ? "second-chance match" : "second-chance matches"}`;
   const bedroomText = bedroomLabel(criteria.bedrooms).toLowerCase();
-  const previewCount = Math.min(PREVIEW_VISIBLE_LIMIT, currentResults.length || PREVIEW_VISIBLE_LIMIT);
-  document.getElementById("heroTitle").textContent = PREVIEW_MODE ? `${previewCount} Second-Chance Matches` : "Your Second-Chance Apartment Options";
+  document.getElementById("heroTitle").textContent = PREVIEW_MODE ? `We've Found ${PREVIEW_VISIBLE_LIMIT} Matches Based On Your Search Criteria` : "Your Second-Chance Apartment Options";
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = budgetLabel();
@@ -1056,7 +1055,7 @@ function openPropertyModal(id){
     ? `<div class="modal-call">${ICONS.phone} <span>Call for availability: <a class="num" href="tel:${htmlEscape(telHref(apt.phone))}">${htmlEscape(apt.phoneDisplay)}</a></span></div>`
     : `<div class="modal-call">${ICONS.warn} <span style="color:var(--ink-muted); font-weight:600;">No phone listed — use the property website to check availability</span></div>`;
   const actions = PREVIEW_MODE
-    ? `<button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK ACCESS</button>`
+    ? `<div class="listing-actions"><button class="btn btn-primary preview-unlock-btn" type="button" onclick="goToUnlock()">UNLOCK ACCESS</button><span class="preview-trial-note">7-day Free trial</span></div>`
     : `${webBtn}${mapsBtn}`;
   const address = apt.address || apt.locationLabel || apt.area || "";
 
