@@ -37,18 +37,20 @@ function showReady() {
   const title = document.getElementById('title');
   const subtitle = document.getElementById('subtitle');
   if (eyebrow) eyebrow.textContent = 'Review complete';
+  // Results aren't loaded yet on this screen, so it can't know whether any
+  // property is a verified second-chance match — keep the copy neutral.
   if (title) {
-    title.innerHTML = 'Your Second-Chance Matches <strong>Are Ready</strong>';
+    title.innerHTML = 'Your Apartment Matches <strong>Are Ready</strong>';
     title.classList.add('is-ready');
   }
-  if (subtitle) subtitle.textContent = 'Taking you to a locked preview of your second-chance matches now.';
+  if (subtitle) subtitle.textContent = 'Taking you to a locked preview of your apartment matches now.';
 }
 
 let i = 0;
 function tick() {
   if (i >= total) {
     showReady();
-    statusLine.textContent = 'Opening your second-chance matches...';
+    statusLine.textContent = 'Opening your apartment matches...';
     try {
       sessionStorage.setItem(FLOW_ACCESS_KEY, JSON.stringify({
         step: 'prescreen-checkout',

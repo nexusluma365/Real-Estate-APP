@@ -218,14 +218,53 @@
     });
   }
 
-  function renderCheckoutMatches(properties){
+  // The headline only claims second-chance matches when the server verified
+  // at least one property (screeningStatus "verified_second_chance").
+  // Otherwise — including when results could not be loaded — it uses
+  // neutral "apartment options" copy.
+  var VERIFIED_COUNT_KEY = 'rrn_verified_second_chance_v1';
+  var leadEl = document.getElementById('checkoutLead');
+  var SECOND_CHANCE_LEAD = leadEl ? leadEl.textContent : '';
+
+  function setVisible(el, visible){
+    if (el && el.style) el.style.visibility = visible ? '' : 'hidden';
+  }
+
+  function renderVerifiedHeadline(verifiedCount){
     var title = document.getElementById('checkoutTitle');
-    var count = Array.isArray(properties) ? Math.min(properties.length, 8) : 0;
     if (title) {
-      title.textContent = count
-        ? 'Your ' + count + ' Second-Chance ' + (count === 1 ? 'Match Is' : 'Matches Are') + ' Ready'
-        : 'Your Second-Chance Matches Are Ready';
+      title.textContent = verifiedCount > 0 ? 'Your Second-Chance Matches Are Ready' : 'Your Apartment Options Are Ready';
+      setVisible(title, true);
     }
+    if (leadEl) {
+      leadEl.textContent = verifiedCount > 0
+        ? SECOND_CHANCE_LEAD
+        : 'We found apartment options based on your search. Unlock your results free for 7 days.';
+      setVisible(leadEl, true);
+    }
+  }
+
+  function renderCheckoutMatches(properties){
+    var verifiedCount = (Array.isArray(properties) ? properties : []).filter(function(p){
+      return p && p.screeningVerification && p.screeningVerification.screeningStatus === 'verified_second_chance';
+    }).length;
+    renderVerifiedHeadline(verifiedCount);
+  }
+
+  // The preview page (just before checkout) already knows the verified
+  // count, so use it right away; the results request below confirms it.
+  // Without it, hide the headline until the request answers rather than
+  // flash a second-chance claim that may not be true.
+  function applyRememberedVerifiedCount(answers){
+    var remembered = null;
+    try { remembered = JSON.parse(sessionStorage.getItem(VERIFIED_COUNT_KEY) || 'null'); } catch (_e) {}
+    if (remembered && remembered.leadId === answers.lead_id && typeof remembered.count === 'number') {
+      renderVerifiedHeadline(remembered.count);
+      return;
+    }
+    var title = document.getElementById('checkoutTitle');
+    setVisible(title, false);
+    setVisible(leadEl, false);
   }
 
   async function hydrateCheckoutMatches(answers, token){
@@ -264,6 +303,7 @@
     }
     hydrateSummary(answers);
     hydrateIntentContext(answers);
+    applyRememberedVerifiedCount(answers);
     hydrateCheckoutMatches(answers, token);
     rrTrack('checkout_viewed', marketingContext(answers));
 

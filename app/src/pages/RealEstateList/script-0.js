@@ -469,9 +469,29 @@ function serverPropertyToResult(property){
 
 function screeningLabel(verification){
   const status = verification && verification.screeningStatus;
-  if (status === "verified_second_chance") return PREVIEW_MODE ? "SECOND-CHANCE MATCH" : "VERIFIED SECOND-CHANCE MATCH";
-  if (status === "flexible_screening") return "FLEXIBLE SCREENING";
-  return "RENTAL MATCH";
+  if (status === "verified_second_chance") return "Verified Second-Chance";
+  if (status === "flexible_screening") return "Flexible Screening";
+  return PREVIEW_MODE ? "RENTAL MATCH" : "Screening Information Being Reviewed";
+}
+
+// Only properties the server verified as second-chance count. With none,
+// the page uses neutral "apartment options" copy so unverified results are
+// never presented as second-chance matches.
+const VERIFIED_COUNT_KEY = "rrn_verified_second_chance_v1";
+
+function verifiedSecondChanceCount(){
+  return currentResults.filter(r => r.verified.screeningVerification && r.verified.screeningVerification.screeningStatus === "verified_second_chance").length;
+}
+
+function showNoVerifiedCopy(){
+  return listingState === "success" && verifiedSecondChanceCount() === 0;
+}
+
+// Lets checkout show the right headline immediately instead of waiting on
+// its own results request.
+function rememberVerifiedCount(){
+  if (listingState !== "success") return;
+  try { sessionStorage.setItem(VERIFIED_COUNT_KEY, JSON.stringify({ leadId: currentLeadId(), count: verifiedSecondChanceCount() })); } catch (_e) {}
 }
 
 function screeningClass(verification){
@@ -716,12 +736,19 @@ function renderHeroAndSummary(){
   const cityName = cityLabel ? cityLabel.split(",")[0].trim() || cityLabel : "";
   const matchText = `${currentResults.length} ${currentResults.length === 1 ? "second-chance match" : "second-chance matches"}`;
   const bedroomText = bedroomLabel(criteria.bedrooms).toLowerCase();
-  document.getElementById("heroTitle").textContent = PREVIEW_MODE ? `We've Found ${PREVIEW_VISIBLE_LIMIT} Matches Based On Your Search Criteria` : "Your Second-Chance Apartment Options";
+  const previewCount = Math.min(currentResults.length, PREVIEW_VISIBLE_LIMIT) || PREVIEW_VISIBLE_LIMIT;
+  const noVerified = showNoVerifiedCopy();
+  rememberVerifiedCount();
+  document.getElementById("heroTitle").textContent = noVerified
+    ? (PREVIEW_MODE ? "Apartment Options Found" : "Your Apartment Options")
+    : (PREVIEW_MODE ? `We've Found ${previewCount} ${previewCount === 1 ? "Match" : "Matches"} Based On Your Search Criteria` : "Your Second-Chance Apartment Options");
   document.getElementById("scLocation").textContent = criteria.city || "City needed";
   document.getElementById("scStyle").textContent = criteria.style;
   document.getElementById("scBudget").textContent = budgetLabel();
   document.getElementById("scBedrooms").textContent = bedroomLabel(criteria.bedrooms);
-  document.getElementById("heroSub").textContent = PREVIEW_MODE
+  document.getElementById("heroSub").textContent = noVerified
+    ? "We found apartment options based on your search. We're still checking second-chance screening information."
+    : PREVIEW_MODE
     ? `RentReady found locked matches based on your search. Unlock access to see names, contact details, and screening information.`
     : heroSubText(matchText, bedroomText, cityName);
   if (PREVIEW_MODE) {
@@ -788,7 +815,9 @@ function renderResults(){
   const visibleResults = PREVIEW_MODE ? currentResults.slice(0, PREVIEW_VISIBLE_LIMIT) : currentResults;
   document.getElementById("resultCount").textContent = visibleResults.length + (visibleResults.length === 1 ? " match" : " matches");
   const heading = document.getElementById("resultsHeading");
-  if (heading) heading.textContent = PREVIEW_MODE ? "Locked second-chance match preview" : "Second-chance matches worth exploring";
+  if (heading) heading.textContent = showNoVerifiedCopy()
+    ? (PREVIEW_MODE ? "Locked apartment options preview" : "Apartment options worth exploring")
+    : (PREVIEW_MODE ? "Locked second-chance match preview" : "Second-chance matches worth exploring");
   document.getElementById("listingList").innerHTML = visibleResults
     .map((r,i) => listingHtml(r, i, i < 3))
     .join("") + (PREVIEW_MODE && currentResults.length > visibleResults.length ? viewMoreCtaHtml() : "");

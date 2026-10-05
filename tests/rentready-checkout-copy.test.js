@@ -81,7 +81,7 @@ assert.match(processingHtml, /No credit pull\. Based only on the information you
   'Checking common rental factors...',
   'Preparing your RentReady Results...',
   'Preparing your second-chance match preview...',
-  'Your Second-Chance Matches <strong>Are Ready</strong>',
+  'Your Apartment Matches <strong>Are Ready</strong>',
 ].forEach((text) => assert.ok(processingJs.includes(text), `${text} should be in the transition`));
 // The transition only reflects the visitor's own answers.
 const processingCopy = processingHtml + processingJs.replace(/^\s*\/\/.*$/gm, '');
@@ -94,7 +94,7 @@ assert.doesNotMatch(previewVisible, /UNLOCK FULL ACCESS/i, 'preview hero should 
 assert.doesNotMatch(previewVisible, /\$9\.99|9\.99\/month|per month/i, 'preview page markup must not show pricing');
 assert.ok(previewScript.includes('PREVIEW_VISIBLE_LIMIT = 8'), 'preview should show eight listing cards before checkout');
 assert.ok(previewScript.includes('VIEW MORE'), 'preview should include a View More checkout CTA after visible listings');
-assert.ok(previewScript.includes("We've Found ${PREVIEW_VISIBLE_LIMIT} Matches Based On Your Search Criteria"), 'preview hero should mention eight search-criteria matches');
+assert.ok(previewScript.includes("We've Found ${previewCount} ${previewCount === 1 ? \"Match\" : \"Matches\"} Based On Your Search Criteria"), 'preview hero should state the real number of search-criteria matches');
 assert.ok(previewScript.includes('7-day Free trial'), 'preview unlock buttons should show the 7-day free trial note');
 assert.ok(previewScript.includes('Property details locked'), 'preview cards should lock property details');
 assert.ok(previewScript.includes('Matched based on your search'), 'preview cards should explain the locked match basis');
