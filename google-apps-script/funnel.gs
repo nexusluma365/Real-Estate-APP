@@ -194,12 +194,17 @@ function trackEvent_(payload) {
   }
   if (visitorId) setOnce("visitor_id", visitorId);
   if (leadId) setOnce("lead_id", leadId);
-  set("last_seen_at", occurredAt);
-  if (payload.page) set("last_page", String(payload.page));
 
-  // "Where they left off" follows the browser; payment results that arrive
-  // days later (renewals, cancellations) don't overwrite it.
-  if (payload.source !== "server" || stage) set("left_off_at", description);
+  // Events sent a moment apart can arrive out of order, so "where they left
+  // off" only moves for the newest event. Payment results that arrive days
+  // later (renewals, cancellations) don't overwrite it either.
+  const lastSeen = get("last_seen_at") instanceof Date ? get("last_seen_at") : parseDate_(get("last_seen_at"));
+  const isLatest = !lastSeen || occurredAt.getTime() >= lastSeen.getTime();
+  if (isLatest) {
+    set("last_seen_at", occurredAt);
+    if (payload.page) set("last_page", String(payload.page));
+    if (payload.source !== "server" || stage) set("left_off_at", description);
+  }
 
   if (stage && stage > (Number(get("furthest_stage_no")) || 0)) {
     set("furthest_stage_no", stage);
@@ -327,12 +332,15 @@ function findFunnelRow_(sheet, visitorId, leadId) {
   return null;
 }
 
-// Copies name / email / phone from the Leads tab (matched by header name,
-// so it works whatever order the Leads columns are in).
+// Copies name / email / phone from the Leads tab. Uses the main script's
+// HEADERS list — the column order writeLead_ actually writes — because the
+// sheet's own title row may be labeled differently.
 function fillContactFromLeads_(ss, row, col) {
   const leads = ss.getSheetByName(SHEET_NAME);
   if (!leads || leads.getLastRow() < 2) return;
-  const header = leads.getRange(1, 1, 1, leads.getLastColumn()).getValues()[0].map(String);
+  const header = (typeof HEADERS !== "undefined" && HEADERS.length)
+    ? HEADERS.map(String)
+    : leads.getRange(1, 1, 1, leads.getLastColumn()).getValues()[0].map(String);
   const leadCol = header.indexOf("lead_id");
   if (leadCol === -1) return;
   const hit = leads.getRange(2, leadCol + 1, leads.getLastRow() - 1, 1)
