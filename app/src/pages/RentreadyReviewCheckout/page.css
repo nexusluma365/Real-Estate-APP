@@ -145,8 +145,9 @@ h2{font-size:24px;line-height:1.1;margin-bottom:12px}
 .matches-panel h2{font-size:24px;margin-bottom:14px;color:var(--green)}
 .checkout-matches{display:grid;gap:12px}
 .checkout-match{display:grid;grid-template-columns:118px minmax(0,1fr);gap:14px;align-items:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px;box-shadow:0 12px 34px rgba(23,75,51,.07);overflow:hidden}
-.checkout-match-photo{height:88px;border-radius:7px;background:linear-gradient(135deg,#cfd9d2,#edf5ef);overflow:hidden;position:relative}
-.checkout-match-photo img{width:100%;height:100%;object-fit:cover;filter:blur(14px) saturate(.75);transform:scale(1.12);opacity:.78}
+.checkout-match-photo{height:88px;border-radius:7px;background:#dbe5dd;overflow:hidden;position:relative}
+.checkout-match-photo::before{content:"";position:absolute;inset:-18px;background:url("/hero-bg-optimized.jpg") center / cover no-repeat;filter:blur(16px) saturate(.78);transform:scale(1.08);opacity:.88}
+.checkout-match-photo img{position:relative;z-index:1;width:100%;height:100%;object-fit:cover;filter:blur(14px) saturate(.75);transform:scale(1.12);opacity:.86}
 .checkout-match-photo::after{content:"";position:absolute;inset:0;background:rgba(238,246,241,.34)}
 .checkout-match h3{font-size:16px;line-height:1.15;color:#1d1d1f;margin-bottom:5px}
 .checkout-match p{font-size:13px;line-height:1.35;color:var(--muted);font-weight:700}
