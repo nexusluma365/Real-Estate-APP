@@ -25,7 +25,7 @@ for (const file of files) {
     'Why RentReady?',
     "These aren't random apartment listings. RentReady researches property and management screening information before marking a listing as a second-chance option.",
     'Approval is always determined by the property.',
-    '$0 Today',
+    '$0 Due Today',
     '7 days free',
     'Secure Checkout',
     'Your payment is securely processed.',
