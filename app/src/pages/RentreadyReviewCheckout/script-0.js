@@ -251,14 +251,14 @@
     if (!containers.length) return;
     var html = '';
     if (!count) {
-      html = '<div class="checkout-match"><div class="checkout-match-photo"></div><div><h3>Second-Chance Match</h3><p>' + escapeHtml(answers.preferred_city || 'Your search area') + '</p><div class="locked-line">🔒 Property details locked</div></div></div>';
+      html = '<div class="checkout-match"><div class="checkout-match-photo"></div><div><h3>Second-Chance Matches</h3><p>' + escapeHtml(answers.preferred_city || 'Your search area') + '</p><div class="locked-line">🔒 Property details locked</div></div></div>';
       containers.forEach(function(container){ container.innerHTML = html; });
       return;
     }
     html = matches.map(function(match){
       var img = safeImage(match.image);
       var city = match.area || answers.preferred_city || 'Your search area';
-      var name = (match.screeningVerification && match.screeningVerification.is_second_chance_verified) ? 'Second-Chance Match' : 'Apartment Match';
+      var name = (match.screeningVerification && match.screeningVerification.is_second_chance_verified) ? 'Second-Chance Matches' : 'Apartment Match';
       return '<div class="checkout-match">' +
         '<div class="checkout-match-photo">' + (img ? '<img src="' + escapeHtml(img) + '" alt="Locked apartment preview" loading="lazy">' : '') + '</div>' +
         '<div><h3>' + escapeHtml(name) + '</h3><p>' + escapeHtml(city) + '</p><div class="locked-line">🔒 Property details locked</div></div>' +
