@@ -135,10 +135,12 @@ h2{font-size:24px;line-height:1.1;margin-bottom:12px}
 .trust-card{max-width:650px;margin:16px 0;padding:18px 20px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 .trust-card h2{font-size:18px;margin-bottom:8px}
 .trust-card p{font-size:14.5px;line-height:1.45;color:var(--muted);font-weight:600}
+.trust-card p + p{margin-top:6px}
 .trust-card small{display:block;margin-top:8px;color:var(--muted);font-size:12.5px;font-weight:800}
 .today-price{max-width:650px;margin:18px 0 12px;display:grid;gap:2px}
 .today-price strong{font-size:34px;line-height:1;color:var(--green);text-transform:uppercase}
 .today-price span{font-size:15px;font-weight:800;color:var(--muted)}
+.today-price .no-charge{margin-top:4px;font-size:16.5px;color:var(--green)}
 .renewal-note{max-width:480px;margin-top:6px;font-size:12.5px;line-height:1.4;font-weight:700;color:var(--muted)}
 .security-line{margin-top:8px;font-size:12px;font-weight:800;color:var(--muted)}
 .matches-panel{min-width:0;align-self:start}

@@ -59,7 +59,6 @@ async function run() {
   [
     'paymentError',
     'setupNote',
-    'summaryName',
     'summaryCity',
     'summaryMove',
     'checkoutTitle',

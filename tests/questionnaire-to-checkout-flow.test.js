@@ -266,7 +266,6 @@ async function runCheckout(sessionStorage, localStorage, requests) {
   const document = new DocumentMock([
     'paymentError',
     'setupNote',
-    'summaryName',
     'summaryCity',
     'summaryMove',
     'checkoutTitle',
@@ -351,7 +350,6 @@ async function runCheckout(sessionStorage, localStorage, requests) {
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(mounted.map((entry) => entry.type), ['cardNumber', 'cardExpiry', 'cardCvc']);
-  assert.equal(document.getElementById('summaryName').textContent, 'Rae Jordan');
   assert.equal(document.getElementById('summaryCity').textContent, 'Austin, TX');
 
   document.getElementById('billingZip').value = '12345';

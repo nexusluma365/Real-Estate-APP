@@ -201,8 +201,6 @@
   }
 
   function hydrateSummary(answers){
-    var full = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || 'Applicant';
-    document.getElementById('summaryName').textContent = full;
     document.getElementById('summaryCity').textContent = answers.preferred_city || 'Not provided';
     document.getElementById('summaryMove').textContent = label(answers.move_timeline, {
       // Values the current questionnaire saves:

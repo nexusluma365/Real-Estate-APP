@@ -83,7 +83,7 @@ assert.match(homeScript, /rrn_entry_intent_v1/);
 assert.match(questionnaireScript, /entry_intent: ensureEntryIntent\(\)/);
 assert.doesNotMatch(checkoutHtml, /id="checkoutIntentContext"/);
 assert.match(checkoutHtml, /<h1 id="checkoutTitle">Your Second-Chance Matches Are Ready<\/h1>/);
-assert.match(checkoutHtml, /We found apartments based on your search and situation\. Unlock your matches free for 7 days\./);
+assert.match(checkoutHtml, /We found second-chance apartment options based on your search\. Unlock your matches free for 7 days\./);
 assert.match(checkoutScript, /bad_credit: 'Second-chance options may be included when available\.'/);
 assert.match(checkoutScript, /general_renter: 'Second-chance options may be included when available\.'/);
 
