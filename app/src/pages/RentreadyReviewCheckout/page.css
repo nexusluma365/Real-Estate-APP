@@ -141,6 +141,7 @@ h2{font-size:24px;line-height:1.1;margin-bottom:12px}
 .today-price strong{font-size:34px;line-height:1;color:var(--green);text-transform:uppercase}
 .today-price span{font-size:15px;font-weight:800;color:var(--muted)}
 .today-price .no-charge{margin-top:4px;font-size:16.5px;color:var(--green)}
+.today-price .trial-terms{font-size:12px}
 .renewal-note{max-width:480px;margin-top:6px;font-size:12.5px;line-height:1.4;font-weight:700;color:var(--muted)}
 .security-line{margin-top:8px;font-size:12px;font-weight:800;color:var(--muted)}
 .matches-panel{min-width:0;align-self:start}
