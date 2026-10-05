@@ -20,7 +20,7 @@ for (const file of files) {
     'Based on the answers you gave us',
     'See property names, photos &amp; locations',
     'See second-chance information for each property',
-    'See why each property may fit your situation',
+    'See What Property Managers Look For When You Apply',
     'Why RentReady?',
     "These aren't random apartment listings.",
     'We research property and management screening information to find second-chance apartment options.',
