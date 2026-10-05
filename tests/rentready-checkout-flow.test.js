@@ -63,8 +63,6 @@ async function run() {
     'summaryCity',
     'summaryMove',
     'checkoutTitle',
-    'checkoutMatches',
-    'checkoutMatchesMobile',
     'payBtn',
     'cardNumber',
     'cardExpiry',

@@ -220,61 +220,24 @@
     });
   }
 
-  function escapeHtml(value){
-    return String(value || '').replace(/[&<>"']/g, function(ch){
-      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch];
-    });
-  }
-
-  function safeImage(value){
-    var raw = String(value || '').trim();
-    if (!raw) return '';
-    if (raw.charAt(0) === '/' && raw.slice(0, 2) !== '//') return raw;
-    try {
-      var url = new URL(raw, window.location.origin);
-      return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
-    } catch (_e) {
-      return '';
-    }
-  }
-
-  function renderCheckoutMatches(properties, answers){
-    var containers = [document.getElementById('checkoutMatches'), document.getElementById('checkoutMatchesMobile')].filter(Boolean);
+  function renderCheckoutMatches(properties){
     var title = document.getElementById('checkoutTitle');
-    var matches = Array.isArray(properties) ? properties.slice(0, 8) : [];
-    var count = matches.length;
+    var count = Array.isArray(properties) ? Math.min(properties.length, 8) : 0;
     if (title) {
       title.textContent = count
         ? 'Your ' + count + ' Second-Chance ' + (count === 1 ? 'Match Is' : 'Matches Are') + ' Ready'
         : 'Your Second-Chance Matches Are Ready';
     }
-    if (!containers.length) return;
-    var html = '';
-    if (!count) {
-      html = '<div class="checkout-match"><div class="checkout-match-photo"></div><div><h3>Second-Chance Matches</h3><p>' + escapeHtml(answers.preferred_city || 'Your search area') + '</p><div class="locked-line">🔒 Property details locked</div></div></div>';
-      containers.forEach(function(container){ container.innerHTML = html; });
-      return;
-    }
-    html = matches.map(function(match){
-      var img = safeImage(match.image);
-      var city = match.area || answers.preferred_city || 'Your search area';
-      var name = (match.screeningVerification && match.screeningVerification.is_second_chance_verified) ? 'Second-Chance Matches' : 'Apartment Match';
-      return '<div class="checkout-match">' +
-        '<div class="checkout-match-photo">' + (img ? '<img src="' + escapeHtml(img) + '" alt="Locked apartment preview" loading="lazy">' : '') + '</div>' +
-        '<div><h3>' + escapeHtml(name) + '</h3><p>' + escapeHtml(city) + '</p><div class="locked-line">🔒 Property details locked</div></div>' +
-      '</div>';
-    }).join('');
-    containers.forEach(function(container){ container.innerHTML = html; });
   }
 
   async function hydrateCheckoutMatches(answers, token){
     try {
       var params = 'leadId=' + encodeURIComponent(answers.lead_id) + '&preview=1' + (token ? '&token=' + encodeURIComponent(token) : '');
       var data = await fetchJson('/.netlify/functions/get-apartment-results?' + params);
-      renderCheckoutMatches(data.properties || [], answers);
+      renderCheckoutMatches(data.properties || []);
     } catch (err) {
       console.warn('Could not load checkout match preview', err);
-      renderCheckoutMatches([], answers);
+      renderCheckoutMatches([]);
     }
   }
 

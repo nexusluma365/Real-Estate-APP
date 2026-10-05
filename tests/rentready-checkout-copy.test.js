@@ -17,7 +17,6 @@ for (const file of files) {
   [
     'Your Second-Chance Matches Are Ready',
     'We found apartments based on your search and situation. Unlock your matches free for 7 days.',
-    'Unlock Access Now!',
     'Based on the answers you gave us',
     'See property names, photos &amp; locations',
     'See second-chance information for each property',
@@ -67,7 +66,7 @@ for (const file of files) {
   assert.ok(html.indexOf('id="checkoutTitle"') < html.indexOf('class="includes"'), 'heading should come before benefits');
   assert.ok(html.indexOf('class="includes"') < html.indexOf('class="secure-badge"'), 'benefits should come before payment');
   assert.ok(html.indexOf('class="payment-form"') < html.indexOf('id="payBtn"'), 'payment fields should come before CTA');
-  assert.ok(html.indexOf('id="checkoutMatchesMobile"') < html.indexOf('class="includes"'), 'mobile matches should appear before benefits');
+  assert.doesNotMatch(html, /checkoutMatches|Unlock Access Now!/);
 }
 
 // Questionnaire -> checkout transition copy.

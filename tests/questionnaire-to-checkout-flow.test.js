@@ -270,8 +270,6 @@ async function runCheckout(sessionStorage, localStorage, requests) {
     'summaryCity',
     'summaryMove',
     'checkoutTitle',
-    'checkoutMatches',
-    'checkoutMatchesMobile',
     'payBtn',
     'cardNumber',
     'cardExpiry',
