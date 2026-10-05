@@ -15,24 +15,28 @@ for (const file of files) {
   const visibleText = html.replace(/<[^>]+>/g, '');
 
   [
-    'Start Your Free 7-Day Trial',
-    'Unlock your second-chance apartment matches and see the places that may fit your situation.',
-    'Unlock Your Results',
-    'See second-chance apartment matches',
-    'Know what may affect your application',
-    'Avoid wasting money applying blindly',
-    '$1 card verification today.',
+    'Your Second-Chance Matches Are Ready',
+    'We found apartments based on your search and situation. Unlock your matches free for 7 days.',
+    'Your Matches',
+    'Based on the answers you gave us',
+    'See property names, photos &amp; locations',
+    'See second-chance information for each property',
+    'See why each property may fit your situation',
+    'Why RentReady?',
+    "These aren't random apartment listings. RentReady researches property and management screening information before marking a listing as a second-chance option.",
+    'Approval is always determined by the property.',
+    '$0 Today',
+    '7 days free',
     'Secure Checkout',
     'Your payment is securely processed.',
-    'START FREE TRIAL',
-    '$1 card verification today • Cancel anytime',
+    'UNLOCK MY MATCHES',
+    '$0 today • 7 days free • Cancel anytime',
+    'After your 7-day free trial, RentReady is $19.99/month until canceled.',
+    'Secure payment • Cancel anytime • No approval guarantee',
     'Your Search',
     'Your Answers',
     'Unlock Results',
-    'Your 7-day trial starts today. A $1 card verification charge applies today. After your 7-day trial, your RentReady access continues at $19.99/month until canceled.',
     'This is not a rental application, landlord approval, or guarantee of approval.',
-    'RentReady Access Trial',
-    'Trial starts after card verification',
   ].forEach((text) => assert.ok(text.includes('<') ? html.includes(text) : visibleText.includes(text), `${text} should be present`));
 
   assert.doesNotMatch(html, /RentReady Outlook/);
@@ -48,6 +52,10 @@ for (const file of files) {
   assert.doesNotMatch(visibleText, /\$9\.99 monthly • Renews until canceled • No credit pull/);
   assert.doesNotMatch(visibleText, /START MY LISTING ACCESS/);
   assert.doesNotMatch(visibleText, /UNLOCK ACCESS/);
+  assert.doesNotMatch(visibleText, /\$1 card verification/i);
+  assert.doesNotMatch(visibleText, /ORDER SUMMARY/i);
+  assert.doesNotMatch(visibleText, /Your RentReady Results/i);
+  assert.doesNotMatch(visibleText, /RentReady Access Trial/i);
   assert.doesNotMatch(visibleText, /\$9\.99\/month/);
   assert.doesNotMatch(visibleText, /\$9\.99 billed monthly until canceled/);
   assert.doesNotMatch(visibleText, /7 DAYS FREE/);
@@ -56,10 +64,10 @@ for (const file of files) {
   assert.doesNotMatch(html, /\$47|Preparation Kit|real-estate-list/);
   // The payment form must come before the legal disclaimer in source order.
   assert.ok(html.indexOf('id="payBtn"') < html.indexOf('This is not a rental application'));
-  assert.ok(html.indexOf('<h1>Start Your Free 7-Day Trial</h1>') < html.indexOf('class="includes"'), 'heading should come before benefits');
+  assert.ok(html.indexOf('id="checkoutTitle"') < html.indexOf('class="includes"'), 'heading should come before benefits');
   assert.ok(html.indexOf('class="includes"') < html.indexOf('class="secure-badge"'), 'benefits should come before payment');
   assert.ok(html.indexOf('class="payment-form"') < html.indexOf('id="payBtn"'), 'payment fields should come before CTA');
-  assert.ok(html.indexOf('id="payBtn"') < html.indexOf('class="summary"'), 'CTA should come before order summary');
+  assert.ok(html.indexOf('id="checkoutMatchesMobile"') < html.indexOf('class="includes"'), 'mobile matches should appear before benefits');
 }
 
 // Questionnaire -> checkout transition copy.
@@ -95,6 +103,8 @@ const checkoutCss = fs.readFileSync(path.join(root, 'app/src/pages/RentreadyRevi
 const checkoutScript = fs.readFileSync(path.join(root, 'app/src/pages/RentreadyReviewCheckout/script-0.js'), 'utf8');
 assert.match(checkoutCss, /\.includes-list li\{[^}]*display:flex;[^}]*align-items:flex-start;/, 'checkout benefits should align checks beside text');
 assert.match(checkoutCss, /\.includes-list b\{[^}]*flex:0 0 22px;/, 'checkout check icon should keep fixed left column');
-assert.match(checkoutScript, /PAY_BUTTON_LABEL = 'START FREE TRIAL'/, 'checkout error reset should keep the trial CTA label');
+assert.match(checkoutScript, /PAY_BUTTON_LABEL = 'UNLOCK MY MATCHES'/, 'checkout error reset should keep the unlock CTA label');
+assert.match(checkoutScript, /confirmCardSetup/, 'checkout should collect a card with a Stripe SetupIntent');
+assert.doesNotMatch(checkoutScript, /confirmCardPayment/, 'checkout should not charge a PaymentIntent today');
 
 console.log('rentready checkout copy test passed');

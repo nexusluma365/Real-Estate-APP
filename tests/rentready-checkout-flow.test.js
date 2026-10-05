@@ -62,7 +62,9 @@ async function run() {
     'summaryName',
     'summaryCity',
     'summaryMove',
-    'summaryCredit',
+    'checkoutTitle',
+    'checkoutMatches',
+    'checkoutMatchesMobile',
     'payBtn',
     'cardNumber',
     'cardExpiry',
@@ -124,11 +126,11 @@ async function run() {
             },
           };
         },
-        async confirmCardPayment(clientSecret, options) {
-          assert.equal(clientSecret, 'pi_test_secret');
+        async confirmCardSetup(clientSecret, options) {
+          assert.equal(clientSecret, 'seti_test_secret');
           assert.equal(options.payment_method.billing_details.name, 'Test Applicant');
           assert.equal(options.payment_method.billing_details.address.postal_code, '12345');
-          return { paymentIntent: { id: 'pi_test', status: 'succeeded' } };
+          return { setupIntent: { id: 'seti_test', status: 'succeeded' } };
         },
       };
     },
@@ -143,7 +145,13 @@ async function run() {
       if (String(url).includes('create-payment-intent')) {
         return {
           ok: true,
-          json: async () => ({ ok: true, clientSecret: 'pi_test_secret', paymentIntentId: 'pi_test' }),
+          json: async () => ({ ok: true, clientSecret: 'seti_test_secret', setupIntentId: 'seti_test' }),
+        };
+      }
+      if (String(url).includes('get-apartment-results')) {
+        return {
+          ok: true,
+          json: async () => ({ ok: true, properties: [{ name: 'Second-Chance Match', area: 'High Point', image: '', screeningVerification: { is_second_chance_verified: true } }] }),
         };
       }
       if (String(url).includes('confirm-intent')) {

@@ -15,6 +15,15 @@ const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/list
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
 
+function listingPriceId() {
+  return (
+    process.env.STRIPE_LISTING_PRICE_MONTHLY ||
+    process.env.STRIPE_PRICE_LISTING_MONTHLY ||
+    process.env.STRIPE_RENTREADY_LISTING_PRICE_MONTHLY ||
+    ''
+  ).trim();
+}
+
 function setupErrorMessage(err) {
   const message = err && err.message ? err.message : '';
   if (
@@ -39,14 +48,86 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Invalid JSON body' }) };
   }
 
-  const { leadId, paymentIntentId, product } = body;
+  const { leadId, paymentIntentId, setupIntentId, product } = body;
   const field = FIELD_BY_PRODUCT[product];
-  if (!leadId || !paymentIntentId || !field) {
+  if (!leadId || !(paymentIntentId || setupIntentId) || !field) {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing or invalid fields' }) };
   }
 
   try {
     const stripe = getStripe();
+    if (setupIntentId) {
+      if (product !== 'prescreen') {
+        return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Product mismatch' }) };
+      }
+      const setupIntent = await stripe.setupIntents.retrieve(setupIntentId);
+      const metadata = setupIntent.metadata || {};
+      if (metadata.leadId !== leadId) {
+        return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Lead mismatch' }) };
+      }
+      const paidProduct = String(metadata.product || '').toLowerCase();
+      if (paidProduct && paidProduct !== 'listing_membership') {
+        return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Product mismatch' }) };
+      }
+      if (setupIntent.status !== 'succeeded') {
+        return { statusCode: 200, body: JSON.stringify({ ok: true, status: setupIntent.status || 'failed' }) };
+      }
+      const priceId = listingPriceId();
+      if (!priceId) {
+        return { statusCode: 500, body: JSON.stringify({ ok: false, error: 'STRIPE_LISTING_PRICE_MONTHLY is not configured.' }) };
+      }
+      const subscription = await stripe.subscriptions.create(
+        {
+          customer: setupIntent.customer,
+          items: [{ price: priceId }],
+          trial_period_days: 7,
+          default_payment_method: setupIntent.payment_method,
+          payment_settings: {
+            save_default_payment_method: 'on_subscription',
+            payment_method_types: ['card'],
+          },
+          metadata: { ...metadata, product: 'listing_membership', plan: 'trial_then_monthly' },
+        },
+        { idempotencyKey: `${leadId}:listing-subscription:trial-v3` }
+      );
+
+      const currentEntitlements = await getEntitlements(leadId);
+      const patch = {
+        [field]: true,
+        stripeCustomerId: setupIntent.customer || currentEntitlements.stripeCustomerId || null,
+        defaultPaymentMethodId: setupIntent.payment_method || currentEntitlements.defaultPaymentMethodId || null,
+        ...subscriptionStatusPatch(subscription),
+      };
+      Object.assign(patch, manychatMetadata(metadata.manychat_contact_id));
+
+      let entitlements = null;
+      let entitlementWarning = null;
+      try {
+        entitlements = await patchEntitlements(leadId, patch);
+      } catch (err) {
+        entitlementWarning = 'Trial started, but access status could not be saved immediately.';
+        console.error('confirm-intent entitlement patch error', err);
+      }
+      if (setupIntent.customer && setupIntent.payment_method) {
+        try {
+          await stripe.customers.update(setupIntent.customer, {
+            invoice_settings: { default_payment_method: setupIntent.payment_method },
+          });
+        } catch (err) {
+          console.error('confirm-intent customer update error', err);
+        }
+      }
+      if (!currentEntitlements.paid10 && hasActiveListingAccess(entitlements || patch)) {
+        try {
+          await sendWelcomeEmail(leadId);
+          await patchEntitlements(leadId, { listingSubscriptionWelcomeSentAt: new Date().toISOString() });
+        } catch (err) {
+          console.error('confirm-intent welcome email error', err);
+        }
+      }
+      return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', subscriptionId: subscription.id, entitlements, warning: entitlementWarning }) };
+    }
+
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
       expand: ['invoice.subscription'],
     });

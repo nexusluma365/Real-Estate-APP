@@ -1,6 +1,6 @@
 const assert = require('assert');
 
-async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
+async function loadHandler({ paymentIntent, setupIntent, subscription, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const welcomeEmailPath = require.resolve('../netlify/functions/_lib/welcome-email');
@@ -19,6 +19,12 @@ async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, e
       getStripe: () => ({
         paymentIntents: {
           retrieve: async () => paymentIntent,
+        },
+        setupIntents: {
+          retrieve: async () => setupIntent,
+        },
+        subscriptions: {
+          create: async () => subscription,
         },
         customers: {
           update: customerUpdate || (async () => ({})),
@@ -65,6 +71,7 @@ async function loadHandler({ paymentIntent, patchEntitlements, customerUpdate, e
 }
 
 async function run() {
+  process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_listing_monthly';
   const succeededIntent = {
     id: 'pi_test',
     status: 'succeeded',
@@ -98,6 +105,35 @@ async function run() {
   assert.equal(body.ok, true);
   assert.equal(body.status, 'succeeded');
   assert.match(body.warning, /could not be saved/i);
+
+  const setupTrial = await loadHandler({
+    setupIntent: {
+      id: 'seti_test',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_setup', product: 'listing_membership' },
+      customer: 'cus_setup',
+      payment_method: 'pm_setup',
+    },
+    subscription: {
+      id: 'sub_setup',
+      status: 'trialing',
+      current_period_start: 1800000000,
+      current_period_end: 1800604800,
+      cancel_at_period_end: false,
+    },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const setupRes = await setupTrial.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_setup', setupIntentId: 'seti_test', product: 'prescreen' }),
+  });
+  const setupBody = JSON.parse(setupRes.body);
+  assert.equal(setupRes.statusCode, 200);
+  assert.equal(setupBody.ok, true);
+  assert.equal(setupBody.status, 'succeeded');
+  assert.equal(setupBody.subscriptionId, 'sub_setup');
+  assert.deepEqual(setupTrial.welcomeEmailCalls, ['lead_setup']);
 
   const mismatchHandler = await loadHandler({
     paymentIntent: { ...succeededIntent, metadata: { leadId: 'other_lead' } },

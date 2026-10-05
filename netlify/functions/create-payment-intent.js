@@ -2,9 +2,9 @@
 // Body: { leadId, email, answers }
 //
 // Kept at the legacy endpoint name so the existing checkout page does not
-// need a routing rewrite. It creates the listing subscription with a 7-day
-// trial plus a $1 card-verification invoice due today, then returns that
-// invoice PaymentIntent client secret for the existing card form to confirm.
+// need a routing rewrite. It creates a SetupIntent to collect a valid card
+// with $0 due today. The actual trial subscription is created only after
+// Stripe confirms that SetupIntent.
 const { getStripe } = require('./_lib/stripe');
 const { saveLead, getLead, getEntitlements, patchEntitlements } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
@@ -58,13 +58,6 @@ exports.handler = async (event) => {
 
   try {
     const stripe = getStripe();
-    const priceId = listingPriceId();
-    if (!priceId) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ ok: false, error: 'STRIPE_LISTING_PRICE_MONTHLY is not configured.' }),
-      };
-    }
     const existingLead = await getLead(normalizedLeadId).catch(() => null);
     const existingEntitlements = await getEntitlements(normalizedLeadId).catch(() => null);
     const manychatContactId = normalizeManyChatContactId(
@@ -89,36 +82,17 @@ exports.handler = async (event) => {
       await stripe.customers.update(existing.id, { metadata: { ...(existing.metadata || {}), ...metadata } });
     }
 
-    const subscription = await stripe.subscriptions.create(
+    const setupIntent = await stripe.setupIntents.create(
       {
         customer: customer.id,
-        items: [{ price: priceId }],
-        add_invoice_items: [
-          {
-            price_data: {
-              currency: 'usd',
-              unit_amount: 100,
-              product_data: {
-                name: 'RentReady card verification',
-              },
-            },
-            metadata: { ...metadata, product: 'listing_membership_verification', plan: 'trial' },
-          },
-        ],
-        trial_period_days: 7,
-        payment_behavior: 'default_incomplete',
-        payment_settings: {
-          save_default_payment_method: 'on_subscription',
-          payment_method_types: ['card'],
-        },
-        expand: ['latest_invoice.payment_intent'],
+        payment_method_types: ['card'],
+        usage: 'off_session',
         metadata: { ...metadata, product: 'listing_membership', plan: 'trial_then_monthly' },
       },
-      { idempotencyKey: `${normalizedLeadId}:listing-subscription:trial-v2` }
+      { idempotencyKey: `${normalizedLeadId}:listing-setup-intent:trial-v1` }
     );
-    const paymentIntent = subscription.latest_invoice && subscription.latest_invoice.payment_intent;
-    if (!paymentIntent || !paymentIntent.client_secret) {
-      throw new Error('Stripe did not return a subscription payment client secret.');
+    if (!setupIntent || !setupIntent.client_secret) {
+      throw new Error('Stripe did not return a setup client secret.');
     }
 
     // Save the questionnaire answers server-side so later functions (PDF
@@ -130,8 +104,8 @@ exports.handler = async (event) => {
       }
       await patchEntitlements(normalizedLeadId, {
         stripeCustomerId: customer.id,
-        listingSubscriptionId: subscription.id,
-        listingSubscriptionStatus: subscription.status || 'incomplete',
+        listingSetupIntentId: setupIntent.id,
+        listingSubscriptionStatus: 'setup_pending',
         listingAccessStatus: 'inactive',
         ...(manychatContactId ? { manychat_contact_id: manychatContactId, manychatContactId } : {}),
       });
@@ -143,9 +117,9 @@ exports.handler = async (event) => {
       statusCode: 200,
       body: JSON.stringify({
         ok: true,
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
-        subscriptionId: subscription.id,
+        clientSecret: setupIntent.client_secret,
+        setupIntentId: setupIntent.id,
+        intentType: 'setup',
       }),
     };
   } catch (err) {

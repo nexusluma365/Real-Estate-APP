@@ -19,20 +19,37 @@
   <main class="content">
     <section class="main">
       <div class="hero-copy">
-        <h1>Start Your Free 7-Day Trial</h1>
-        <p class="lead">Unlock your second-chance apartment matches and see the places that may fit your situation.</p>
+        <h1 id="checkoutTitle">Your Second-Chance Matches Are Ready</h1>
+        <p class="lead">We found apartments based on your search and situation. Unlock your matches free for 7 days.</p>
+      </div>
+
+      <div class="matches-panel matches-panel-mobile">
+        <h2>Your Matches</h2>
+        <div class="checkout-matches" id="checkoutMatchesMobile">
+          <div class="match-skeleton"></div>
+          <div class="match-skeleton"></div>
+        </div>
       </div>
 
       <div class="includes">
-        <h2>Unlock Your Results</h2>
+        <h2>Based on the answers you gave us</h2>
         <ul class="includes-list">
-          <li class="benefit-row"><b aria-hidden="true">✓</b><span><strong>See second-chance apartment matches</strong></span></li>
-          <li class="benefit-row"><b aria-hidden="true">✓</b><span><strong>Know what may affect your application</strong></span></li>
-          <li class="benefit-row"><b aria-hidden="true">✓</b><span><strong>Avoid wasting money applying blindly</strong></span></li>
+          <li class="benefit-row"><b aria-hidden="true">✓</b><span><strong>See property names, photos &amp; locations</strong></span></li>
+          <li class="benefit-row"><b aria-hidden="true">✓</b><span><strong>See second-chance information for each property</strong></span></li>
+          <li class="benefit-row"><b aria-hidden="true">✓</b><span><strong>See why each property may fit your situation</strong></span></li>
         </ul>
       </div>
 
-      <p class="verification-note">$1 card verification today.</p>
+      <div class="trust-card">
+        <h2>Why RentReady?</h2>
+        <p>These aren't random apartment listings. RentReady researches property and management screening information before marking a listing as a second-chance option.</p>
+        <small>Approval is always determined by the property.</small>
+      </div>
+
+      <div class="today-price">
+        <strong>$0 Today</strong>
+        <span>7 days free</span>
+      </div>
 
       <div class="secure-badge"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span><strong>Secure Checkout</strong>Your payment is securely processed.</span></div>
       <div class="payment-form">
@@ -59,34 +76,27 @@
       <p class="setup-note" id="setupNote"></p>
 
       <div class="next-step">
-        <button class="cta" id="payBtn" type="button" disabled>START FREE TRIAL</button>
-        <p class="cta-note">$1 card verification today • Cancel anytime</p>
+        <button class="cta" id="payBtn" type="button" disabled>UNLOCK MY MATCHES</button>
+        <p class="cta-note">$0 today • 7 days free • Cancel anytime</p>
+        <p class="renewal-note">After your 7-day free trial, RentReady is $19.99/month until canceled.</p>
+        <p class="security-line">Secure payment • Cancel anytime • No approval guarantee</p>
       </div>
     </section>
 
-    <aside class="summary">
-      <div class="summary-head">
-        <p>Order summary</p>
-        <h2>Your RentReady Results</h2>
+    <aside class="matches-panel matches-panel-desktop">
+      <h2>Your Matches</h2>
+      <div class="checkout-matches" id="checkoutMatches">
+        <div class="match-skeleton"></div>
+        <div class="match-skeleton"></div>
       </div>
       <div class="summary-body">
-        <div class="order-compact m-only">
-          <p class="oc-label">Your order</p>
-          <div class="oc-row"><strong>RentReady Access Trial</strong></div>
-          <p class="oc-note">Trial starts after card verification</p>
-        </div>
-        <div class="line-item">
-          <div><strong>RentReady Access Trial</strong><span>Trial starts after card verification</span></div>
-          <div class="price">7 days free</div>
-        </div>
         <p class="answers-label">Based on your answers</p>
         <div class="mini-table">
           <div class="mini-row"><span>Applicant</span><strong id="summaryName">Applicant</strong></div>
           <div class="mini-row"><span>City</span><strong id="summaryCity">Not provided</strong></div>
           <div class="mini-row"><span>Move timing</span><strong id="summaryMove">Not provided</strong></div>
-          <div class="mini-row"><span>Credit review</span><strong id="summaryCredit">Review</strong></div>
         </div>
-        <p class="disclaimer">Your 7-day trial starts today. A $1 card verification charge applies today. After your 7-day trial, your RentReady access continues at $19.99/month until canceled. RentReady provides educational rental-readiness guidance based on the information you supplied. We do not pull your credit. This is not a rental application, landlord approval, or guarantee of approval. Final screening, deposits, pricing, availability, and rental requirements are determined by each property.</p>
+        <p class="disclaimer">RentReady provides educational rental-readiness guidance based on the information you supplied. We do not pull your credit. This is not a rental application, landlord approval, or guarantee of approval. Final screening, deposits, pricing, availability, and rental requirements are determined by each property.</p>
         <p class="disclaimer"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
       </div>
     </aside>

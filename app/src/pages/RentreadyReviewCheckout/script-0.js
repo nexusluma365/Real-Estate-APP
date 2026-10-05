@@ -8,7 +8,7 @@
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
-  var PAY_BUTTON_LABEL = 'START FREE TRIAL';
+  var PAY_BUTTON_LABEL = 'UNLOCK MY MATCHES';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
     bad_credit: 'Second-chance options may be included when available.',
@@ -26,7 +26,7 @@
   var cardNumber = null;
   var cardExpiry = null;
   var cardCvc = null;
-  var paymentIntentId = '';
+  var setupIntentId = '';
   var paymentClientSecret = '';
 
   function readAnswers(){
@@ -179,7 +179,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leadId: trackedAnswers.lead_id, email: trackedAnswers.email || '', answers: trackedAnswers }),
     });
-    paymentIntentId = intent.paymentIntentId;
+    setupIntentId = intent.setupIntentId || intent.paymentIntentId || '';
     paymentClientSecret = intent.clientSecret;
     return intent;
   }
@@ -218,16 +218,64 @@
       flexible: 'Flexible',
       one_to_three_months: 'in 1-3 months',
     });
-    document.getElementById('summaryCredit').textContent = label(answers.credit_score, {
-      below_580: 'Review',
-      under_580: 'Review',
-      '580_619': 'Review',
-      '620_659': 'Review',
-      '660_699': 'Positive',
-      '700_739': 'Strong',
-      '740_799': 'Strong',
-      '800_plus': 'Strong',
+  }
+
+  function escapeHtml(value){
+    return String(value || '').replace(/[&<>"']/g, function(ch){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch];
     });
+  }
+
+  function safeImage(value){
+    var raw = String(value || '').trim();
+    if (!raw) return '';
+    if (raw.charAt(0) === '/' && raw.slice(0, 2) !== '//') return raw;
+    try {
+      var url = new URL(raw, window.location.origin);
+      return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function renderCheckoutMatches(properties, answers){
+    var containers = [document.getElementById('checkoutMatches'), document.getElementById('checkoutMatchesMobile')].filter(Boolean);
+    var title = document.getElementById('checkoutTitle');
+    var matches = Array.isArray(properties) ? properties.slice(0, 8) : [];
+    var count = matches.length;
+    if (title) {
+      title.textContent = count
+        ? 'Your ' + count + ' Second-Chance ' + (count === 1 ? 'Match Is' : 'Matches Are') + ' Ready'
+        : 'Your Second-Chance Matches Are Ready';
+    }
+    if (!containers.length) return;
+    var html = '';
+    if (!count) {
+      html = '<div class="checkout-match"><div class="checkout-match-photo"></div><div><h3>Second-Chance Match</h3><p>' + escapeHtml(answers.preferred_city || 'Your search area') + '</p><div class="locked-line">🔒 Property details locked</div></div></div>';
+      containers.forEach(function(container){ container.innerHTML = html; });
+      return;
+    }
+    html = matches.map(function(match){
+      var img = safeImage(match.image);
+      var city = match.area || answers.preferred_city || 'Your search area';
+      var name = (match.screeningVerification && match.screeningVerification.is_second_chance_verified) ? 'Second-Chance Match' : 'Apartment Match';
+      return '<div class="checkout-match">' +
+        '<div class="checkout-match-photo">' + (img ? '<img src="' + escapeHtml(img) + '" alt="Locked apartment preview" loading="lazy">' : '') + '</div>' +
+        '<div><h3>' + escapeHtml(name) + '</h3><p>' + escapeHtml(city) + '</p><div class="locked-line">🔒 Property details locked</div></div>' +
+      '</div>';
+    }).join('');
+    containers.forEach(function(container){ container.innerHTML = html; });
+  }
+
+  async function hydrateCheckoutMatches(answers, token){
+    try {
+      var params = 'leadId=' + encodeURIComponent(answers.lead_id) + '&preview=1' + (token ? '&token=' + encodeURIComponent(token) : '');
+      var data = await fetchJson('/.netlify/functions/get-apartment-results?' + params);
+      renderCheckoutMatches(data.properties || [], answers);
+    } catch (err) {
+      console.warn('Could not load checkout match preview', err);
+      renderCheckoutMatches([], answers);
+    }
   }
 
   async function init(){
@@ -255,6 +303,7 @@
     }
     hydrateSummary(answers);
     hydrateIntentContext(answers);
+    hydrateCheckoutMatches(answers, token);
     rrTrack('checkout_viewed', marketingContext(answers));
 
     try {
@@ -316,7 +365,7 @@
     if (!stripe || !cardNumber || !answers.lead_id || btn.disabled) return;
     err.classList.remove('show');
     btn.disabled = true;
-    btn.textContent = 'Starting trial...';
+      btn.textContent = 'Preparing...';
     if (window.rrnShowPaymentOverlay) {
       rrnShowPaymentOverlay({
         title: 'Unlocking your apartment results',
@@ -328,7 +377,7 @@
       if (!paymentClientSecret) {
         await createPrescreenIntent(answers);
       }
-      btn.textContent = 'Confirming payment...';
+      btn.textContent = 'Confirming card...';
       if (window.rrnShowPaymentOverlay) {
         rrnShowPaymentOverlay({
           title: 'Confirming your payment',
@@ -336,7 +385,7 @@
         });
       }
       var billingName = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || undefined;
-      var result = await stripe.confirmCardPayment(
+      var result = await stripe.confirmCardSetup(
         paymentClientSecret,
         {
           payment_method: {
@@ -358,15 +407,15 @@
         throw declineError;
       }
 
-      var stripeSucceeded = result.paymentIntent && result.paymentIntent.status === 'succeeded';
-      rememberPrescreenPaymentIntent(result.paymentIntent ? result.paymentIntent.id : paymentIntentId);
+      var stripeSucceeded = result.setupIntent && result.setupIntent.status === 'succeeded';
+      setupIntentId = result.setupIntent ? result.setupIntent.id : setupIntentId;
       try {
         var confirmed = await fetchJson('/.netlify/functions/confirm-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             leadId: answers.lead_id,
-            paymentIntentId: result.paymentIntent ? result.paymentIntent.id : paymentIntentId,
+            setupIntentId: setupIntentId,
             product: 'prescreen',
           }),
         });
@@ -378,7 +427,7 @@
 
       grantResultsAccess();
       rrTrack('review_purchased', marketingContext(answers));
-      trackGooglePurchase(result.paymentIntent ? result.paymentIntent.id : paymentIntentId);
+      trackGooglePurchase(setupIntentId);
       if (window.rrnShowPaymentOverlay) {
         rrnShowPaymentOverlay({
           state: 'success',

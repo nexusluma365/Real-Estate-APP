@@ -269,7 +269,9 @@ async function runCheckout(sessionStorage, localStorage, requests) {
     'summaryName',
     'summaryCity',
     'summaryMove',
-    'summaryCredit',
+    'checkoutTitle',
+    'checkoutMatches',
+    'checkoutMatchesMobile',
     'payBtn',
     'cardNumber',
     'cardExpiry',
@@ -299,12 +301,12 @@ async function runCheckout(sessionStorage, localStorage, requests) {
             },
           };
         },
-        async confirmCardPayment(clientSecret, options) {
-          assert.equal(clientSecret, 'pi_full_flow_secret');
+        async confirmCardSetup(clientSecret, options) {
+          assert.equal(clientSecret, 'seti_full_flow_secret');
           assert.equal(options.payment_method.billing_details.name, 'Rae Jordan');
           assert.equal(options.payment_method.billing_details.email, 'rae@example.com');
           assert.equal(options.payment_method.billing_details.address.postal_code, '12345');
-          return { paymentIntent: { id: 'pi_full_flow', status: 'succeeded' } };
+          return { setupIntent: { id: 'seti_full_flow', status: 'succeeded' } };
         },
       };
     },
@@ -319,7 +321,13 @@ async function runCheckout(sessionStorage, localStorage, requests) {
       if (String(url).includes('create-payment-intent')) {
         return {
           ok: true,
-          json: async () => ({ ok: true, clientSecret: 'pi_full_flow_secret', paymentIntentId: 'pi_full_flow' }),
+          json: async () => ({ ok: true, clientSecret: 'seti_full_flow_secret', setupIntentId: 'seti_full_flow' }),
+        };
+      }
+      if (String(url).includes('get-apartment-results')) {
+        return {
+          ok: true,
+          json: async () => ({ ok: true, properties: [{ name: 'Second-Chance Match', area: 'Austin, TX', image: '', screeningVerification: { is_second_chance_verified: true } }] }),
         };
       }
       if (String(url).includes('confirm-intent')) {
@@ -352,7 +360,6 @@ async function runCheckout(sessionStorage, localStorage, requests) {
   await document.getElementById('payBtn').listeners.click();
 
   assert.equal(JSON.parse(sessionStorage.getItem('rrn_flow_access_v1')).step, 'prescreen-results');
-  assert.equal(sessionStorage.getItem('rrn_prescreen_payment_intent_v1'), 'pi_full_flow');
   assert.equal(context.window.location.href, '/after-payment-results/');
 }
 
