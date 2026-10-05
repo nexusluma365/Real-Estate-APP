@@ -89,7 +89,7 @@ exports.handler = async (event) => {
           },
           metadata: { ...metadata, product: 'listing_membership', plan: 'trial_then_monthly' },
         },
-        { idempotencyKey: `${leadId}:listing-subscription:trial-v3` }
+        { idempotencyKey: `${leadId}:listing-subscription:trial-1999-v4` }
       );
 
       const currentEntitlements = await getEntitlements(leadId);
