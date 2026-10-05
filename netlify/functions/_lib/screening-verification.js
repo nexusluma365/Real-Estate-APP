@@ -142,8 +142,15 @@ function verificationForResponse(verification) {
   return {
     screeningStatus: status === 'verification_pending' || status === 'verification_error' ? 'unverified' : status,
     verificationSourceDomain: verification && verification.verificationSourceDomain ? verification.verificationSourceDomain : null,
+    verificationSourceUrl: verification && verification.verificationSourceUrl ? verification.verificationSourceUrl : null,
     verificationEvidence: verification && verification.verificationEvidence ? verification.verificationEvidence : null,
+    verificationMethod: verification && verification.verificationMethod ? verification.verificationMethod : null,
     verifiedAt: verification && verification.verifiedAt ? verification.verifiedAt : null,
+    is_second_chance_verified: status === 'verified_second_chance',
+    verification_source: verification && verification.verificationSourceDomain ? verification.verificationSourceDomain : null,
+    verification_date: verification && verification.verifiedAt ? verification.verifiedAt : null,
+    verification_method: verification && verification.verificationMethod ? verification.verificationMethod : null,
+    verification_notes: verification && verification.verificationEvidence ? verification.verificationEvidence : null,
   };
 }
 

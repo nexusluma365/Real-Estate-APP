@@ -1,5 +1,5 @@
 // Sends the one-time "thanks for joining" email right after a lead's
-// first ($10 pre-screen) payment succeeds. Cloudflare/Resend is the
+// trial card-verification payment succeeds. Cloudflare/Resend is the
 // primary delivery path because the download worker already owns the
 // production email provider secrets; Apps Script remains a fallback.
 const { getLead } = require('./store');
@@ -67,8 +67,8 @@ async function sendWelcomeEmail(leadId) {
       resultsUrl,
       templateBaseUrl: baseUrl,
       supportEmail: supportEmail(),
-      membershipPrice: '$9.99/month',
-      membershipCopy: 'Your RentReady listing membership is active. Your membership renews monthly until canceled.',
+      membershipPrice: '7-day free trial',
+      membershipCopy: 'Your RentReady access is active. After your 7-day trial, access continues for $19.99/month until canceled.',
     }),
   });
   const data = await res.json().catch(() => ({}));

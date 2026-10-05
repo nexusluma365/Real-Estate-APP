@@ -8,7 +8,7 @@
   var START_URL = '/index.html';
   var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
-  var PAY_BUTTON_LABEL = 'UNLOCK ACCESS';
+  var PAY_BUTTON_LABEL = 'START FREE TRIAL';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
     bad_credit: 'Second-chance options may be included when available.',
@@ -52,7 +52,7 @@
     } catch (_e) {}
   }
 
-  // Google Ads conversion for the $9.99 RentReady unlock. Paste the label from the
+  // Google Ads conversion for the RentReady trial start. Paste the label from the
   // conversion action's event snippet (send_to: 'AW-18213168150/<label>').
   var GOOGLE_ADS_ID = 'AW-18213168150';
   var GOOGLE_ADS_PURCHASE_LABEL = '';
@@ -60,7 +60,7 @@
   function trackGooglePurchase(transactionId){
     try {
       if (typeof window.gtag !== 'function') return;
-      var purchase = { value: 9.99, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
+      var purchase = { value: 1, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
       window.gtag('event', 'purchase', Object.assign({ send_to: GOOGLE_ADS_ID }, purchase));
       if (GOOGLE_ADS_PURCHASE_LABEL) {
         window.gtag('event', 'conversion', Object.assign({ send_to: GOOGLE_ADS_ID + '/' + GOOGLE_ADS_PURCHASE_LABEL }, purchase));
@@ -316,11 +316,11 @@
     if (!stripe || !cardNumber || !answers.lead_id || btn.disabled) return;
     err.classList.remove('show');
     btn.disabled = true;
-    btn.textContent = 'Starting secure checkout...';
+    btn.textContent = 'Starting trial...';
     if (window.rrnShowPaymentOverlay) {
       rrnShowPaymentOverlay({
         title: 'Unlocking your apartment results',
-        message: 'Please wait while we securely activate your $9.99/month listing membership.',
+        message: 'Please wait while we securely start your 7-day trial.',
       });
     }
 
@@ -383,7 +383,7 @@
         rrnShowPaymentOverlay({
           state: 'success',
           title: 'Thank You',
-          message: 'Your listing membership is active. Your RentReady Results are ready.',
+          message: 'Your trial is active. Your RentReady Results are ready.',
         });
       }
       deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);

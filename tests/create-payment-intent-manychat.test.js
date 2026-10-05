@@ -89,9 +89,14 @@ async function run() {
     leadId: 'lead_123',
     manychat_contact_id: '123456789',
     product: 'listing_membership',
-    plan: 'monthly',
+    plan: 'trial_then_monthly',
   });
   assert.deepEqual(flow.subscriptionsCreated[0].items, [{ price: 'price_listing_monthly' }]);
+  assert.equal(flow.subscriptionsCreated[0].trial_period_days, 7);
+  assert.equal(flow.subscriptionsCreated[0].payment_behavior, 'default_incomplete');
+  assert.equal(flow.subscriptionsCreated[0].add_invoice_items[0].price_data.unit_amount, 100);
+  assert.equal(flow.subscriptionsCreated[0].add_invoice_items[0].price_data.currency, 'usd');
+  assert.equal(flow.subscriptionsCreated[0].payment_settings.save_default_payment_method, 'on_subscription');
   assert.equal(flow.savedLeads[0].answers.manychat_contact_id, '123456789');
   assert.equal(flow.entitlementPatches[0].patch.manychat_contact_id, '123456789');
   assert.equal(flow.entitlementPatches[0].patch.listingSubscriptionId, 'sub_manychat');

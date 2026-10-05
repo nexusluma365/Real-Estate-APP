@@ -8,13 +8,13 @@ const steps = [
   'Reviewing your answers...',
   'Checking common rental factors...',
   'Preparing your RentReady Results...',
-  'Preparing your apartment search...',
+  'Preparing your second-chance match preview...',
 ];
 const statusMessages = [
   'Reviewing your answers...',
   'Checking common rental factors...',
   'Preparing your RentReady Results...',
-  'Preparing your apartment search...',
+  'Preparing your second-chance match preview...',
 ];
 const STEP_MS = 430;
 const READY_HOLD_MS = 650;
@@ -38,17 +38,17 @@ function showReady() {
   const subtitle = document.getElementById('subtitle');
   if (eyebrow) eyebrow.textContent = 'Review complete';
   if (title) {
-    title.innerHTML = 'Your Apartment Matches <strong>Are Ready</strong>';
+    title.innerHTML = 'Your Second-Chance Matches <strong>Are Ready</strong>';
     title.classList.add('is-ready');
   }
-  if (subtitle) subtitle.textContent = 'Taking you to a preview of your apartment matches now.';
+  if (subtitle) subtitle.textContent = 'Taking you to a locked preview of your second-chance matches now.';
 }
 
 let i = 0;
 function tick() {
   if (i >= total) {
     showReady();
-    statusLine.textContent = 'Opening your apartment matches...';
+    statusLine.textContent = 'Opening your second-chance matches...';
     try {
       sessionStorage.setItem(FLOW_ACCESS_KEY, JSON.stringify({
         step: 'prescreen-checkout',

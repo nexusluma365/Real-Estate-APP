@@ -21,8 +21,9 @@ body{padding:24px}
 h1{font-size:clamp(38px,4.4vw,54px);line-height:1.02;letter-spacing:0;font-weight:900;margin:0 0 12px;max-width:650px;overflow-wrap:break-word}
 .intent-context{display:inline-flex;margin:16px 0 0;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--green-2);font-size:13px;font-weight:800;line-height:1.35}
 .lead{font-size:17px;line-height:1.5;color:var(--muted);max-width:650px;overflow-wrap:break-word}
+.verification-note{max-width:650px;margin:-4px 0 14px;font-size:13px;font-weight:800;color:var(--muted)}
 h2{font-size:24px;line-height:1.1;margin-bottom:12px}
-.includes{max-width:650px;margin:22px 0 20px;padding:20px 22px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.includes{max-width:650px;margin:18px 0 16px;padding:20px 22px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 .includes h2{font-size:18px;margin-bottom:14px}
 .includes-list{list-style:none;display:grid;gap:11px}
 .includes-list{gap:14px}
@@ -97,8 +98,9 @@ h2{font-size:24px;line-height:1.1;margin-bottom:12px}
   .eyebrow{margin-bottom:9px;font-size:11px;letter-spacing:.16em}
   h1{margin-bottom:12px}
   .lead{line-height:1.42}
+  .verification-note{margin:-2px 0 12px;text-align:center;font-size:12.5px}
   .intent-context{margin-top:12px;padding:8px 12px;font-size:12px}
-  .includes{margin:18px 0 18px;padding:15px 16px}
+  .includes{margin:16px 0 16px;padding:15px 16px}
   .includes h2{font-size:19px;margin-bottom:11px}
   .includes-list{gap:10px}
   .includes-list li{width:100%;max-width:100%;margin:0;align-items:flex-start;gap:10px;text-align:left}

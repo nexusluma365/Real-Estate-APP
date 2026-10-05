@@ -78,7 +78,8 @@ async function run() {
     assert.equal(sent[0].body.firstName, 'Rae');
     assert.match(sent[0].body.resultsUrl, /^https:\/\/werentreadygo\.com\/real-estate-list\?token=/);
     assert.equal(sent[0].body.templateBaseUrl, 'https://werentreadygo.com');
-    assert.equal(sent[0].body.membershipPrice, '$9.99/month');
+    assert.equal(sent[0].body.membershipPrice, '7-day free trial');
+    assert.equal(sent[0].body.membershipCopy, 'Your RentReady access is active. After your 7-day trial, access continues for $19.99/month until canceled.');
 
     // A failed primary send must throw, so callers can log it (but they choose to
     // swallow it rather than fail the payment confirmation).

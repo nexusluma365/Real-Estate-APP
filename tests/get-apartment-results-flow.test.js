@@ -228,7 +228,7 @@ async function run() {
     assert.deepEqual(body.nearbyAreas, ['Concord, NC']);
     assert.match(body.properties[0].availabilityNote, /availability/i);
     assert.equal(savedResults.length, 1);
-    assert.equal(google.searchCalls, 6);
+    assert.equal(google.searchCalls, 10);
     assert.equal(google.detailCalls, 3);
     assert(!urls.some((url) => url.includes('places.googleapis.com/v1/places:searchText')));
     assert(urls.some((url) => url.includes('/maps/api/place/textsearch/json')));
@@ -306,11 +306,12 @@ async function run() {
     assert.doesNotMatch(previewBaseCheckoutBody.properties[0].image, /paid10_cached_1|photoName|photoRef|placeId/);
     assert.equal(previewBaseCheckoutBody.properties[0].bedroomLabel, '1 bedroom');
     assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewTag, undefined);
-    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.screeningStatus, 'verified_second_chance');
-    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewOnlySecondChance, true);
-    assert.equal(previewBaseCheckoutBody.properties[1].screeningVerification.screeningStatus, 'verified_second_chance');
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.screeningStatus, 'unverified');
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.is_second_chance_verified, false);
+    assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewOnlySecondChance, undefined);
+    assert.equal(previewBaseCheckoutBody.properties[1].screeningVerification.screeningStatus, 'unverified');
     assert.equal(previewBaseCheckoutBody.properties[2].screeningVerification.screeningStatus, 'unverified');
-    assert.equal(previewBaseCheckoutBody.properties.filter((property) => property.screeningVerification.screeningStatus === 'verified_second_chance').length, 2);
+    assert.equal(previewBaseCheckoutBody.properties.filter((property) => property.screeningVerification.screeningStatus === 'verified_second_chance').length, 0);
     assert.equal(previewBaseCheckoutBody.properties[0].matchId, paidBaseCheckoutBody.properties[0].matchId);
 
     // Results cached before photo references were saved must be regenerated.
@@ -327,7 +328,7 @@ async function run() {
       queryStringParameters: { leadId: 'lead_paid10' },
     })).body);
     assert.equal(staleVersionBody.ok, true);
-    assert.equal(staleVersionGoogle.searchCalls, 6);
+    assert.equal(staleVersionGoogle.searchCalls, 10);
     assert.equal(staleVersionBody.properties[0].name, 'Concord Reserve Apartments');
 
     const prepUnlock = await loadHandler({
@@ -533,7 +534,7 @@ async function run() {
     assert.equal(freshBody.properties[0].photoName, null);
     assert.match(freshBody.properties[0].image, /^\/\.netlify\/functions\/google-place-image\?placeId=place_new_1&photoRef=AWn5SU_legacy_ref_place_new_1$/);
     assert.equal(fresh.savedResults.length, 1);
-    assert.equal(newApi.searchCalls, 6);
+    assert.equal(newApi.searchCalls, 10);
 
     urls.length = 0;
     const broad = installLegacyGoogleMock(urls, [
@@ -565,7 +566,7 @@ async function run() {
     assert.equal(broadRes.statusCode, 200);
     assert.equal(broadBody.properties.length, 1);
     assert.equal(broadBody.properties[0].name, 'Broad Concord Apartments');
-    assert.equal(broad.searchCalls, 6);
+    assert.equal(broad.searchCalls, 10);
 
     urls.length = 0;
     installLegacyGoogleMock(urls, concordPlaces);

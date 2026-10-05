@@ -64,10 +64,12 @@ exports.handler = async (event) => {
 
     // Every PaymentIntent this site creates records which product it paid
     // for. Never let the browser claim a different (more expensive) product
-    // for a payment — e.g. confirming the $9.99 pre-screen intent as the
+    // for a payment — e.g. confirming the trial verification intent as the
     // $47 or $97 product.
     const paidProduct = String(metadata.product || subscriptionMetadata.product || '').toLowerCase();
-    const expectedProduct = product === 'prescreen' ? ['prescreen', 'listing_membership'] : [String(product).toLowerCase()];
+    const expectedProduct = product === 'prescreen'
+      ? ['prescreen', 'listing_membership', 'listing_membership_verification']
+      : [String(product).toLowerCase()];
     if (paidProduct && !expectedProduct.includes(paidProduct)) {
       return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Product mismatch' }) };
     }

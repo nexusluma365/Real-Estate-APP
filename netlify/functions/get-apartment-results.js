@@ -24,7 +24,6 @@ const MAX_RESULTS = 8;
 const RESULTS_VERSION = 2;
 const CLOSED_BUSINESS_STATUSES = new Set(['CLOSED_PERMANENTLY', 'CLOSED_TEMPORARILY']);
 const GOOGLE_CANDIDATE_LIMIT = 24;
-const MIN_PREVIEW_SECOND_CHANCE = 2;
 const BANNED_LISTING_SERVICE_PATTERN = /\b(apartment\s*(finder|hunters?|locator|locators|search|guide|listings?|directory|referral|referrals)|apartments?\s*(finder|hunters?|locator|locators|search|guide|listings?|directory|referral|referrals)|rental\s*(locator|locators|finder|finders|agency|agencies|referral|referrals)|rent(?:al)?\s*(finder|locators?|search|guide))\b/i;
 const VALID_STATE_CODES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
@@ -271,12 +270,16 @@ function previewResponse(payload, preview) {
     criteria,
     nearbyAreas: [],
     preview: true,
-    properties: markPreviewSecondChance(payload.properties).map(({ property, secondChance }, index) => {
+    properties: payload.properties.map((property, index) => {
       const bedrooms = previewBedroomLabel(criteria);
+      const verification = property.screeningVerification || { screeningStatus: 'unverified' };
+      const status = verification.screeningStatus;
+      const secondChance = status === 'verified_second_chance';
+      const flexible = status === 'flexible_screening';
       return {
         propertyId: `preview_${index + 1}`,
         matchId: matchId(payload.leadId, property.propertyId, index),
-        name: 'Apartment Match',
+        name: secondChance ? 'Second-Chance Match' : flexible ? 'Flexible Screening Match' : 'Apartment Match',
         area: criteria && criteria.city ? criteria.city : property.area || 'Your search area',
         address: '',
         phone: '',
@@ -289,12 +292,12 @@ function previewResponse(payload, preview) {
         rating: property.rating || null,
         reviewCount: property.reviewCount || null,
         matchScore: property.matchScore || 80,
-        matchReasons: ['This apartment community matches the search details you provided.'],
+        matchReasons: ['Matched based on your search. Property details unlock with access.'],
         summary: bedrooms
-          ? `${bedrooms.replace(/^./, (ch) => ch.toUpperCase())} apartment match in your search area.`
-          : 'Apartment match in your search area.',
-        availabilityNote: secondChance ? 'Second-chance details unlock with full access.' : 'View availability through full access.',
-        screeningVerification: previewScreeningVerification(property.screeningVerification, secondChance),
+          ? `${bedrooms.replace(/^./, (ch) => ch.toUpperCase())} locked match in your search area.`
+          : 'Locked match in your search area.',
+        availabilityNote: 'Property details locked.',
+        screeningVerification: previewScreeningVerification(verification),
         source: property.source || 'Google Places',
       };
     }),
@@ -314,31 +317,17 @@ function isVerifiedSecondChance(property) {
   );
 }
 
-function markPreviewSecondChance(properties) {
-  const result = (properties || []).map((property) => ({
-    property,
-    secondChance: isVerifiedSecondChance(property),
-  }));
-  let count = result.filter((item) => item.secondChance).length;
-  for (const item of result) {
-    if (count >= MIN_PREVIEW_SECOND_CHANCE) break;
-    if (!item.secondChance) {
-      item.secondChance = true;
-      count += 1;
-    }
-  }
-  return result;
-}
-
-function previewScreeningVerification(verification, secondChance) {
-  if (secondChance) {
-    return {
-      ...(verification || {}),
-      screeningStatus: 'verified_second_chance',
-      previewOnlySecondChance: !verification || verification.screeningStatus !== 'verified_second_chance',
-    };
-  }
-  return verification || { screeningStatus: 'unverified' };
+function previewScreeningVerification(verification) {
+  const status = verification && verification.screeningStatus ? verification.screeningStatus : 'unverified';
+  return {
+    ...(verification || {}),
+    screeningStatus: status,
+    is_second_chance_verified: status === 'verified_second_chance',
+    verification_source: verification && verification.verificationSourceDomain ? verification.verificationSourceDomain : null,
+    verification_date: verification && verification.verifiedAt ? verification.verifiedAt : null,
+    verification_method: verification && verification.verificationMethod ? verification.verificationMethod : null,
+    verification_notes: verification && verification.verificationEvidence ? verification.verificationEvidence : null,
+  };
 }
 
 function matchId(leadId, propertyId, index) {
@@ -408,7 +397,7 @@ async function recoverPrescreenEntitlement(leadId, paymentIntentId, current) {
   const subscriptionMetadata = (subscription && subscription.metadata) || {};
   const effectiveLeadId = metadata.leadId || subscriptionMetadata.leadId;
   const product = String(metadata.product || subscriptionMetadata.product || '').toLowerCase();
-  if (pi.status !== 'succeeded' || effectiveLeadId !== leadId || !['prescreen', 'listing_membership'].includes(product) || !subscription) {
+  if (pi.status !== 'succeeded' || effectiveLeadId !== leadId || !['prescreen', 'listing_membership', 'listing_membership_verification'].includes(product) || !subscription) {
     return current;
   }
 
@@ -564,6 +553,10 @@ function googlePlaceQueries(criteria) {
   if (criteria.searchArea && criteria.searchArea !== criteria.city) locations.push(criteria.city);
 
   return unique(locations.filter(Boolean).map(usSearchLocation)).flatMap((location) => [
+    `second chance apartments in ${location}`,
+    `apartments with flexible screening in ${location}`,
+    `apartments that consider eviction in ${location}`,
+    `apartments that consider bad credit in ${location}`,
     `${bedroomText}apartments for rent in ${location}`,
     `apartment communities in ${location}`,
     `rental apartments in ${location}`,

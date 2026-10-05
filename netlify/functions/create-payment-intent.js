@@ -2,9 +2,9 @@
 // Body: { leadId, email, answers }
 //
 // Kept at the legacy endpoint name so the existing checkout page does not
-// need a routing rewrite. It now creates a real $9.99/month Stripe
-// Subscription and returns the first invoice PaymentIntent client secret for
-// the existing card form to confirm.
+// need a routing rewrite. It creates the listing subscription with a 7-day
+// trial plus a $1 card-verification invoice due today, then returns that
+// invoice PaymentIntent client secret for the existing card form to confirm.
 const { getStripe } = require('./_lib/stripe');
 const { saveLead, getLead, getEntitlements, patchEntitlements } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
@@ -28,7 +28,7 @@ async function findCustomerByLeadId(stripe, leadId) {
     return existing.data[0] || null;
   } catch (err) {
     // A search issue should not stop a fresh checkout from starting. Creating
-    // a new customer is safer than blocking the $9.99 PaymentIntent.
+    // a new customer is safer than blocking checkout activation.
     console.warn('customer search failed, creating a new customer', err);
     return null;
   }
@@ -93,15 +93,28 @@ exports.handler = async (event) => {
       {
         customer: customer.id,
         items: [{ price: priceId }],
+        add_invoice_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              unit_amount: 100,
+              product_data: {
+                name: 'RentReady card verification',
+              },
+            },
+            metadata: { ...metadata, product: 'listing_membership_verification', plan: 'trial' },
+          },
+        ],
+        trial_period_days: 7,
         payment_behavior: 'default_incomplete',
         payment_settings: {
           save_default_payment_method: 'on_subscription',
           payment_method_types: ['card'],
         },
         expand: ['latest_invoice.payment_intent'],
-        metadata: { ...metadata, product: 'listing_membership', plan: 'monthly' },
+        metadata: { ...metadata, product: 'listing_membership', plan: 'trial_then_monthly' },
       },
-      { idempotencyKey: `${normalizedLeadId}:listing-subscription:start` }
+      { idempotencyKey: `${normalizedLeadId}:listing-subscription:trial-v2` }
     );
     const paymentIntent = subscription.latest_invoice && subscription.latest_invoice.payment_intent;
     if (!paymentIntent || !paymentIntent.client_secret) {
