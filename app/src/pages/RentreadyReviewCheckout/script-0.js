@@ -226,22 +226,28 @@
   var leadEl = document.getElementById('checkoutLead');
   var SECOND_CHANCE_LEAD = leadEl ? leadEl.textContent : '';
 
-  function setVisible(el, visible){
-    if (el && el.style) el.style.visibility = visible ? '' : 'hidden';
+  var HEADLINE_FALLBACK_MS = 6000;
+  var headlineShown = false;
+
+  // The headline starts hidden (.headline-pending in the page markup) so the
+  // static second-chance text never flashes before the real state is known.
+  function revealHeadline(){
+    headlineShown = true;
+    var hero = document.getElementById('checkoutHero');
+    if (hero && hero.classList) hero.classList.remove('headline-pending');
   }
 
   function renderVerifiedHeadline(verifiedCount){
     var title = document.getElementById('checkoutTitle');
     if (title) {
       title.textContent = verifiedCount > 0 ? 'Your Second-Chance Matches Are Ready' : 'Your Apartment Options Are Ready';
-      setVisible(title, true);
     }
     if (leadEl) {
       leadEl.textContent = verifiedCount > 0
         ? SECOND_CHANCE_LEAD
         : 'We found apartment options based on your search. Unlock your results free for 7 days.';
-      setVisible(leadEl, true);
     }
+    revealHeadline();
   }
 
   function renderCheckoutMatches(properties){
@@ -253,8 +259,8 @@
 
   // The preview page (just before checkout) already knows the verified
   // count, so use it right away; the results request below confirms it.
-  // Without it, hide the headline until the request answers rather than
-  // flash a second-chance claim that may not be true.
+  // Without it the headline stays hidden until the request answers, and
+  // falls back to the neutral wording if that takes too long.
   function applyRememberedVerifiedCount(answers){
     var remembered = null;
     try { remembered = JSON.parse(sessionStorage.getItem(VERIFIED_COUNT_KEY) || 'null'); } catch (_e) {}
@@ -262,9 +268,9 @@
       renderVerifiedHeadline(remembered.count);
       return;
     }
-    var title = document.getElementById('checkoutTitle');
-    setVisible(title, false);
-    setVisible(leadEl, false);
+    if (typeof setTimeout === 'function') {
+      setTimeout(function(){ if (!headlineShown) renderVerifiedHeadline(0); }, HEADLINE_FALLBACK_MS);
+    }
   }
 
   async function hydrateCheckoutMatches(answers, token){
