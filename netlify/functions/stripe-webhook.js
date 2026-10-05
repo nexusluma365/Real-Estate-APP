@@ -16,6 +16,7 @@ const { sendWelcomeEmail } = require('./_lib/welcome-email');
 const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
 const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
+const { logFunnelEvent } = require('./_lib/funnel');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -116,6 +117,9 @@ exports.handler = async (event) => {
               console.error('stripe-webhook welcome email error', err);
             }
           }
+          if (product !== 'prescreen') {
+            await logFunnelEvent('upsell_paid', { lead_id: leadId, payment_id: pi.id, amount: (pi.amount_received || pi.amount || 0) / 100, detail: { product } });
+          }
           if (isFirstDownloadPurchase) {
             try {
               await sendDownloadEmail(leadId, product);
@@ -143,6 +147,7 @@ exports.handler = async (event) => {
             listingSubscriptionStatus: sub.status || 'canceled',
             listingAccessStatus: 'inactive',
           });
+          await logFunnelEvent('subscription_canceled', { lead_id: leadId, payment_id: sub.id });
         }
         break;
       }
@@ -154,6 +159,10 @@ exports.handler = async (event) => {
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['latest_invoice.payment_intent'] });
           await syncListingSubscription(stripe, sub, { throwOnEmailFailure: true });
+          // The $0 trial invoice also fires invoice.paid; only real charges count as "paid".
+          if (invoice.amount_paid > 0) {
+            await logFunnelEvent('subscription_paid', { lead_id: sub.metadata && sub.metadata.leadId, payment_id: invoice.id, amount: invoice.amount_paid / 100 });
+          }
         }
         break;
       }
@@ -164,6 +173,7 @@ exports.handler = async (event) => {
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           await syncListingSubscription(stripe, sub);
+          await logFunnelEvent('subscription_payment_failed', { lead_id: sub.metadata && sub.metadata.leadId, payment_id: invoice.id, amount: (invoice.amount_due || 0) / 100 });
         }
         break;
       }

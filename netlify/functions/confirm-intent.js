@@ -12,6 +12,7 @@ const { sendWelcomeEmail } = require('./_lib/welcome-email');
 const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
 const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
+const { logFunnelEvent } = require('./_lib/funnel');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -125,6 +126,7 @@ exports.handler = async (event) => {
           console.error('confirm-intent welcome email error', err);
         }
       }
+      await logFunnelEvent('trial_started', { lead_id: leadId, payment_id: subscription.id, detail: { subscription_status: subscription.status || '' } });
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', subscriptionId: subscription.id, entitlements, warning: entitlementWarning }) };
     }
 
@@ -210,6 +212,9 @@ exports.handler = async (event) => {
         }
       }
 
+      if (product !== 'prescreen') {
+        await logFunnelEvent('upsell_paid', { lead_id: leadId, payment_id: pi.id, amount: (pi.amount_received || pi.amount || 0) / 100, detail: { product } });
+      }
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', entitlements, warning: entitlementWarning }) };
     }
 

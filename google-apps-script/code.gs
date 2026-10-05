@@ -36,6 +36,11 @@ function doGet(e) {
 
   try {
     let response;
+    if (String(payload.action || "") === "getFunnel") {
+      response = getFunnelResponse_(payload);
+      return callback ? jsCallbackResponse_(callback, response) : jsonResponse_(response);
+    }
+
     if (!hasLeadData_(payload)) {
       response = {
         ok: true,
@@ -58,6 +63,12 @@ function doPost(e) {
 
   try {
     const payload = parsePayload_(e);
+
+    // Funnel step tracking (see funnel.gs). Must come before writeLead_,
+    // or tracking events would be written to the Leads tab as blank rows.
+    if (payload.action === "trackEvent") {
+      return jsonResponse_(trackEvent_(payload));
+    }
 
     if (payload.action === "sendEmail") {
       return jsonResponse_(sendAssetEmail_(payload));

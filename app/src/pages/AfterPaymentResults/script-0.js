@@ -231,6 +231,7 @@
     if (apartmentOptionsCta) apartmentOptionsCta.href = listUrl;
     if (apartmentOptionsCta) {
       apartmentOptionsCta.addEventListener('click', function(){
+        rrTrack('upsell_declined', { where: 'results_page' });
         try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', city: readAnswers().preferred_city || readAnswers().city || '' }); } catch (_e) {}
       });
     }

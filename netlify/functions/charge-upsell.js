@@ -10,6 +10,7 @@ const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
 const { determineFocus } = require('./_lib/focus');
 const { sendDownloadEmail } = require('./_lib/download-email');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
+const { logFunnelEvent } = require('./_lib/funnel');
 
 const PRODUCTS = {
   gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
@@ -142,6 +143,7 @@ exports.handler = async (event) => {
         };
       }
       console.error('charge-upsell decline', err.code || err.message);
+      await logFunnelEvent('upsell_failed', { lead_id: leadId, detail: { product, reason: err.code || 'declined' } });
       return {
         statusCode: 200,
         body: JSON.stringify({ ok: true, status: 'failed', message: 'We couldn\u2019t complete this purchase with your saved payment method.' }),
@@ -170,6 +172,7 @@ exports.handler = async (event) => {
           console.error('charge-upsell download email error', err);
         }
       }
+      await logFunnelEvent('upsell_paid', { lead_id: leadId, payment_id: pi.id, amount: def.amount / 100, detail: { product } });
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', paymentIntentId: pi.id, warning }) };
     }
 

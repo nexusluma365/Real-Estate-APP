@@ -324,6 +324,7 @@
     var err = document.getElementById('paymentError');
     var zipInput = document.getElementById('billingZip');
     if (!stripe || !cardNumber || !answers.lead_id || btn.disabled) return;
+    rrTrack('checkout_submitted', marketingContext(answers));
     err.classList.remove('show');
     btn.disabled = true;
       btn.textContent = 'Preparing...';
@@ -399,6 +400,7 @@
       deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);
     } catch (error) {
       if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+      rrTrack('checkout_payment_failed', Object.assign(marketingContext(answers), { reason: error && error.isPaymentDecline ? 'card_declined' : 'error' }));
       btn.disabled = false;
       btn.textContent = PAY_BUTTON_LABEL;
       showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);

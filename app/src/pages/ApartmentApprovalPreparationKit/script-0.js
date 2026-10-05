@@ -60,6 +60,7 @@
       if (!link) return;
       link.addEventListener('click', (e) => {
         e.preventDefault();
+        if (window.rrnTrack) rrnTrack('upsell_declined', { where: 'upsell_page' });
         try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-skipped', city: selectedCity() }); } catch (_e) {}
         window.location.href = realEstateListUrl();
       });
@@ -112,6 +113,7 @@
 
       setCheckoutButtonsBusy(true);
       showPaymentStatus('processing');
+      if (window.rrnTrack) rrnTrack('upsell_clicked');
 
       let status = 'failed';
       try {
@@ -132,6 +134,7 @@
         return;
       }
 
+      if (window.rrnTrack) rrnTrack('upsell_failed', { status });
       showTroubleAndRedirect();
       resetCheckoutButton();
     }
