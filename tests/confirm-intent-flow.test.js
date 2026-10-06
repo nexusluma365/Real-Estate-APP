@@ -10,6 +10,7 @@ async function loadHandler({ paymentIntent, setupIntent, subscription, patchEnti
 
   const welcomeEmailCalls = [];
   const downloadEmailCalls = [];
+  const subscriptionCreateCalls = [];
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -24,7 +25,10 @@ async function loadHandler({ paymentIntent, setupIntent, subscription, patchEnti
           retrieve: async () => setupIntent,
         },
         subscriptions: {
-          create: async () => subscription,
+          create: async (payload, options) => {
+            subscriptionCreateCalls.push({ payload, options });
+            return subscription;
+          },
         },
         customers: {
           update: customerUpdate || (async () => ({})),
@@ -67,11 +71,11 @@ async function loadHandler({ paymentIntent, setupIntent, subscription, patchEnti
     },
   };
 
-  return { handler: require('../netlify/functions/confirm-intent').handler, welcomeEmailCalls, downloadEmailCalls };
+  return { handler: require('../netlify/functions/confirm-intent').handler, welcomeEmailCalls, downloadEmailCalls, subscriptionCreateCalls };
 }
 
 async function run() {
-  process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_listing_monthly';
+  process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_1999_monthly';
   const succeededIntent = {
     id: 'pi_test',
     status: 'succeeded',
@@ -134,6 +138,38 @@ async function run() {
   assert.equal(setupBody.status, 'succeeded');
   assert.equal(setupBody.subscriptionId, 'sub_setup');
   assert.deepEqual(setupTrial.welcomeEmailCalls, ['lead_setup']);
+  assert.equal(setupTrial.subscriptionCreateCalls.length, 1);
+  assert.deepEqual(setupTrial.subscriptionCreateCalls[0].payload.items, [{ price: 'price_1999_monthly' }]);
+  assert.equal(setupTrial.subscriptionCreateCalls[0].payload.trial_period_days, 7);
+  assert.equal(setupTrial.subscriptionCreateCalls[0].payload.customer, 'cus_setup');
+  assert.equal(setupTrial.subscriptionCreateCalls[0].payload.default_payment_method, 'pm_setup');
+  assert.deepEqual(setupTrial.subscriptionCreateCalls[0].payload.payment_settings, {
+    save_default_payment_method: 'on_subscription',
+    payment_method_types: ['card'],
+  });
+  assert.equal(setupTrial.subscriptionCreateCalls[0].options.idempotencyKey, 'lead_setup:listing-subscription:trial-1999-v4');
+
+  process.env.STRIPE_LISTING_PRICE_MONTHLY = 'prod_VO3S1xyfCMGZQE';
+  const productIdConfig = await loadHandler({
+    setupIntent: {
+      id: 'seti_bad_config',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_bad_config', product: 'listing_membership' },
+      customer: 'cus_bad_config',
+      payment_method: 'pm_bad_config',
+    },
+    subscription: { id: 'sub_should_not_create', status: 'trialing' },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const productIdConfigRes = await productIdConfig.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_bad_config', setupIntentId: 'seti_bad_config', product: 'prescreen' }),
+  });
+  assert.equal(productIdConfigRes.statusCode, 500);
+  assert.match(JSON.parse(productIdConfigRes.body).error, /price_/i);
+  assert.equal(productIdConfig.subscriptionCreateCalls.length, 0);
+  process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_1999_monthly';
 
   const mismatchHandler = await loadHandler({
     paymentIntent: { ...succeededIntent, metadata: { leadId: 'other_lead' } },

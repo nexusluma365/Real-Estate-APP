@@ -1,11 +1,11 @@
 // POST /.netlify/functions/confirm-intent
-// Body: { leadId, paymentIntentId, product }   product: 'prescreen'|'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
+// Body: { leadId, paymentIntentId, setupIntentId, product }
+// product: 'prescreen'|'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
 //
 // The frontend never gets to just SAY a payment succeeded — this function
-// re-fetches the PaymentIntent from Stripe itself and only grants
-// entitlement if Stripe confirms it. It's used right after the $10
-// Payment Element confirms client-side, and again after a customer
-// completes a 3D Secure challenge on a later step.
+// re-fetches the Stripe intent itself and only grants entitlement if Stripe
+// confirms it. The listing checkout confirms a SetupIntent, then this
+// function creates the 7-day trial subscription with the saved card.
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, patchEntitlements } = require('./_lib/store');
 const { sendWelcomeEmail } = require('./_lib/welcome-email');
@@ -23,6 +23,14 @@ function listingPriceId() {
     process.env.STRIPE_RENTREADY_LISTING_PRICE_MONTHLY ||
     ''
   ).trim();
+}
+
+function listingPriceConfigError(priceId) {
+  if (!priceId) return 'STRIPE_LISTING_PRICE_MONTHLY is not configured.';
+  if (!priceId.startsWith('price_')) {
+    return 'STRIPE_LISTING_PRICE_MONTHLY must be a Stripe recurring Price ID that starts with price_, not a Product ID.';
+  }
+  return '';
 }
 
 function setupErrorMessage(err) {
@@ -74,8 +82,9 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ ok: true, status: setupIntent.status || 'failed' }) };
       }
       const priceId = listingPriceId();
-      if (!priceId) {
-        return { statusCode: 500, body: JSON.stringify({ ok: false, error: 'STRIPE_LISTING_PRICE_MONTHLY is not configured.' }) };
+      const priceConfigError = listingPriceConfigError(priceId);
+      if (priceConfigError) {
+        return { statusCode: 500, body: JSON.stringify({ ok: false, error: priceConfigError }) };
       }
       const subscription = await stripe.subscriptions.create(
         {

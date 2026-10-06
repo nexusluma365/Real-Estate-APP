@@ -2,7 +2,7 @@
 // Body: { leadId, product, idempotencyKey }   product: 'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
 //
 // This is the actual "one click" purchase: no card form, no redirect —
-// it charges the payment method saved during the $10 pre-screen. It only
+// it charges the payment method saved during listing trial checkout. It only
 // runs when the customer presses the disclosed-price button on the page;
 // nothing here fires on page load, scroll, or navigation.
 const { getStripe } = require('./_lib/stripe');
@@ -19,6 +19,11 @@ const PRODUCTS = {
   apartment_prep: { amount: 4700, field: 'paid47', legacyField: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
   creditkit: { amount: 9700, field: 'paid97', label: 'RentReady Credit Action Kit' },
 };
+
+function receiptEmailFromLead(lead) {
+  const email = String((lead && (lead.email || lead.Email || lead.contact_email)) || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined;
+}
 
 async function recoverPrescreenEntitlements(stripe, leadId, prescreenPaymentIntentId, current) {
   if (!prescreenPaymentIntentId) return current;
@@ -85,7 +90,7 @@ exports.handler = async (event) => {
     if (!entitlements.paid10 || !entitlements.stripeCustomerId || !entitlements.defaultPaymentMethodId) {
       return {
         statusCode: 403,
-        body: JSON.stringify({ ok: false, error: 'Complete the $10 pre-screen before this step.' }),
+        body: JSON.stringify({ ok: false, error: 'Complete the listing access checkout before this step.' }),
       };
     }
 
@@ -124,8 +129,12 @@ exports.handler = async (event) => {
           currency: 'usd',
           customer: entitlements.stripeCustomerId,
           payment_method: entitlements.defaultPaymentMethodId,
+          payment_method_types: ['card'],
+          payment_method_options: { card: { request_three_d_secure: 'automatic' } },
           off_session: true,
           confirm: true,
+          description: def.label,
+          receipt_email: receiptEmailFromLead(lead),
           metadata: { leadId, product, category: def.category || '', ...manychatMetadata(manychatContactId) },
         },
         { idempotencyKey: `${leadId}:${product}:${idempotencyKey}` }

@@ -73,7 +73,7 @@ RENTREADY_RESEARCH_TIMEOUT_MS
 ```
 
 `OPENAI_MODEL` is optional. If it is not set, the apartment-results function uses its default model.
-`STRIPE_LISTING_PRICE_MONTHLY` must be a Stripe recurring monthly Price ID for the $9.99/month RentReady Listing Membership.
+`STRIPE_LISTING_PRICE_MONTHLY` must be the Stripe recurring monthly Price ID for the $19.99/month RentReady Listing Membership. Use the `price_...` ID from the product's pricing row, not the `prod_...` Product ID.
 `SUPABASE_URL` and `SUPABASE_SECRET_KEY` are optional locally, but should be set in Netlify production so leads, entitlements, apartment results, listing matches, property verification records, and waiting-list entries persist in Supabase. Keep `SUPABASE_SECRET_KEY` server-only.
 `RENTREADY_RESEARCH_PROVIDER_URL` and `RENTREADY_RESEARCH_PROVIDER_KEY` are optional server-only settings for a first-party screening-policy research provider. Without a provider, listing verification only attempts the property's official website and safely returns `unverified` when there is no official evidence. `RENTREADY_VERIFICATION_TTL_DAYS` defaults to 90, and `RENTREADY_RESEARCH_TIMEOUT_MS` defaults to 5000.
 

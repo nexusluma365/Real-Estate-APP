@@ -39,7 +39,7 @@ async function loadHandler({ entitlements, prescreenIntent, upsellIntent, upsell
     loaded: true,
     exports: {
       getEntitlements: async () => entitlements,
-      getLead: async () => ({ credit_score: '700_739' }),
+      getLead: async () => ({ credit_score: '700_739', email: 'buyer@example.com' }),
       patchEntitlements,
     },
   };
@@ -114,6 +114,10 @@ async function run() {
   assert.equal(createCalls[0].amount, 2700);
   assert.equal(createCalls[0].customer, 'cus_test');
   assert.equal(createCalls[0].payment_method, 'pm_test');
+  assert.deepEqual(createCalls[0].payment_method_types, ['card']);
+  assert.deepEqual(createCalls[0].payment_method_options, { card: { request_three_d_secure: 'automatic' } });
+  assert.equal(createCalls[0].description, 'RentReady Modern Apartment Matches & RentReady Guide');
+  assert.equal(createCalls[0].receipt_email, 'buyer@example.com');
   assert.equal(createCalls[0].metadata.manychat_contact_id, '123456789');
   assert.equal(patchCalls.length, 2);
   assert.deepEqual(patchCalls[0].patch, {
