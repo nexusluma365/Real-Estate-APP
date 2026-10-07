@@ -144,12 +144,11 @@ async function rrnGetConfig() {
   return await rrnConfigPromise;
 }
 
-async function rrnGetStripePublishableKey(fallbackKey) {
-  const cleanFallback = fallbackKey && !String(fallbackKey).includes('PASTE_YOUR')
-    ? String(fallbackKey)
-    : '';
+async function rrnGetStripePublishableKey() {
   const config = await rrnGetConfig();
-  return (config && config.stripePublishableKey) || cleanFallback;
+  if (config && config.stripePublishableKey) return config.stripePublishableKey;
+  console.error('Stripe publishable key unavailable from config', config && config.error);
+  return '';
 }
 
 async function rrnFetchEntitlements(leadId) {

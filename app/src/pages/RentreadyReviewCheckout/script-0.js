@@ -4,11 +4,14 @@
   var FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
   var ENTRY_INTENT_KEY = 'rrn_entry_intent_v1';
   var PRESCREEN_INTENT_KEY = 'rrn_prescreen_payment_intent_v1';
+  var GOOGLE_PURCHASE_KEY = 'rrn_google_trial_purchase_v1';
   var RESULTS_URL = '/after-payment-results/';
   var START_URL = '/index.html';
-  var FALLBACK_STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
   var PAYMENT_DECLINED_MESSAGE = "Your payment didn't go through. Please check your card details and try again.";
+  var SUBSCRIPTION_RETRY_MESSAGE = "We saved your card, but we're having trouble starting your trial. Please try again.";
+  var CHECKOUT_UNAVAILABLE_MESSAGE = 'Checkout is temporarily unavailable. Please try again.';
   var PAY_BUTTON_LABEL = 'UNLOCK MY MATCHES';
+  var RETRY_BUTTON_LABEL = 'TRY AGAIN';
   var VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
   var INTENT_MESSAGES = {
     bad_credit: 'Second-chance options may be included when available.',
@@ -28,6 +31,9 @@
   var cardCvc = null;
   var setupIntentId = '';
   var paymentClientSecret = '';
+  var setupSucceeded = false;
+  var payInProgress = false;
+  var googleAdsConfig = { id: 'AW-18213168150', label: '' };
 
   function readAnswers(){
     try { return JSON.parse(sessionStorage.getItem(ANSWERS_STORAGE_KEY) || localStorage.getItem(ANSWERS_STORAGE_KEY) || '{}') || {}; }
@@ -54,16 +60,24 @@
 
   // Google Ads conversion for the RentReady trial start. Paste the label from the
   // conversion action's event snippet (send_to: 'AW-18213168150/<label>').
-  var GOOGLE_ADS_ID = 'AW-18213168150';
-  var GOOGLE_ADS_PURCHASE_LABEL = '';
-
   function trackGooglePurchase(transactionId){
     try {
       if (typeof window.gtag !== 'function') return;
+      if (!transactionId) return;
+      var dedupeKey = GOOGLE_PURCHASE_KEY + ':' + transactionId;
+      try {
+        if (sessionStorage.getItem(dedupeKey) || localStorage.getItem(dedupeKey)) return;
+        sessionStorage.setItem(dedupeKey, '1');
+        localStorage.setItem(dedupeKey, '1');
+      } catch (_storageError) {}
+      var googleAdsId = googleAdsConfig.id || '';
+      if (!googleAdsId) return;
       var purchase = { value: 1, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
-      window.gtag('event', 'purchase', Object.assign({ send_to: GOOGLE_ADS_ID }, purchase));
-      if (GOOGLE_ADS_PURCHASE_LABEL) {
-        window.gtag('event', 'conversion', Object.assign({ send_to: GOOGLE_ADS_ID + '/' + GOOGLE_ADS_PURCHASE_LABEL }, purchase));
+      window.gtag('event', 'purchase', Object.assign({ send_to: googleAdsId }, purchase));
+      if (googleAdsConfig.label) {
+        window.gtag('event', 'conversion', Object.assign({ send_to: googleAdsId + '/' + googleAdsConfig.label }, purchase));
+      } else if (window.location && window.location.hostname === 'localhost') {
+        console.warn('Google Ads conversion label is not configured.');
       }
     } catch (_e) {}
   }
@@ -130,6 +144,17 @@
     el.classList.add('show');
   }
 
+  function friendlyStripeError(error){
+    var code = String((error && (error.code || error.decline_code)) || '').toLowerCase();
+    if (code === 'incorrect_cvc' || code === 'invalid_cvc') return 'Check your card security code and try again.';
+    if (code === 'expired_card') return 'This card is expired. Try another card.';
+    if (code === 'incorrect_number' || code === 'invalid_number') return 'Check your card number and try again.';
+    if (code === 'processing_error') return "We couldn't process this card. Please try again.";
+    if (code === 'card_declined' || code === 'generic_decline' || code === 'do_not_honor') return "This card couldn't be verified. Try another card.";
+    if (code === 'insufficient_funds') return 'This card was declined. Try another card.';
+    return "We couldn't verify your card. Please check your information and try again.";
+  }
+
   function showSetupNote(message){
     var el = document.getElementById('setupNote');
     if (!el) return;
@@ -163,13 +188,64 @@
   }
 
   async function getStripePublishableKey(){
+    var config;
     try {
-      var config = await fetchJson('/.netlify/functions/config');
-      if (config && config.stripePublishableKey) return config.stripePublishableKey;
+      config = await fetchJson('/.netlify/functions/config');
     } catch (err) {
-      console.warn('Using fallback Stripe publishable key', err);
+      console.error('Stripe publishable key config request failed', err);
+      throw new Error(CHECKOUT_UNAVAILABLE_MESSAGE);
     }
-    return FALLBACK_STRIPE_PUBLISHABLE_KEY;
+    if (config && config.googleAds) {
+      googleAdsConfig = {
+        id: config.googleAds.id || googleAdsConfig.id || '',
+        label: config.googleAds.purchaseLabel || '',
+      };
+    }
+    if (config && config.stripePublishableKey) return config.stripePublishableKey;
+    console.error('Stripe publishable key unavailable from config', config && config.error);
+    throw new Error(CHECKOUT_UNAVAILABLE_MESSAGE);
+  }
+
+  function isSubscriptionConfirmed(response){
+    return !!(
+      response &&
+      response.status === 'succeeded' &&
+      response.subscriptionId &&
+      (response.subscriptionStatus === 'trialing' || response.subscriptionStatus === 'active' ||
+        (response.entitlements && response.entitlements.listingAccessStatus === 'active'))
+    );
+  }
+
+  function delay(ms){
+    return new Promise(function(resolve){ setTimeout(resolve, ms); });
+  }
+
+  async function confirmSubscriptionWithRetry(answers){
+    var lastError = null;
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        rrTrack(attempt === 1 ? 'subscription_confirmation_started' : 'subscription_confirmation_retried', Object.assign(marketingContext(answers), { attempt: attempt }));
+        var confirmed = await fetchJson('/.netlify/functions/confirm-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: answers.lead_id,
+            setupIntentId: setupIntentId,
+            product: 'prescreen',
+          }),
+        });
+        if (isSubscriptionConfirmed(confirmed)) return confirmed;
+        lastError = new Error(SUBSCRIPTION_RETRY_MESSAGE);
+      } catch (err) {
+        lastError = err;
+      }
+      if (attempt < 3) await delay(attempt * 700);
+    }
+    rrTrack('subscription_confirmation_failed', Object.assign(marketingContext(answers), { reason: 'server_confirmation_failed' }));
+    var retryError = new Error(SUBSCRIPTION_RETRY_MESSAGE);
+    retryError.isSubscriptionRetryable = true;
+    retryError.cause = lastError;
+    throw retryError;
   }
 
   async function createPrescreenIntent(answers){
@@ -369,11 +445,14 @@
     var btn = document.getElementById('payBtn');
     var err = document.getElementById('paymentError');
     var zipInput = document.getElementById('billingZip');
-    if (!stripe || !cardNumber || !answers.lead_id || btn.disabled) return;
+    if (!stripe || !cardNumber || !answers.lead_id || payInProgress) return;
+    if (!setupSucceeded && btn.disabled) return;
+    rrTrack('checkout_submit_attempted', marketingContext(answers));
     rrTrack('checkout_submitted', marketingContext(answers));
     err.classList.remove('show');
+    payInProgress = true;
     btn.disabled = true;
-      btn.textContent = 'Preparing...';
+    btn.textContent = setupSucceeded ? 'Starting trial...' : 'Preparing...';
     if (window.rrnShowPaymentOverlay) {
       rrnShowPaymentOverlay({
         title: 'Unlocking your apartment results',
@@ -382,60 +461,52 @@
     }
 
     try {
-      if (!paymentClientSecret) {
-        await createPrescreenIntent(answers);
-      }
-      btn.textContent = 'Confirming card...';
-      if (window.rrnShowPaymentOverlay) {
-        rrnShowPaymentOverlay({
-          title: 'Confirming your payment',
-          message: 'Please keep this page open while Stripe confirms your purchase.',
-        });
-      }
-      var billingName = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || undefined;
-      var result = await stripe.confirmCardSetup(
-        paymentClientSecret,
-        {
-          payment_method: {
-            card: cardNumber,
-            billing_details: {
-              name: billingName,
-              email: answers.email || undefined,
-              address: {
-                postal_code: (zipInput && zipInput.value) || undefined,
-                country: 'US',
+      if (!setupSucceeded) {
+        if (!paymentClientSecret) {
+          await createPrescreenIntent(answers);
+        }
+        btn.textContent = 'Confirming card...';
+        if (window.rrnShowPaymentOverlay) {
+          rrnShowPaymentOverlay({
+            title: 'Confirming your payment',
+            message: 'Please keep this page open while Stripe confirms your purchase.',
+          });
+        }
+        var billingName = [answers.first_name, answers.last_name].filter(Boolean).join(' ') || undefined;
+        var result = await stripe.confirmCardSetup(
+          paymentClientSecret,
+          {
+            payment_method: {
+              card: cardNumber,
+              billing_details: {
+                name: billingName,
+                email: answers.email || undefined,
+                address: {
+                  postal_code: (zipInput && zipInput.value) || undefined,
+                  country: 'US',
+                },
               },
             },
-          },
+          }
+        );
+        if (result.error) {
+          var declineError = new Error(friendlyStripeError(result.error));
+          declineError.isPaymentDecline = true;
+          throw declineError;
         }
-      );
-      if (result.error) {
-        var declineError = new Error(PAYMENT_DECLINED_MESSAGE);
-        declineError.isPaymentDecline = true;
-        throw declineError;
+
+        setupIntentId = result.setupIntent ? result.setupIntent.id : setupIntentId;
+        setupSucceeded = !!(result.setupIntent && result.setupIntent.status === 'succeeded');
+        if (!setupSucceeded) throw new Error("We couldn't verify your card. Please check your information and try again.");
+        rrTrack('card_setup_succeeded', marketingContext(answers));
       }
 
-      var stripeSucceeded = result.setupIntent && result.setupIntent.status === 'succeeded';
-      setupIntentId = result.setupIntent ? result.setupIntent.id : setupIntentId;
-      try {
-        var confirmed = await fetchJson('/.netlify/functions/confirm-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            leadId: answers.lead_id,
-            setupIntentId: setupIntentId,
-            product: 'prescreen',
-          }),
-        });
-        if (confirmed.status !== 'succeeded') throw new Error('Payment is still processing. Please try again in a moment.');
-      } catch (confirmError) {
-        if (!stripeSucceeded) throw confirmError;
-        console.warn('Server confirmation failed after Stripe success', confirmError);
-      }
-
+      btn.textContent = 'Starting trial...';
+      var confirmed = await confirmSubscriptionWithRetry(answers);
       grantResultsAccess();
+      rrTrack('subscription_created', Object.assign(marketingContext(answers), { subscription_status: confirmed.subscriptionStatus || '' }));
       rrTrack('review_purchased', marketingContext(answers));
-      trackGooglePurchase(setupIntentId);
+      trackGooglePurchase(confirmed.subscriptionId);
       if (window.rrnShowPaymentOverlay) {
         rrnShowPaymentOverlay({
           state: 'success',
@@ -446,10 +517,12 @@
       deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);
     } catch (error) {
       if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
-      rrTrack('checkout_payment_failed', Object.assign(marketingContext(answers), { reason: error && error.isPaymentDecline ? 'card_declined' : 'error' }));
+      if (error && error.isPaymentDecline) rrTrack('card_setup_failed', Object.assign(marketingContext(answers), { reason: 'card_error' }));
+      rrTrack('checkout_payment_failed', Object.assign(marketingContext(answers), { reason: error && error.isPaymentDecline ? 'card_declined' : error && error.isSubscriptionRetryable ? 'subscription_confirmation_failed' : 'error' }));
+      payInProgress = false;
       btn.disabled = false;
-      btn.textContent = PAY_BUTTON_LABEL;
-      showError(error && error.isPaymentDecline ? PAYMENT_DECLINED_MESSAGE : error.message);
+      btn.textContent = setupSucceeded ? RETRY_BUTTON_LABEL : PAY_BUTTON_LABEL;
+      showError(error && error.message);
     }
   }
 

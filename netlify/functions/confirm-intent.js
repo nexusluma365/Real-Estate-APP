@@ -100,13 +100,30 @@ exports.handler = async (event) => {
         },
         { idempotencyKey: `${leadId}:listing-subscription:trial-1999-v4` }
       );
+      const statusPatch = subscriptionStatusPatch(subscription);
+      if (!hasActiveListingAccess(statusPatch)) {
+        await logFunnelEvent('trial_start_failed', {
+          lead_id: leadId,
+          payment_id: subscription && subscription.id,
+          detail: { subscription_status: (subscription && subscription.status) || '' },
+        });
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            ok: true,
+            status: (subscription && subscription.status) || 'failed',
+            subscriptionId: subscription && subscription.id,
+            subscriptionStatus: statusPatch.listingSubscriptionStatus,
+          }),
+        };
+      }
 
       const currentEntitlements = await getEntitlements(leadId);
       const patch = {
         [field]: true,
         stripeCustomerId: setupIntent.customer || currentEntitlements.stripeCustomerId || null,
         defaultPaymentMethodId: setupIntent.payment_method || currentEntitlements.defaultPaymentMethodId || null,
-        ...subscriptionStatusPatch(subscription),
+        ...statusPatch,
       };
       Object.assign(patch, manychatMetadata(metadata.manychat_contact_id));
 
@@ -136,7 +153,17 @@ exports.handler = async (event) => {
         }
       }
       await logFunnelEvent('trial_started', { lead_id: leadId, payment_id: subscription.id, detail: { subscription_status: subscription.status || '' } });
-      return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', subscriptionId: subscription.id, entitlements, warning: entitlementWarning }) };
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: true,
+          status: 'succeeded',
+          subscriptionId: subscription.id,
+          subscriptionStatus: statusPatch.listingSubscriptionStatus,
+          entitlements,
+          warning: entitlementWarning,
+        }),
+      };
     }
 
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {

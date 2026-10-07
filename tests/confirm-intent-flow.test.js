@@ -137,6 +137,7 @@ async function run() {
   assert.equal(setupBody.ok, true);
   assert.equal(setupBody.status, 'succeeded');
   assert.equal(setupBody.subscriptionId, 'sub_setup');
+  assert.equal(setupBody.subscriptionStatus, 'trialing');
   assert.deepEqual(setupTrial.welcomeEmailCalls, ['lead_setup']);
   assert.equal(setupTrial.subscriptionCreateCalls.length, 1);
   assert.deepEqual(setupTrial.subscriptionCreateCalls[0].payload.items, [{ price: 'price_1999_monthly' }]);
@@ -148,6 +149,37 @@ async function run() {
     payment_method_types: ['card'],
   });
   assert.equal(setupTrial.subscriptionCreateCalls[0].options.idempotencyKey, 'lead_setup:listing-subscription:trial-1999-v4');
+
+  const inactiveTrial = await loadHandler({
+    setupIntent: {
+      id: 'seti_incomplete',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_incomplete', product: 'listing_membership' },
+      customer: 'cus_incomplete',
+      payment_method: 'pm_incomplete',
+    },
+    subscription: {
+      id: 'sub_incomplete',
+      status: 'incomplete',
+      current_period_start: 1800000000,
+      current_period_end: 1800604800,
+      cancel_at_period_end: false,
+    },
+    entitlements: { paid10: false },
+    patchEntitlements: async () => {
+      throw new Error('should not grant access for incomplete subscriptions');
+    },
+  });
+  const inactiveRes = await inactiveTrial.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_incomplete', setupIntentId: 'seti_incomplete', product: 'prescreen' }),
+  });
+  const inactiveBody = JSON.parse(inactiveRes.body);
+  assert.equal(inactiveRes.statusCode, 200);
+  assert.equal(inactiveBody.ok, true);
+  assert.equal(inactiveBody.status, 'incomplete');
+  assert.equal(inactiveBody.subscriptionId, 'sub_incomplete');
+  assert.equal(inactiveBody.subscriptionStatus, 'incomplete');
 
   process.env.STRIPE_LISTING_PRICE_MONTHLY = 'prod_VO3S1xyfCMGZQE';
   const productIdConfig = await loadHandler({

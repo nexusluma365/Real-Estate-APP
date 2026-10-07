@@ -54,7 +54,7 @@ async function waitFor(check, label) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-async function run() {
+function createCheckoutHarness(opts = {}) {
   const elementsById = {};
   [
     'paymentError',
@@ -85,8 +85,14 @@ async function run() {
   const mounted = [];
   const focused = [];
   const requests = [];
+  const gtagEvents = [];
+  let confirmCalls = 0;
   const context = {
     console,
+    setTimeout(fn) {
+      fn();
+      return 1;
+    },
     document: {
       getElementById(id) {
         return elementsById[id] || null;
@@ -104,6 +110,7 @@ async function run() {
       getItem() {
         return null;
       },
+      setItem() {},
     },
     Stripe(key) {
       assert.match(key, /^pk_(test|live)_/);
@@ -123,21 +130,26 @@ async function run() {
             },
           };
         },
-        async confirmCardSetup(clientSecret, options) {
+        async confirmCardSetup(clientSecret, paymentOptions) {
+          if (opts.cardError) return { error: opts.cardError };
           assert.equal(clientSecret, 'seti_test_secret');
-          assert.equal(options.payment_method.billing_details.name, 'Test Applicant');
-          assert.equal(options.payment_method.billing_details.address.postal_code, '12345');
+          assert.equal(paymentOptions.payment_method.billing_details.name, 'Test Applicant');
+          assert.equal(paymentOptions.payment_method.billing_details.address.postal_code, '12345');
+          if (opts.failCardSetup) return { error: { code: 'incorrect_cvc' } };
           return { setupIntent: { id: 'seti_test', status: 'succeeded' } };
         },
       };
     },
-    fetch: async (url, options = {}) => {
-      requests.push({ url, options });
+    fetch: async (url, reqOptions = {}) => {
+      requests.push({ url, options: reqOptions });
       if (String(url).includes('get-entitlements')) {
         return { ok: true, json: async () => ({ ok: true, paid10: false }) };
       }
       if (String(url).includes('config')) {
-        return { ok: false, json: async () => ({ ok: false, error: 'STRIPE_PUBLISHABLE_KEY is not configured.' }) };
+        if (opts.configUnavailable) {
+          return { ok: false, json: async () => ({ ok: false, error: 'STRIPE_PUBLISHABLE_KEY is not configured.' }) };
+        }
+        return { ok: true, json: async () => ({ ok: true, stripePublishableKey: 'pk_live_checkout', googleAds: { id: 'AW-test', purchaseLabel: 'trial' } }) };
       }
       if (String(url).includes('create-payment-intent')) {
         return {
@@ -152,7 +164,15 @@ async function run() {
         };
       }
       if (String(url).includes('confirm-intent')) {
-        return { ok: true, json: async () => ({ ok: true, status: 'succeeded' }) };
+        confirmCalls += 1;
+        if (opts.confirmFailure) {
+          return { ok: false, json: async () => ({ ok: false, error: 'Netlify timeout' }) };
+        }
+        if (opts.confirmSequence && opts.confirmSequence.length) {
+          const next = opts.confirmSequence.shift();
+          return next;
+        }
+        return { ok: true, json: async () => ({ ok: true, status: 'succeeded', subscriptionId: 'sub_checkout', subscriptionStatus: 'trialing' }) };
       }
       throw new Error(`Unexpected request: ${url}`);
     },
@@ -165,11 +185,21 @@ async function run() {
         this.href = url;
       },
     },
+    gtag() {
+      gtagEvents.push(Array.from(arguments));
+    },
   };
   context.window.rrnTestContext = context;
 
   vm.createContext(context);
   vm.runInContext(script, context);
+
+  return { elementsById, storage, mounted, focused, requests, context, gtagEvents, get confirmCalls() { return confirmCalls; } };
+}
+
+async function runSuccessfulCheckout() {
+  const harness = createCheckoutHarness();
+  const { elementsById, storage, mounted, focused, requests, context, gtagEvents } = harness;
 
   await waitFor(() => mounted.length === 3 && elementsById.payBtn.disabled === false, 'card fields to mount');
 
@@ -199,6 +229,43 @@ async function run() {
     'Successful payment should grant results access'
   );
   assert.equal(context.window.location.href, '/after-payment-results/');
+  assert.equal(harness.confirmCalls, 1);
+  assert.ok(gtagEvents.some((event) => event[1] === 'conversion'), 'Google conversion should fire after subscription confirmation');
+}
+
+async function runSubscriptionFailureDoesNotGrantAccess() {
+  const harness = createCheckoutHarness({ confirmFailure: true });
+  const { elementsById, storage, mounted, requests, context } = harness;
+  await waitFor(() => mounted.length === 3 && elementsById.payBtn.disabled === false, 'card fields to mount');
+
+  elementsById.billingZip.value = '12345';
+  await elementsById.payBtn.listeners.click();
+
+  assert.equal(harness.confirmCalls, 3, 'Saved-card subscription confirmation should retry conservatively');
+  assert.equal(storage.rrn_flow_access_v1, undefined, 'Failed subscription confirmation must not grant results access');
+  assert.equal(context.window.location.href, '');
+  assert.match(elementsById.paymentError.textContent, /saved your card/i);
+  assert.equal(
+    requests.filter((request) => String(request.url).includes('create-payment-intent')).length,
+    1,
+    'Retrying subscription confirmation must not create another SetupIntent'
+  );
+}
+
+async function runConfigUnavailableStopsCheckout() {
+  const harness = createCheckoutHarness({ configUnavailable: true });
+  const { elementsById, mounted } = harness;
+  await waitFor(() => elementsById.setupNote.classList.contains('show'), 'safe setup failure');
+
+  assert.equal(mounted.length, 0);
+  assert.equal(elementsById.payBtn.disabled, true);
+  assert.equal(elementsById.setupNote.textContent, 'Checkout is temporarily unavailable. Please try again.');
+}
+
+async function run() {
+  await runSuccessfulCheckout();
+  await runSubscriptionFailureDoesNotGrantAccess();
+  await runConfigUnavailableStopsCheckout();
 }
 
 run()

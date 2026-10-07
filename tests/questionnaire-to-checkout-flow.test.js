@@ -328,7 +328,7 @@ async function runCheckout(sessionStorage, localStorage, requests) {
         };
       }
       if (String(url).includes('confirm-intent')) {
-        return { ok: true, json: async () => ({ ok: true, status: 'succeeded' }) };
+        return { ok: true, json: async () => ({ ok: true, status: 'succeeded', subscriptionId: 'sub_full_flow', subscriptionStatus: 'trialing' }) };
       }
       throw new Error(`Unexpected request: ${url}`);
     },

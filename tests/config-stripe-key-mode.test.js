@@ -22,21 +22,21 @@ async function run() {
     delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
     delete process.env.STRIPE_SECRET_KEY;
 
-    const fallbackRes = await loadHandler()({ httpMethod: 'GET' });
-    const fallbackBody = JSON.parse(fallbackRes.body);
-    assert.equal(fallbackRes.statusCode, 200);
-    assert.equal(fallbackBody.ok, true);
-    assert.match(fallbackBody.stripePublishableKey, /^pk_test_/);
-    assert.equal(fallbackBody.stripeMode, 'test');
+    const missingRes = await loadHandler()({ httpMethod: 'GET' });
+    const missingBody = JSON.parse(missingRes.body);
+    assert.equal(missingRes.statusCode, 503);
+    assert.equal(missingBody.ok, false);
+    assert.equal(missingBody.stripePublishableKey, '');
+    assert.match(missingBody.error, /not configured/i);
 
-    // A live publishable key in Netlify is ignored while the secret key is still test.
+    // A live publishable key in Netlify is rejected while the secret key is still test.
     process.env.STRIPE_PUBLISHABLE_KEY = 'pk_live_configured';
     process.env.STRIPE_SECRET_KEY = 'sk_test_backend';
-    const stillTestRes = await loadHandler()({ httpMethod: 'GET' });
-    const stillTestBody = JSON.parse(stillTestRes.body);
-    assert.equal(stillTestRes.statusCode, 200);
-    assert.equal(stillTestBody.stripeMode, 'test');
-    assert.match(stillTestBody.stripePublishableKey, /^pk_test_/);
+    const mismatchRes = await loadHandler()({ httpMethod: 'GET' });
+    const mismatchBody = JSON.parse(mismatchRes.body);
+    assert.equal(mismatchRes.statusCode, 503);
+    assert.equal(mismatchBody.ok, false);
+    assert.equal(mismatchBody.stripePublishableKey, '');
 
     // Switching the secret key to live switches the browser key to live.
     process.env.STRIPE_SECRET_KEY = 'sk_live_backend';
@@ -47,11 +47,13 @@ async function run() {
     assert.equal(liveBody.stripeMode, 'live');
     assert.equal(liveBody.stripePublishableKey, 'pk_live_configured');
 
-    // With no live key in Netlify, the built-in live publishable key is used.
+    // With no live key in Netlify, checkout fails safe instead of using a built-in fallback.
     delete process.env.STRIPE_PUBLISHABLE_KEY;
-    const builtInLiveBody = JSON.parse((await loadHandler()({ httpMethod: 'GET' })).body);
-    assert.equal(builtInLiveBody.stripeMode, 'live');
-    assert.match(builtInLiveBody.stripePublishableKey, /^pk_live_51UFFsZ/);
+    const missingLiveRes = await loadHandler()({ httpMethod: 'GET' });
+    const missingLiveBody = JSON.parse(missingLiveRes.body);
+    assert.equal(missingLiveRes.statusCode, 503);
+    assert.equal(missingLiveBody.ok, false);
+    assert.equal(missingLiveBody.stripePublishableKey, '');
 
     process.env.STRIPE_PUBLISHABLE_KEY = 'pk_test_configured';
     process.env.STRIPE_SECRET_KEY = 'sk_test_backend';
