@@ -45,6 +45,18 @@ function setupErrorMessage(err) {
   return '';
 }
 
+function subscriptionConversion(subscription) {
+  const firstItem = subscription && subscription.items && Array.isArray(subscription.items.data)
+    ? subscription.items.data[0]
+    : null;
+  const price = firstItem && firstItem.price ? firstItem.price : null;
+  const amount = price && typeof price.unit_amount === 'number' ? price.unit_amount : null;
+  return {
+    value: amount === null ? 0 : amount / 100,
+    currency: String((price && price.currency) || (subscription && subscription.currency) || 'usd').toUpperCase(),
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -153,6 +165,7 @@ exports.handler = async (event) => {
         }
       }
       await logFunnelEvent('trial_started', { lead_id: leadId, payment_id: subscription.id, detail: { subscription_status: subscription.status || '' } });
+      const conversion = subscriptionConversion(subscription);
       return {
         statusCode: 200,
         body: JSON.stringify({
@@ -160,6 +173,14 @@ exports.handler = async (event) => {
           status: 'succeeded',
           subscriptionId: subscription.id,
           subscriptionStatus: statusPatch.listingSubscriptionStatus,
+          subscriptionAmount: conversion.value,
+          currency: conversion.currency,
+          conversion: {
+            product: 'listing_membership',
+            type: 'new_subscriber',
+            value: conversion.value,
+            currency: conversion.currency,
+          },
           entitlements,
           warning: entitlementWarning,
         }),

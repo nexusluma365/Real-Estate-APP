@@ -10,7 +10,7 @@ const TERMS = {
   terms: { title: 'Terms of Service', intro: 'RentReady is an educational rental-readiness and apartment-discovery service. It is not a landlord, property manager, credit bureau, tenant-screening company, or guarantee of housing.', sections: [
     ['RentReady Results','Your RentReady score and results are educational estimates based on the information you provide and common rental screening factors. They are not an approval, credit decision, or guarantee.'],
     ['Apartment information','Apartment communities, pricing, availability, deposits, concessions, screening rules, and lease terms can change. Confirm all material details directly with the property before applying or paying a property fee.'],
-    ['Purchases','The $9.99 RentReady listing membership is billed monthly until canceled. Optional digital-guide purchases, including the $47 offer, are separate one-time purchases unless a checkout clearly states otherwise. Charges are shown before you authorize payment.'],
+    ['Purchases','The $9.99 RentReady listing membership is billed monthly until canceled. Optional digital-guide purchases, including the $20 Second Chance Rental Plan offer, are separate one-time purchases unless a checkout clearly states otherwise. Charges are shown before you authorize payment.'],
     ['No guarantee','RentReady cannot guarantee approval, no-deposit leasing, reduced deposits, unit availability, specific pricing, or lease terms. Final decisions belong to each property.']
   ]}
 };

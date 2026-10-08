@@ -16,13 +16,35 @@ const PRODUCTS = {
   gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
   modern: { amount: 2700, field: 'paid27', label: 'RentReady Modern Apartment Matches & RentReady Guide', category: 'modern' },
   luxury: { amount: 2700, field: 'paid27', label: 'RentReady Luxury Apartment Matches & RentReady Guide', category: 'luxury' },
-  apartment_prep: { amount: 4700, field: 'paid47', legacyField: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
+  apartment_prep: { amount: 2000, field: 'paid47', legacyField: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
   creditkit: { amount: 9700, field: 'paid97', label: 'RentReady Credit Action Kit' },
 };
 
 function receiptEmailFromLead(lead) {
   const email = String((lead && (lead.email || lead.Email || lead.contact_email)) || '').trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined;
+}
+
+function safeDeclineLog(err, product, def, leadId) {
+  const raw = (err && err.raw) || {};
+  const paymentIntent = raw.payment_intent || err.payment_intent || null;
+  return {
+    product,
+    amount: def && def.amount,
+    type: err && (err.type || raw.type),
+    code: err && (err.code || raw.code),
+    declineCode: err && (err.decline_code || raw.decline_code),
+    paymentIntentId: paymentIntent && paymentIntent.id,
+    leadId,
+  };
+}
+
+function safeDeclineReason(err) {
+  return (
+    (err && (err.decline_code || (err.raw && err.raw.decline_code))) ||
+    (err && (err.code || (err.raw && err.raw.code))) ||
+    'declined'
+  );
 }
 
 async function recoverPrescreenEntitlements(stripe, leadId, prescreenPaymentIntentId, current) {
@@ -123,20 +145,23 @@ exports.handler = async (event) => {
 
     let pi;
     try {
+      const paymentIntentPayload = {
+        amount: def.amount,
+        currency: 'usd',
+        customer: entitlements.stripeCustomerId,
+        payment_method: entitlements.defaultPaymentMethodId,
+        payment_method_types: ['card'],
+        payment_method_options: { card: { request_three_d_secure: 'automatic' } },
+        confirm: true,
+        description: def.label,
+        receipt_email: receiptEmailFromLead(lead),
+        metadata: { leadId, product, category: def.category || '', ...manychatMetadata(manychatContactId) },
+      };
+      if (product !== 'apartment_prep') {
+        paymentIntentPayload.off_session = true;
+      }
       pi = await stripe.paymentIntents.create(
-        {
-          amount: def.amount,
-          currency: 'usd',
-          customer: entitlements.stripeCustomerId,
-          payment_method: entitlements.defaultPaymentMethodId,
-          payment_method_types: ['card'],
-          payment_method_options: { card: { request_three_d_secure: 'automatic' } },
-          off_session: true,
-          confirm: true,
-          description: def.label,
-          receipt_email: receiptEmailFromLead(lead),
-          metadata: { leadId, product, category: def.category || '', ...manychatMetadata(manychatContactId) },
-        },
+        paymentIntentPayload,
         { idempotencyKey: `${leadId}:${product}:${idempotencyKey}` }
       );
     } catch (err) {
@@ -151,11 +176,18 @@ exports.handler = async (event) => {
           }),
         };
       }
-      console.error('charge-upsell decline', err.code || err.message);
-      await logFunnelEvent('upsell_failed', { lead_id: leadId, detail: { product, reason: err.code || 'declined' } });
+      const declineDetails = safeDeclineLog(err, product, def, leadId);
+      console.error('charge-upsell decline', declineDetails);
+      await logFunnelEvent('upsell_failed', { lead_id: leadId, detail: { product, reason: safeDeclineReason(err), amount: def.amount } });
       return {
         statusCode: 200,
-        body: JSON.stringify({ ok: true, status: 'failed', message: 'We couldn\u2019t complete this purchase with your saved payment method.' }),
+        body: JSON.stringify({
+          ok: true,
+          status: 'failed',
+          message: product === 'apartment_prep'
+            ? 'We couldn\u2019t complete the $20 purchase with this card.'
+            : 'We couldn\u2019t complete this purchase with your saved payment method.',
+        }),
       };
     }
 

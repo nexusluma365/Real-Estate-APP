@@ -111,6 +111,14 @@ async function runTimer(timer) {
 
 async function run() {
   const script = fs.readFileSync('app/src/pages/ApartmentApprovalPreparationKit/script-0.js', 'utf8');
+  const html = fs.readFileSync('app/src/pages/ApartmentApprovalPreparationKit/page.html', 'utf8');
+
+  assert.match(html, /One-time payment \$20 • Immediate digital access • No subscription/);
+  assert.match(html, /Immediate digital access • One-time \$20 • No subscription/);
+  assert.match(html, /one-time \$20 charge to the card you have on file/);
+  assert.doesNotMatch(html, /\$47/);
+  assert.match(script, /complete your \$20 purchase/);
+  assert.doesNotMatch(script, /complete your \$47 purchase/);
 
   const success = makeContext({ chargeStatus: 'succeeded' });
   vm.runInNewContext(script, success.context);
@@ -138,6 +146,7 @@ async function run() {
   assert.deepEqual(declined.chargeCalls, ['apartment_prep']);
   assert.equal(declined.elements.sheetScrim.classList.contains('payment-failed'), true);
   assert.equal(declined.elements.sheetScrim.title.textContent, 'We Couldn’t Complete Your Purchase Yet');
+  assert.match(declined.elements.sheetScrim.sub.textContent, /\$20 purchase/);
   assert.deepEqual(declined.grants, [
     { step: 'apartment-list', details: { status: 'upsell-declined', city: 'Miami' } },
   ]);

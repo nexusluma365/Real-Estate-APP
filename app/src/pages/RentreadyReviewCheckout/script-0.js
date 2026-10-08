@@ -33,7 +33,7 @@
   var paymentClientSecret = '';
   var setupSucceeded = false;
   var payInProgress = false;
-  var googleAdsConfig = { id: 'AW-18213168150', label: '' };
+  var googleAdsConfig = { id: 'AW-18213168150', newSubscriberLabel: '' };
 
   function readAnswers(){
     try { return JSON.parse(sessionStorage.getItem(ANSWERS_STORAGE_KEY) || localStorage.getItem(ANSWERS_STORAGE_KEY) || '{}') || {}; }
@@ -58,28 +58,59 @@
     } catch (_e) {}
   }
 
-  // Google Ads conversion for the RentReady trial start. Paste the label from the
-  // conversion action's event snippet (send_to: 'AW-18213168150/<label>').
-  function trackGooglePurchase(transactionId){
-    try {
-      if (typeof window.gtag !== 'function') return;
-      if (!transactionId) return;
-      var dedupeKey = GOOGLE_PURCHASE_KEY + ':' + transactionId;
+  // Google Ads conversion for a real RentReady new subscriber. This is called
+  // only after the server verifies Stripe created an active/trialing subscription.
+  function trackGoogleNewSubscriber(subscription){
+    return new Promise(function(resolve){
       try {
-        if (sessionStorage.getItem(dedupeKey) || localStorage.getItem(dedupeKey)) return;
-        sessionStorage.setItem(dedupeKey, '1');
-        localStorage.setItem(dedupeKey, '1');
-      } catch (_storageError) {}
-      var googleAdsId = googleAdsConfig.id || '';
-      if (!googleAdsId) return;
-      var purchase = { value: 1, currency: 'USD', transaction_id: transactionId || '', transport_type: 'beacon' };
-      window.gtag('event', 'purchase', Object.assign({ send_to: googleAdsId }, purchase));
-      if (googleAdsConfig.label) {
-        window.gtag('event', 'conversion', Object.assign({ send_to: googleAdsId + '/' + googleAdsConfig.label }, purchase));
-      } else if (window.location && window.location.hostname === 'localhost') {
-        console.warn('Google Ads conversion label is not configured.');
+        if (typeof window.gtag !== 'function') {
+          resolve(false);
+          return;
+        }
+        var transactionId = subscription && subscription.subscriptionId;
+        if (!transactionId) {
+          resolve(false);
+          return;
+        }
+        var dedupeKey = GOOGLE_PURCHASE_KEY + ':' + transactionId;
+        try {
+          if (sessionStorage.getItem(dedupeKey) || localStorage.getItem(dedupeKey)) {
+            resolve(false);
+            return;
+          }
+          sessionStorage.setItem(dedupeKey, '1');
+          localStorage.setItem(dedupeKey, '1');
+        } catch (_storageError) {}
+        var googleAdsId = googleAdsConfig.id || '';
+        var label = googleAdsConfig.newSubscriberLabel || '';
+        if (!googleAdsId || !label) {
+          if (window.location && window.location.hostname === 'localhost') {
+            console.warn('Google Ads New Subscriber conversion label is not configured.');
+          }
+          resolve(false);
+          return;
+        }
+        var completed = false;
+        var finish = function(sent){
+          if (completed) return;
+          completed = true;
+          resolve(!!sent);
+        };
+        var conversion = {
+          send_to: googleAdsId + '/' + label,
+          value: Number(subscription.subscriptionAmount || 0),
+          currency: subscription.currency || 'USD',
+          transaction_id: transactionId,
+          transport_type: 'beacon',
+          event_timeout: 900,
+          event_callback: function(){ finish(true); },
+        };
+        window.gtag('event', 'conversion', conversion);
+        setTimeout(function(){ finish(false); }, 950);
+      } catch (_e) {
+        resolve(false);
       }
-    } catch (_e) {}
+    });
   }
 
   function readEntryIntent(answers){
@@ -198,7 +229,7 @@
     if (config && config.googleAds) {
       googleAdsConfig = {
         id: config.googleAds.id || googleAdsConfig.id || '',
-        label: config.googleAds.purchaseLabel || '',
+        newSubscriberLabel: config.googleAds.newSubscriberLabel || config.googleAds.purchaseLabel || '',
       };
     }
     if (config && config.stripePublishableKey) return config.stripePublishableKey;
@@ -506,7 +537,11 @@
       grantResultsAccess();
       rrTrack('subscription_created', Object.assign(marketingContext(answers), { subscription_status: confirmed.subscriptionStatus || '' }));
       rrTrack('review_purchased', marketingContext(answers));
-      trackGooglePurchase(confirmed.subscriptionId);
+      var googleConversionSent = await trackGoogleNewSubscriber(confirmed);
+      rrTrack('google_ads_new_subscriber_conversion', Object.assign(marketingContext(answers), {
+        sent: googleConversionSent ? '1' : '0',
+        subscription_status: confirmed.subscriptionStatus || '',
+      }));
       if (window.rrnShowPaymentOverlay) {
         rrnShowPaymentOverlay({
           state: 'success',

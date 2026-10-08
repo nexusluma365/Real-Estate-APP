@@ -9,14 +9,20 @@ function stripeKeyMode(key) {
 }
 
 function googleAdsConfig() {
+  const subscriptionLabel = (
+    process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL ||
+    process.env.GOOGLE_ADS_SUBSCRIPTION_LABEL ||
+    process.env.GOOGLE_ADS_PURCHASE_LABEL ||
+    process.env.VITE_GOOGLE_ADS_NEW_SUBSCRIBER_LABEL ||
+    process.env.VITE_GOOGLE_ADS_SUBSCRIPTION_LABEL ||
+    process.env.VITE_GOOGLE_ADS_PURCHASE_LABEL ||
+    ''
+  ).trim();
   return {
     id: (process.env.GOOGLE_ADS_ID || process.env.VITE_GOOGLE_ADS_ID || 'AW-18213168150').trim(),
-    purchaseLabel: (
-      process.env.GOOGLE_ADS_PURCHASE_LABEL ||
-      process.env.GOOGLE_ADS_SUBSCRIPTION_LABEL ||
-      process.env.VITE_GOOGLE_ADS_PURCHASE_LABEL ||
-      ''
-    ).trim(),
+    newSubscriberLabel: subscriptionLabel,
+    // Backwards-compatible name used by older checkout builds.
+    purchaseLabel: subscriptionLabel,
   };
 }
 

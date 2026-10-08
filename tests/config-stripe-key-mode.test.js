@@ -13,6 +13,10 @@ async function run() {
   const oldVite = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
   const oldNext = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
   const oldSecret = process.env.STRIPE_SECRET_KEY;
+  const oldGoogleAdsId = process.env.GOOGLE_ADS_ID;
+  const oldGoogleNewSubscriberLabel = process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL;
+  const oldGoogleSubscriptionLabel = process.env.GOOGLE_ADS_SUBSCRIPTION_LABEL;
+  const oldGooglePurchaseLabel = process.env.GOOGLE_ADS_PURCHASE_LABEL;
 
   try {
     delete process.env.STRIPE_PUBLISHABLE_KEY;
@@ -21,6 +25,10 @@ async function run() {
     delete process.env.VITE_STRIPE_PUBLISHABLE_KEY;
     delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
     delete process.env.STRIPE_SECRET_KEY;
+    delete process.env.GOOGLE_ADS_ID;
+    delete process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL;
+    delete process.env.GOOGLE_ADS_SUBSCRIPTION_LABEL;
+    delete process.env.GOOGLE_ADS_PURCHASE_LABEL;
 
     const missingRes = await loadHandler()({ httpMethod: 'GET' });
     const missingBody = JSON.parse(missingRes.body);
@@ -46,6 +54,8 @@ async function run() {
     assert.equal(liveBody.ok, true);
     assert.equal(liveBody.stripeMode, 'live');
     assert.equal(liveBody.stripePublishableKey, 'pk_live_configured');
+    assert.equal(liveBody.googleAds.id, 'AW-18213168150');
+    assert.equal(liveBody.googleAds.newSubscriberLabel, '');
 
     // With no live key in Netlify, checkout fails safe instead of using a built-in fallback.
     delete process.env.STRIPE_PUBLISHABLE_KEY;
@@ -57,11 +67,16 @@ async function run() {
 
     process.env.STRIPE_PUBLISHABLE_KEY = 'pk_test_configured';
     process.env.STRIPE_SECRET_KEY = 'sk_test_backend';
+    process.env.GOOGLE_ADS_ID = 'AW-configured';
+    process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL = 'new_subscriber_label';
     const configuredRes = await loadHandler()({ httpMethod: 'GET' });
     const configuredBody = JSON.parse(configuredRes.body);
     assert.equal(configuredRes.statusCode, 200);
     assert.equal(configuredBody.ok, true);
     assert.equal(configuredBody.stripePublishableKey, 'pk_test_configured');
+    assert.equal(configuredBody.googleAds.id, 'AW-configured');
+    assert.equal(configuredBody.googleAds.newSubscriberLabel, 'new_subscriber_label');
+    assert.equal(configuredBody.googleAds.purchaseLabel, 'new_subscriber_label');
   } finally {
     if (oldPublishable === undefined) delete process.env.STRIPE_PUBLISHABLE_KEY;
     else process.env.STRIPE_PUBLISHABLE_KEY = oldPublishable;
@@ -75,6 +90,14 @@ async function run() {
     else process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = oldNext;
     if (oldSecret === undefined) delete process.env.STRIPE_SECRET_KEY;
     else process.env.STRIPE_SECRET_KEY = oldSecret;
+    if (oldGoogleAdsId === undefined) delete process.env.GOOGLE_ADS_ID;
+    else process.env.GOOGLE_ADS_ID = oldGoogleAdsId;
+    if (oldGoogleNewSubscriberLabel === undefined) delete process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL;
+    else process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL = oldGoogleNewSubscriberLabel;
+    if (oldGoogleSubscriptionLabel === undefined) delete process.env.GOOGLE_ADS_SUBSCRIPTION_LABEL;
+    else process.env.GOOGLE_ADS_SUBSCRIPTION_LABEL = oldGoogleSubscriptionLabel;
+    if (oldGooglePurchaseLabel === undefined) delete process.env.GOOGLE_ADS_PURCHASE_LABEL;
+    else process.env.GOOGLE_ADS_PURCHASE_LABEL = oldGooglePurchaseLabel;
   }
 }
 

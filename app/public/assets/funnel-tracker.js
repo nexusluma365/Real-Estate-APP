@@ -30,6 +30,7 @@ const FORWARDED_EVENTS = [
   'subscription_confirmation_started',
   'subscription_confirmation_retried',
   'subscription_confirmation_failed',
+  'google_ads_new_subscriber_conversion',
   'checkout_payment_failed',
   'results_viewed',
   'upsell_clicked',

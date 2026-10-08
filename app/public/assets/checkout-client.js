@@ -159,7 +159,7 @@ async function rrnFetchEntitlements(leadId) {
 }
 
 /**
- * Runs the full one-click purchase for a $27/$97 product, including
+ * Runs the full one-click purchase for an optional upsell product, including
  * transparently handling a bank's 3-D Secure challenge if Stripe requires
  * one. Resolves to one of: 'succeeded' | 'failed' | 'processing'.
  */
@@ -234,9 +234,9 @@ async function rrnHandleAction(clientSecret, leadId, product, publishableKey) {
       body: JSON.stringify({ leadId, paymentIntentId: result.paymentIntent.id, product }),
     });
     const confirmData = await confirmRes.json().catch(() => ({}));
-    return confirmData && confirmData.ok ? confirmData.status : (stripeSucceeded ? 'succeeded' : 'failed');
+    return confirmData && confirmData.ok ? confirmData.status : 'failed';
   } catch (_e) {
-    return stripeSucceeded ? 'succeeded' : 'failed';
+    return 'failed';
   }
 }
 

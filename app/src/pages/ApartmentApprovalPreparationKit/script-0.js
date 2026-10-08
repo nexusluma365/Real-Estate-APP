@@ -206,11 +206,11 @@
       } else if (state === 'failed') {
         sheetScrim.classList.add('payment-failed');
         sheetTitle.textContent = 'We Couldn’t Complete Your Purchase Yet';
-        sheetSub.textContent = 'Taking you to your apartment options now.';
+        sheetSub.textContent = 'We couldn’t complete the $20 purchase with this card. Taking you to your apartment options now.';
       } else {
         sheetScrim.classList.add('payment-processing');
         sheetTitle.textContent = 'Processing your Second Chance Rental Plan';
-        sheetSub.textContent = 'Please wait while we complete your $47 purchase.';
+        sheetSub.textContent = 'Please wait while we complete your $20 purchase.';
       }
       sheetScrim.classList.add('open');
     }

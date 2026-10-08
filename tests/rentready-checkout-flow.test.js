@@ -149,7 +149,7 @@ function createCheckoutHarness(opts = {}) {
         if (opts.configUnavailable) {
           return { ok: false, json: async () => ({ ok: false, error: 'STRIPE_PUBLISHABLE_KEY is not configured.' }) };
         }
-        return { ok: true, json: async () => ({ ok: true, stripePublishableKey: 'pk_live_checkout', googleAds: { id: 'AW-test', purchaseLabel: 'trial' } }) };
+        return { ok: true, json: async () => ({ ok: true, stripePublishableKey: 'pk_live_checkout', googleAds: { id: 'AW-test', newSubscriberLabel: 'trial' } }) };
       }
       if (String(url).includes('create-payment-intent')) {
         return {
@@ -172,7 +172,17 @@ function createCheckoutHarness(opts = {}) {
           const next = opts.confirmSequence.shift();
           return next;
         }
-        return { ok: true, json: async () => ({ ok: true, status: 'succeeded', subscriptionId: 'sub_checkout', subscriptionStatus: 'trialing' }) };
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            status: 'succeeded',
+            subscriptionId: 'sub_checkout',
+            subscriptionStatus: 'trialing',
+            subscriptionAmount: 19.99,
+            currency: 'USD',
+          }),
+        };
       }
       throw new Error(`Unexpected request: ${url}`);
     },
@@ -186,7 +196,10 @@ function createCheckoutHarness(opts = {}) {
       },
     },
     gtag() {
-      gtagEvents.push(Array.from(arguments));
+      const args = Array.from(arguments);
+      gtagEvents.push(args);
+      const payload = args[2] || {};
+      if (typeof payload.event_callback === 'function') payload.event_callback();
     },
   };
   context.window.rrnTestContext = context;
@@ -230,7 +243,12 @@ async function runSuccessfulCheckout() {
   );
   assert.equal(context.window.location.href, '/after-payment-results/');
   assert.equal(harness.confirmCalls, 1);
-  assert.ok(gtagEvents.some((event) => event[1] === 'conversion'), 'Google conversion should fire after subscription confirmation');
+  const conversionEvent = gtagEvents.find((event) => event[1] === 'conversion');
+  assert.ok(conversionEvent, 'Google conversion should fire after subscription confirmation');
+  assert.equal(conversionEvent[2].send_to, 'AW-test/trial');
+  assert.equal(conversionEvent[2].transaction_id, 'sub_checkout');
+  assert.equal(conversionEvent[2].value, 19.99);
+  assert.equal(conversionEvent[2].currency, 'USD');
 }
 
 async function runSubscriptionFailureDoesNotGrantAccess() {

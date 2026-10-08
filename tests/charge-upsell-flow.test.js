@@ -5,12 +5,15 @@ async function loadHandler({ entitlements, prescreenIntent, upsellIntent, upsell
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const focusPath = require.resolve('../netlify/functions/_lib/focus');
   const downloadEmailPath = require.resolve('../netlify/functions/_lib/download-email');
+  const funnelPath = require.resolve('../netlify/functions/_lib/funnel');
   const fnPath = require.resolve('../netlify/functions/charge-upsell');
   delete require.cache[fnPath];
 
   const retrieveCalls = [];
   const createCalls = [];
+  const createOptions = [];
   const downloadEmailCalls = [];
+  const funnelEvents = [];
 
   require.cache[stripePath] = {
     id: stripePath,
@@ -23,8 +26,9 @@ async function loadHandler({ entitlements, prescreenIntent, upsellIntent, upsell
             retrieveCalls.push(id);
             return prescreenIntent;
           },
-          create: async (payload) => {
+          create: async (payload, options) => {
             createCalls.push(payload);
+            createOptions.push(options);
             if (upsellError) throw upsellError;
             return upsellIntent;
           },
@@ -63,9 +67,20 @@ async function loadHandler({ entitlements, prescreenIntent, upsellIntent, upsell
         }),
     },
   };
+  require.cache[funnelPath] = {
+    id: funnelPath,
+    filename: funnelPath,
+    loaded: true,
+    exports: {
+      logFunnelEvent: async (event, fields) => {
+        funnelEvents.push({ event, fields });
+        return true;
+      },
+    },
+  };
 
   const handler = require('../netlify/functions/charge-upsell').handler;
-  return { handler, retrieveCalls, createCalls, downloadEmailCalls };
+  return { handler, retrieveCalls, createCalls, createOptions, downloadEmailCalls, funnelEvents };
 }
 
 async function run() {
@@ -114,6 +129,7 @@ async function run() {
   assert.equal(createCalls[0].amount, 2700);
   assert.equal(createCalls[0].customer, 'cus_test');
   assert.equal(createCalls[0].payment_method, 'pm_test');
+  assert.equal(createCalls[0].off_session, true);
   assert.deepEqual(createCalls[0].payment_method_types, ['card']);
   assert.deepEqual(createCalls[0].payment_method_options, { card: { request_three_d_secure: 'automatic' } });
   assert.equal(createCalls[0].description, 'RentReady Modern Apartment Matches & RentReady Guide');
@@ -220,7 +236,7 @@ async function run() {
   assert.deepEqual(alreadyOwned.downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
 
   // The Apartment Approval Preparation Kit uses the one-click upsell
-  // infrastructure at $47 and sends the RentReady Kit download email.
+  // infrastructure at $20 and sends the RentReady Kit download email.
   const prepPatchCalls = [];
   const apartmentPrep = await loadHandler({
     entitlements: {
@@ -240,20 +256,80 @@ async function run() {
   });
   const prepRes = await apartmentPrep.handler({
     httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_prep' }),
+    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_prep', amount: 1 }),
   });
   const prepBody = JSON.parse(prepRes.body);
   assert.equal(prepRes.statusCode, 200);
   assert.equal(prepBody.status, 'succeeded');
   assert.equal(apartmentPrep.createCalls.length, 1);
-  assert.equal(apartmentPrep.createCalls[0].amount, 4700);
+  assert.equal(apartmentPrep.createCalls[0].amount, 2000);
+  assert.equal(apartmentPrep.createCalls[0].currency, 'usd');
+  assert.equal(apartmentPrep.createCalls[0].off_session, undefined, 'apartment_prep should use customer-present PaymentIntent confirmation');
   assert.equal(apartmentPrep.createCalls[0].metadata.product, 'apartment_prep');
+  assert.equal(apartmentPrep.createOptions[0].idempotencyKey, 'lead_123:apartment_prep:idem_prep');
   assert.deepEqual(prepPatchCalls[0].patch, { paid47: true, paid27: true, addPurchasedCategory: 'apartment_prep' });
   assert.deepEqual(apartmentPrep.downloadEmailCalls, [{ leadId: 'lead_123', product: 'apartment_prep' }]);
+  assert.deepEqual(apartmentPrep.funnelEvents[0], {
+    event: 'upsell_paid',
+    fields: { lead_id: 'lead_123', payment_id: 'pi_prep', amount: 20, detail: { product: 'apartment_prep' } },
+  });
+
+  // Already owning apartment_prep is a no-op success, not a second $20 charge.
+  const alreadyOwnsPrep = await loadHandler({
+    entitlements: {
+      leadId: 'lead_123',
+      paid10: true,
+      paid27: true,
+      paid47: true,
+      paid97: false,
+      purchasedCategories: ['apartment_prep'],
+      stripeCustomerId: 'cus_test',
+      defaultPaymentMethodId: 'pm_test',
+    },
+    patchEntitlements: async () => ({}),
+  });
+  const alreadyOwnsPrepRes = await alreadyOwnsPrep.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_prep_repeat' }),
+  });
+  const alreadyOwnsPrepBody = JSON.parse(alreadyOwnsPrepRes.body);
+  assert.equal(alreadyOwnsPrepRes.statusCode, 200);
+  assert.equal(alreadyOwnsPrepBody.status, 'succeeded');
+  assert.equal(alreadyOwnsPrepBody.alreadyOwned, true);
+  assert.equal(alreadyOwnsPrep.createCalls.length, 0);
+
+  // If Stripe requires customer authentication, the server returns the
+  // PaymentIntent details for Stripe.js and grants no entitlement yet.
+  const actionRequired = await loadHandler({
+    entitlements: {
+      leadId: 'lead_123',
+      paid10: true,
+      paid27: false,
+      paid97: false,
+      purchasedCategories: [],
+      stripeCustomerId: 'cus_test',
+      defaultPaymentMethodId: 'pm_test',
+    },
+    upsellIntent: { id: 'pi_requires_action', status: 'requires_action', client_secret: 'pi_requires_action_secret' },
+    patchEntitlements: async () => {
+      throw new Error('should not grant before authentication succeeds');
+    },
+  });
+  const actionRequiredRes = await actionRequired.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_action' }),
+  });
+  const actionRequiredBody = JSON.parse(actionRequiredRes.body);
+  assert.equal(actionRequiredRes.statusCode, 200);
+  assert.equal(actionRequiredBody.status, 'requires_action');
+  assert.equal(actionRequiredBody.clientSecret, 'pi_requires_action_secret');
+  assert.equal(actionRequiredBody.paymentIntentId, 'pi_requires_action');
 
   // A declined upsell must not send the download email.
   const declineError = new Error('card declined');
   declineError.code = 'card_declined';
+  declineError.decline_code = 'insufficient_funds';
+  declineError.raw = { payment_intent: { id: 'pi_declined' } };
   const declined = await loadHandler({
     entitlements: {
       leadId: 'lead_123',
@@ -269,11 +345,17 @@ async function run() {
   });
   const declinedRes = await declined.handler({
     httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'modern', idempotencyKey: 'idem_decline' }),
+    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_decline' }),
   });
+  const declinedBody = JSON.parse(declinedRes.body);
   assert.equal(declinedRes.statusCode, 200);
-  assert.equal(JSON.parse(declinedRes.body).status, 'failed');
+  assert.equal(declinedBody.status, 'failed');
+  assert.match(declinedBody.message, /\$20 purchase/);
   assert.deepEqual(declined.downloadEmailCalls, []);
+  assert.deepEqual(declined.funnelEvents[0], {
+    event: 'upsell_failed',
+    fields: { lead_id: 'lead_123', detail: { product: 'apartment_prep', reason: 'insufficient_funds', amount: 2000 } },
+  });
 }
 
 run()
