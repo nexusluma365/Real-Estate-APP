@@ -203,8 +203,19 @@ input[type=range]:focus { box-shadow: none; }
     rgba(24,28,25,0.82);
   backdrop-filter: blur(14px) saturate(115%);
   -webkit-backdrop-filter: blur(14px) saturate(115%);
+  opacity: 1;
+  transition:
+    opacity 0.36s var(--ease-butter),
+    backdrop-filter 0.36s var(--ease-butter),
+    -webkit-backdrop-filter 0.36s var(--ease-butter);
 }
 .questionnaire-loading[hidden] { display: none; }
+.questionnaire-loading.is-fading {
+  opacity: 0;
+  backdrop-filter: blur(4px) saturate(100%);
+  -webkit-backdrop-filter: blur(4px) saturate(100%);
+  pointer-events: none;
+}
 body.questionnaire-is-loading .shell > .card,
 body.questionnaire-is-loading .shell > .aria-robot {
   filter: blur(6px);
@@ -232,7 +243,10 @@ body.questionnaire-is-loading .shell > .aria-robot {
   transform: translate(-50%, -50%) rotate(0deg) translateY(var(--y));
   animation: questionnaireLoaderSpin var(--speed) infinite linear;
   box-shadow: 0 0 30px rgba(255,255,255,0.72);
+  opacity: 1;
+  transition: opacity 0.2s var(--ease-butter);
 }
+.questionnaire-loading.is-fading .loader { opacity: 0; }
 .questionnaire-loading .loader::before {
   content: "";
   position: absolute;

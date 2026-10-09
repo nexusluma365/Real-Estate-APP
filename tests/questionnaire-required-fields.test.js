@@ -80,10 +80,13 @@ assert.match(css, /\.agent-message-user/);
 assert.match(css, /\.agent-option\.selected/);
 assert.match(css, /\.agent-money-field/);
 assert.match(css, /\.questionnaire-loading/);
+assert.match(css, /\.questionnaire-loading\.is-fading/);
 assert.match(css, /--hue:\s*146/);
 assert.match(css, /backdrop-filter:\s*blur\(14px\)/);
 assert.match(css, /body\.questionnaire-is-loading \.shell > \.card/);
 assert.match(css, /@keyframes questionnaireLoaderSpin/);
+assert.match(js, /QUESTIONNAIRE_LOADING_FADE_MS/);
+assert.match(js, /await setQuestionnaireLoading\(false, \{ fade: true \}\)/);
 assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.agent-options \{ grid-template-columns: 1fr; \}/);
 
 console.log('questionnaire agent flow test passed');

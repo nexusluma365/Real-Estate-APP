@@ -59,7 +59,7 @@ const FLOW_ACCESS_KEY = 'rrn_flow_access_v1';
 const ENTRY_INTENT_KEY = 'rrn_entry_intent_v1';
 const POST_SUBMIT_REDIRECT_URL = '/results-processing.html';
 const REGISTERED_EMAIL_REDIRECT_URL = '/real-estate-list.html?preview=1';
-const POST_SUBMIT_REDIRECT_DELAY_MS = 900;
+const QUESTIONNAIRE_LOADING_FADE_MS = 360;
 const VALID_ENTRY_INTENTS = ['bad_credit','eviction','broken_lease','denied_application','income_requirements','no_credit','approval_requirements','second_chance','general_renter'];
 
 const QUESTIONS = [
@@ -883,12 +883,11 @@ async function submitLead() {
     await flushQueue();
     emitAgentActivity('lead_submitted', { leadId: payload.lead_id });
     rrTrack('questionnaire_completed', { ...marketingContext(), agent_status: payload.agent_status, agent_intent: payload.agent_intent });
-    setTimeout(() => {
-      window.location.href = POST_SUBMIT_REDIRECT_URL;
-    }, POST_SUBMIT_REDIRECT_DELAY_MS);
+    await setQuestionnaireLoading(false, { fade: true });
+    window.location.href = POST_SUBMIT_REDIRECT_URL;
   } catch (err) {
     showError(`Something went wrong: ${err.message}. Please try again.`);
-    setQuestionnaireLoading(false);
+    setQuestionnaireLoading(false, { fade: true });
     if (btn) {
       btn.disabled = false;
       btn.classList.remove('is-processing');
@@ -899,20 +898,36 @@ async function submitLead() {
   }
 }
 
-function setQuestionnaireLoading(isLoading) {
+function setQuestionnaireLoading(isLoading, options = {}) {
   const loader = document.getElementById('questionnaireLoading');
-  if (!loader) return;
+  if (!loader) return Promise.resolve();
   if (isLoading) {
     loader.hidden = false;
     if (typeof loader.removeAttribute === 'function') loader.removeAttribute('hidden');
+    if (loader.classList) loader.classList.remove('is-fading');
     if (document.documentElement && document.documentElement.classList) document.documentElement.classList.add('questionnaire-is-loading');
     if (document.body && document.body.classList) document.body.classList.add('questionnaire-is-loading');
-    return;
+    return Promise.resolve();
   }
-  loader.hidden = true;
-  if (typeof loader.setAttribute === 'function') loader.setAttribute('hidden', '');
-  if (document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('questionnaire-is-loading');
-  if (document.body && document.body.classList) document.body.classList.remove('questionnaire-is-loading');
+  const finish = () => {
+    loader.hidden = true;
+    if (typeof loader.setAttribute === 'function') loader.setAttribute('hidden', '');
+    if (loader.classList) loader.classList.remove('is-fading');
+    if (document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('questionnaire-is-loading');
+    if (document.body && document.body.classList) document.body.classList.remove('questionnaire-is-loading');
+  };
+  if (options.fade && loader.classList) {
+    loader.classList.add('is-fading');
+    return new Promise((resolve) => {
+      const runAfterFade = window.setTimeout || setTimeout;
+      runAfterFade(() => {
+        finish();
+        resolve();
+      }, QUESTIONNAIRE_LOADING_FADE_MS);
+    });
+  }
+  finish();
+  return Promise.resolve();
 }
 
 function render() {
