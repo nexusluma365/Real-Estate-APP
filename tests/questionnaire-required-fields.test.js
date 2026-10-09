@@ -16,6 +16,8 @@ assert.ok(html.includes('Based on What You Tell Us'), 'agent should show updated
 assert.ok(html.includes('Final approval and rental requirements are determined by each property.'), 'agent should keep final approval disclaimer');
 assert.ok(html.includes('agentConversation'), 'chat transcript mount should exist');
 assert.ok(html.includes('agentResponseMount'), 'one-question response mount should exist');
+assert.ok(html.includes('id="questionnaireLoading"'), 'questionnaire should include the submit loading overlay');
+assert.ok(html.includes('role="alert" class="loader"'), 'questionnaire loading overlay should use the requested loader element');
 
 [
   'Agent Number One',
@@ -77,6 +79,11 @@ assert.match(css, /@keyframes agentFadeIn/);
 assert.match(css, /\.agent-message-user/);
 assert.match(css, /\.agent-option\.selected/);
 assert.match(css, /\.agent-money-field/);
+assert.match(css, /\.questionnaire-loading/);
+assert.match(css, /--hue:\s*146/);
+assert.match(css, /backdrop-filter:\s*blur\(14px\)/);
+assert.match(css, /body\.questionnaire-is-loading \.shell > \.card/);
+assert.match(css, /@keyframes questionnaireLoaderSpin/);
 assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*\.agent-options \{ grid-template-columns: 1fr; \}/);
 
 console.log('questionnaire agent flow test passed');

@@ -190,23 +190,87 @@ input[type=range]:focus { box-shadow: none; }
   box-shadow: 0 18px 36px rgba(26,71,49,0.22);
 }
 .btn-primary.is-processing:hover { transform: none; background: linear-gradient(135deg, var(--green), #2b6f4a); }
-.btn-loader {
-  width: 20px;
-  height: 20px;
+
+/* Full-screen submit loader, adapted from Uiverse.io by Ashon-G */
+.questionnaire-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(45,122,82,0.14), transparent 28%),
+    rgba(24,28,25,0.82);
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+.questionnaire-loading[hidden] { display: none; }
+body.questionnaire-is-loading .shell > .card,
+body.questionnaire-is-loading .shell > .aria-robot {
+  filter: blur(6px);
+  transform: scale(0.995);
+  transition: filter 0.24s var(--ease-butter), transform 0.24s var(--ease-butter);
+  pointer-events: none;
+  user-select: none;
+}
+.questionnaire-loading .loader {
+  --hue: 146;
+  --size: 100px;
+  --border: 10px;
+  --speed: 1s;
+  --blur: var(--border);
+}
+.questionnaire-loading .loader {
+  width: var(--border);
+  aspect-ratio: 1;
+  background: white;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.34);
-  border-top-color: #fff;
-  border-right-color: rgba(255,255,255,0.82);
-  animation: btnLoaderSpin 0.72s linear infinite;
-  flex: 0 0 auto;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  --y: calc((var(--size) * -0.5) + (var(--border) * 0.5));
+  transform: translate(-50%, -50%) rotate(0deg) translateY(var(--y));
+  animation: questionnaireLoaderSpin var(--speed) infinite linear;
+  box-shadow: 0 0 30px rgba(255,255,255,0.72);
 }
-.btn-processing-text {
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
+.questionnaire-loading .loader::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--border) * -0.5);
+  border-radius: 50%;
+  background: white;
+  filter: blur(var(--blur));
+  z-index: -1;
 }
-@keyframes btnLoaderSpin {
-  to { transform: rotate(360deg); }
+.questionnaire-loading .loader::after {
+  content: "";
+  width: var(--size);
+  aspect-ratio: 1;
+  position: absolute;
+  top: 0%;
+  left: 50%;
+  translate: -50% 0;
+  background: conic-gradient(
+    white,
+    hsl(var(--hue), 64%, 64%),
+    hsl(var(--hue), 58%, 16%),
+    transparent 65%
+  );
+  border-radius: 50%;
+  mask: radial-gradient(
+    transparent calc(((var(--size) * 0.5) - var(--border)) - 1px),
+    white calc((var(--size) * 0.5) - var(--border))
+  );
+  -webkit-mask: radial-gradient(
+    transparent calc(((var(--size) * 0.5) - var(--border)) - 1px),
+    white calc((var(--size) * 0.5) - var(--border))
+  );
+}
+@keyframes questionnaireLoaderSpin {
+  to { transform: translate(-50%, -50%) rotate(-360deg) translateY(var(--y)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .questionnaire-loading .loader { animation-duration: 2.4s; }
 }
 .btn-back {
   min-height: 48px; padding: 12px 14px; background: rgba(255,255,255,0.62); color: var(--muted); border: 1px solid rgba(26,71,49,0.08); border-radius: 999px;

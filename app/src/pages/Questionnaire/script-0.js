@@ -868,8 +868,8 @@ async function submitLead() {
     btn.disabled = true;
     btn.classList.add('is-processing');
     if (typeof btn.setAttribute === 'function') btn.setAttribute('aria-busy', 'true');
-    btn.innerHTML = '<span class="btn-loader" aria-hidden="true"></span><span class="btn-processing-text">Processing</span>';
   }
+  setQuestionnaireLoading(true);
   emitAgentActivity('lead_submitting', { handoffStatus: agentState.status });
   const payload = collectPayload();
   agentState.lead_id = payload.lead_id;
@@ -888,6 +888,7 @@ async function submitLead() {
     }, POST_SUBMIT_REDIRECT_DELAY_MS);
   } catch (err) {
     showError(`Something went wrong: ${err.message}. Please try again.`);
+    setQuestionnaireLoading(false);
     if (btn) {
       btn.disabled = false;
       btn.classList.remove('is-processing');
@@ -896,6 +897,22 @@ async function submitLead() {
     }
     isSubmitting = false;
   }
+}
+
+function setQuestionnaireLoading(isLoading) {
+  const loader = document.getElementById('questionnaireLoading');
+  if (!loader) return;
+  if (isLoading) {
+    loader.hidden = false;
+    if (typeof loader.removeAttribute === 'function') loader.removeAttribute('hidden');
+    if (document.documentElement && document.documentElement.classList) document.documentElement.classList.add('questionnaire-is-loading');
+    if (document.body && document.body.classList) document.body.classList.add('questionnaire-is-loading');
+    return;
+  }
+  loader.hidden = true;
+  if (typeof loader.setAttribute === 'function') loader.setAttribute('hidden', '');
+  if (document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('questionnaire-is-loading');
+  if (document.body && document.body.classList) document.body.classList.remove('questionnaire-is-loading');
 }
 
 function render() {
