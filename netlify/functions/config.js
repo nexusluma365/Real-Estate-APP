@@ -8,6 +8,9 @@ function stripeKeyMode(key) {
   return '';
 }
 
+const LOCAL_TEST_STRIPE_PUBLISHABLE_KEY =
+  'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
+
 function googleAdsConfig() {
   const subscriptionLabel = (
     process.env.GOOGLE_ADS_NEW_SUBSCRIBER_LABEL ||
@@ -42,6 +45,7 @@ exports.handler = async function handler(event) {
     process.env.PUBLIC_STRIPE_PUBLISHABLE_KEY,
     process.env.VITE_STRIPE_PUBLISHABLE_KEY,
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    process.env.NETLIFY_DEV === 'true' ? LOCAL_TEST_STRIPE_PUBLISHABLE_KEY : '',
   ].filter(Boolean);
   const wantedMode = secretMode || '';
   const stripePublishableKey = wantedMode

@@ -144,9 +144,10 @@ async function rrnGetConfig() {
   return await rrnConfigPromise;
 }
 
-async function rrnGetStripePublishableKey() {
+async function rrnGetStripePublishableKey(fallbackPublishableKey = '') {
   const config = await rrnGetConfig();
   if (config && config.stripePublishableKey) return config.stripePublishableKey;
+  if (fallbackPublishableKey) return fallbackPublishableKey;
   console.error('Stripe publishable key unavailable from config', config && config.error);
   return '';
 }

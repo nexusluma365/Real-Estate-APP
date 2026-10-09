@@ -13,7 +13,7 @@
 
     // ---- checkout flow -----------------------------------------------
     const APARTMENT_CATEGORY = 'luxury';
-    const STRIPE_PUBLISHABLE_KEY = '';
+    const STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
     const START_URL = '/index.html';
 
     const checkoutBtn = document.getElementById('checkoutBtn');

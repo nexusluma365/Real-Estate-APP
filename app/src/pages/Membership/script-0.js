@@ -14,7 +14,7 @@ const START_URL = '/index.html';
 // buttons will link there instead. Either way, checkout always happens
 // on Stripe's or Patreon's own secure infrastructure; this site never
 // collects or stores card details.
-const STRIPE_PUBLISHABLE_KEY = '';
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51UFFsZAYPiGDuG9e6Y8IS6i69lBTeKG9VLmMNUH6J0Ku6SrjzTOfqJZeEi2rrfri2Ive2zL4trt4fSXCWnLRVMSS00RNMFJPu4';
 const USE_PATREON = false;
 const PATREON_URL = 'PASTE_YOUR_PATREON_URL_HERE';
 // ─────────────────────────────────────────────────────────────
