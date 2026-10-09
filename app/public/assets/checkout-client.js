@@ -23,7 +23,13 @@ const PAYMENT_OVERLAY_STYLE_ID = 'rrnPaymentOverlayStyles';
 function rrnLeadId() {
   try {
     const a = JSON.parse(sessionStorage.getItem(ANSWERS_KEY) || localStorage.getItem(ANSWERS_KEY) || 'null');
-    return (a && a.lead_id) || null;
+    if (a && a.lead_id) return a.lead_id;
+  } catch (_e) {
+    // Fall through to URL recovery below.
+  }
+  try {
+    const leadId = new URLSearchParams(window.location.search || '').get('leadId');
+    return leadId ? String(leadId).trim() : null;
   } catch (_e) {
     return null;
   }

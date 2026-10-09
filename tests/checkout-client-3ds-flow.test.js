@@ -25,6 +25,7 @@ function makeContext({ confirmOk }) {
     console,
     Blob: class Blob {},
     crypto: { randomUUID: () => 'idem_3ds' },
+    URLSearchParams,
     document: {
       getElementById: () => null,
       createElement: () => ({ style: {}, appendChild() {}, addEventListener() {} }),
@@ -33,6 +34,7 @@ function makeContext({ confirmOk }) {
       body: { appendChild() {} },
     },
     navigator: {},
+    location: { search: '' },
     sessionStorage,
     localStorage,
     Stripe: (key) => {
@@ -75,6 +77,14 @@ function makeContext({ confirmOk }) {
 }
 
 async function run() {
+  {
+    const fallback = makeContext({ confirmOk: true });
+    fallback.context.sessionStorage = makeStorage();
+    fallback.context.localStorage = makeStorage();
+    fallback.context.location = { search: '?leadId=lead_from_url' };
+    assert.equal(fallback.context.rrnLeadId(), 'lead_from_url');
+  }
+
   const success = makeContext({ confirmOk: true });
   const successStatus = await success.context.rrnChargeUpsell('apartment_prep');
   assert.equal(successStatus, 'succeeded');
