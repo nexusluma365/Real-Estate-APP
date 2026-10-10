@@ -1,6 +1,6 @@
 const assert = require('assert');
 
-async function loadHandler({ paymentIntent, setupIntent, subscription, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
+async function loadHandler({ paymentIntent, setupIntent, subscription, price, priceError, patchEntitlements, customerUpdate, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const welcomeEmailPath = require.resolve('../netlify/functions/_lib/welcome-email');
@@ -23,6 +23,12 @@ async function loadHandler({ paymentIntent, setupIntent, subscription, patchEnti
         },
         setupIntents: {
           retrieve: async () => setupIntent,
+        },
+        prices: {
+          retrieve: async () => {
+            if (priceError) throw priceError;
+            return price || { id: 'price_1999_monthly', active: true, livemode: true, currency: 'usd', unit_amount: 1999, recurring: { interval: 'month' } };
+          },
         },
         subscriptions: {
           create: async (payload, options) => {
@@ -202,6 +208,111 @@ async function run() {
   assert.match(JSON.parse(productIdConfigRes.body).error, /price_/i);
   assert.equal(productIdConfig.subscriptionCreateCalls.length, 0);
   process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_1999_monthly';
+
+  const oneTimePriceConfig = await loadHandler({
+    setupIntent: {
+      id: 'seti_one_time_price',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_one_time_price', product: 'listing_membership' },
+      customer: 'cus_one_time_price',
+      payment_method: 'pm_one_time_price',
+    },
+    price: { id: 'price_one_time', active: true, livemode: true, currency: 'usd', unit_amount: 1999, recurring: null },
+    subscription: { id: 'sub_should_not_create', status: 'trialing' },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const oneTimePriceRes = await oneTimePriceConfig.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_one_time_price', setupIntentId: 'seti_one_time_price', product: 'prescreen' }),
+  });
+  assert.equal(oneTimePriceRes.statusCode, 500);
+  assert.match(JSON.parse(oneTimePriceRes.body).error, /recurring monthly Price/i);
+  assert.equal(oneTimePriceConfig.subscriptionCreateCalls.length, 0);
+
+  const inactivePriceConfig = await loadHandler({
+    setupIntent: {
+      id: 'seti_inactive_price',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_inactive_price', product: 'listing_membership' },
+      customer: 'cus_inactive_price',
+      payment_method: 'pm_inactive_price',
+    },
+    price: { id: 'price_inactive', active: false, livemode: true, currency: 'usd', unit_amount: 1999, recurring: { interval: 'month' } },
+    subscription: { id: 'sub_should_not_create', status: 'trialing' },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const inactivePriceRes = await inactivePriceConfig.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_inactive_price', setupIntentId: 'seti_inactive_price', product: 'prescreen' }),
+  });
+  assert.equal(inactivePriceRes.statusCode, 500);
+  assert.match(JSON.parse(inactivePriceRes.body).error, /inactive Stripe Price/i);
+  assert.equal(inactivePriceConfig.subscriptionCreateCalls.length, 0);
+
+  const wrongModePriceConfig = await loadHandler({
+    setupIntent: {
+      id: 'seti_wrong_mode_price',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_wrong_mode_price', product: 'listing_membership' },
+      customer: 'cus_wrong_mode_price',
+      payment_method: 'pm_wrong_mode_price',
+    },
+    priceError: new Error('No such price: price_test_from_other_mode'),
+    subscription: { id: 'sub_should_not_create', status: 'trialing' },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const wrongModePriceRes = await wrongModePriceConfig.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_wrong_mode_price', setupIntentId: 'seti_wrong_mode_price', product: 'prescreen' }),
+  });
+  assert.equal(wrongModePriceRes.statusCode, 500);
+  assert.match(JSON.parse(wrongModePriceRes.body).error, /account\/mode/i);
+  assert.equal(wrongModePriceConfig.subscriptionCreateCalls.length, 0);
+
+  const testModePriceConfig = await loadHandler({
+    setupIntent: {
+      id: 'seti_test_mode_price',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_test_mode_price', product: 'listing_membership' },
+      customer: 'cus_test_mode_price',
+      payment_method: 'pm_test_mode_price',
+    },
+    price: { id: 'price_test_mode', active: true, livemode: false, currency: 'usd', unit_amount: 1999, recurring: { interval: 'month' } },
+    subscription: { id: 'sub_should_not_create', status: 'trialing' },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const testModePriceRes = await testModePriceConfig.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_test_mode_price', setupIntentId: 'seti_test_mode_price', product: 'prescreen' }),
+  });
+  assert.equal(testModePriceRes.statusCode, 500);
+  assert.match(JSON.parse(testModePriceRes.body).error, /live-mode Stripe Price/i);
+  assert.equal(testModePriceConfig.subscriptionCreateCalls.length, 0);
+
+  const wrongAmountPriceConfig = await loadHandler({
+    setupIntent: {
+      id: 'seti_wrong_amount_price',
+      status: 'succeeded',
+      metadata: { leadId: 'lead_wrong_amount_price', product: 'listing_membership' },
+      customer: 'cus_wrong_amount_price',
+      payment_method: 'pm_wrong_amount_price',
+    },
+    price: { id: 'price_wrong_amount', active: true, livemode: true, currency: 'usd', unit_amount: 999, recurring: { interval: 'month' } },
+    subscription: { id: 'sub_should_not_create', status: 'trialing' },
+    entitlements: { paid10: false },
+    patchEntitlements: async (_leadId, patch) => patch,
+  });
+  const wrongAmountPriceRes = await wrongAmountPriceConfig.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ leadId: 'lead_wrong_amount_price', setupIntentId: 'seti_wrong_amount_price', product: 'prescreen' }),
+  });
+  assert.equal(wrongAmountPriceRes.statusCode, 500);
+  assert.match(JSON.parse(wrongAmountPriceRes.body).error, /\$19\.99\/month/i);
+  assert.equal(wrongAmountPriceConfig.subscriptionCreateCalls.length, 0);
 
   const mismatchHandler = await loadHandler({
     paymentIntent: { ...succeededIntent, metadata: { leadId: 'other_lead' } },

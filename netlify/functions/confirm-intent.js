@@ -33,6 +33,42 @@ function listingPriceConfigError(priceId) {
   return '';
 }
 
+async function validateListingPrice(stripe, priceId) {
+  const configError = listingPriceConfigError(priceId);
+  if (configError) return configError;
+
+  let price;
+  try {
+    price = await stripe.prices.retrieve(priceId);
+  } catch (err) {
+    const message = err && err.message ? err.message : 'Stripe could not retrieve the configured Price.';
+    return `STRIPE_LISTING_PRICE_MONTHLY is not a usable Price ID in this Stripe account/mode: ${message}`;
+  }
+
+  if (!price || price.deleted) {
+    return 'STRIPE_LISTING_PRICE_MONTHLY points to a deleted Stripe Price.';
+  }
+  if (price.active === false) {
+    return 'STRIPE_LISTING_PRICE_MONTHLY points to an inactive Stripe Price.';
+  }
+  if (price.livemode !== true) {
+    return 'STRIPE_LISTING_PRICE_MONTHLY must point to a live-mode Stripe Price.';
+  }
+  if (!price.recurring) {
+    return 'STRIPE_LISTING_PRICE_MONTHLY must point to a recurring monthly Price, not a one-time Price.';
+  }
+  if (price.recurring.interval !== 'month') {
+    return `STRIPE_LISTING_PRICE_MONTHLY must be monthly, but the configured Price is ${price.recurring.interval}.`;
+  }
+  if (price.currency !== 'usd') {
+    return `STRIPE_LISTING_PRICE_MONTHLY must be a USD Price, but the configured Price is ${String(price.currency || '').toUpperCase() || 'unknown currency'}.`;
+  }
+  if (price.unit_amount !== 1999) {
+    return `STRIPE_LISTING_PRICE_MONTHLY must be $19.99/month, but the configured Price is ${price.unit_amount == null ? 'missing an amount' : `${price.unit_amount} cents`}.`;
+  }
+  return '';
+}
+
 function setupErrorMessage(err) {
   const message = err && err.message ? err.message : '';
   if (
@@ -94,7 +130,7 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ ok: true, status: setupIntent.status || 'failed' }) };
       }
       const priceId = listingPriceId();
-      const priceConfigError = listingPriceConfigError(priceId);
+      const priceConfigError = await validateListingPrice(stripe, priceId);
       if (priceConfigError) {
         return { statusCode: 500, body: JSON.stringify({ ok: false, error: priceConfigError }) };
       }
