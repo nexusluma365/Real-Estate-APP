@@ -10,6 +10,41 @@ const { saveLead, getLead, getEntitlements, patchEntitlements } = require('./_li
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
 
+function cleanMetadataValue(value, max = 200) {
+  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
+}
+
+function stripeCustomerProfile(answers, existingLead, email) {
+  const source = { ...(existingLead || {}), ...(answers || {}) };
+  const firstName = cleanMetadataValue(source.first_name || source.firstName, 80);
+  const lastName = cleanMetadataValue(source.last_name || source.lastName, 80);
+  const fullName = cleanMetadataValue(
+    source.full_name ||
+    source.fullName ||
+    source.name ||
+    [firstName, lastName].filter(Boolean).join(' '),
+    160
+  );
+  const city = cleanMetadataValue(source.preferred_city || source.city || source.searchArea, 120);
+  const rentBudget = cleanMetadataValue(source.rent_budget || source.rentBudget, 40);
+  const moveTimeline = cleanMetadataValue(source.move_timeline || source.moveTimeline, 80);
+
+  const metadata = {
+    email: cleanMetadataValue(email, 160),
+  };
+  if (firstName) metadata.first_name = firstName;
+  if (lastName) metadata.last_name = lastName;
+  if (fullName) metadata.full_name = fullName;
+  if (city) metadata.preferred_city = city;
+  if (rentBudget) metadata.rent_budget = rentBudget;
+  if (moveTimeline) metadata.move_timeline = moveTimeline;
+
+  return {
+    name: fullName,
+    metadata,
+  };
+}
+
 function listingPriceId() {
   return (
     process.env.STRIPE_LISTING_PRICE_MONTHLY ||
@@ -64,7 +99,8 @@ exports.handler = async (event) => {
       (answers && (answers.manychat_contact_id || answers.manychatContactId)) ||
       (existingLead && existingLead.manychat_contact_id)
     );
-    const metadata = { leadId: normalizedLeadId, ...manychatMetadata(manychatContactId) };
+    const profile = stripeCustomerProfile(answers, existingLead, normalizedEmail);
+    const metadata = { leadId: normalizedLeadId, ...profile.metadata, ...manychatMetadata(manychatContactId) };
 
     // Reuse an existing Stripe Customer for this leadId if one exists
     // (e.g. the customer refreshed the page after the intent was created
@@ -76,10 +112,15 @@ exports.handler = async (event) => {
       (existing && !existing.deleted ? existing : null) ||
       (await stripe.customers.create({
         email: normalizedEmail,
+        ...(profile.name ? { name: profile.name } : {}),
         metadata,
       }));
-    if (existing && manychatContactId && (!existing.metadata || existing.metadata.manychat_contact_id !== manychatContactId)) {
-      await stripe.customers.update(existing.id, { metadata: { ...(existing.metadata || {}), ...metadata } });
+    if (existing && !existing.deleted) {
+      await stripe.customers.update(existing.id, {
+        email: normalizedEmail,
+        ...(profile.name ? { name: profile.name } : {}),
+        metadata: { ...(existing.metadata || {}), ...metadata },
+      });
     }
 
     const setupIntent = await stripe.setupIntents.create(

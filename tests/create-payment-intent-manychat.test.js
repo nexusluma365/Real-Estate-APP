@@ -1,12 +1,13 @@
 const assert = require('assert');
 
-function loadHandler() {
+function loadHandler(options = {}) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const fnPath = require.resolve('../netlify/functions/create-payment-intent');
   delete require.cache[fnPath];
 
   const customersCreated = [];
+  const customersUpdated = [];
   const setupIntentsCreated = [];
   const savedLeads = [];
   const entitlementPatches = [];
@@ -20,11 +21,15 @@ function loadHandler() {
       getStripe: () => ({
         customers: {
           search: async () => ({ data: [] }),
+          retrieve: async () => options.existingCustomer || { id: 'cus_existing', metadata: {} },
           create: async (payload) => {
             customersCreated.push(payload);
             return { id: 'cus_manychat', metadata: payload.metadata || {} };
           },
-          update: async () => ({}),
+          update: async (id, payload) => {
+            customersUpdated.push({ id, payload });
+            return { id, ...payload };
+          },
         },
         setupIntents: {
           create: async (payload) => {
@@ -46,7 +51,7 @@ function loadHandler() {
     loaded: true,
     exports: {
       getLead: async () => null,
-      getEntitlements: async () => ({ stripeCustomerId: null }),
+      getEntitlements: async () => options.existingEntitlements || { stripeCustomerId: null },
       saveLead: async (leadId, answers) => savedLeads.push({ leadId, answers }),
       patchEntitlements: async (leadId, patch) => entitlementPatches.push({ leadId, patch }),
     },
@@ -55,6 +60,7 @@ function loadHandler() {
   return {
     handler: require('../netlify/functions/create-payment-intent').handler,
     customersCreated,
+    customersUpdated,
     setupIntentsCreated,
     savedLeads,
     entitlementPatches,
@@ -71,6 +77,11 @@ async function run() {
       answers: {
         lead_id: 'lead_123',
         email: 'test@example.com',
+        first_name: 'Rae',
+        last_name: 'Jordan',
+        preferred_city: 'Austin, TX',
+        rent_budget: '1800',
+        move_timeline: '30_days',
         manychat_contact_id: '123456789',
       },
     }),
@@ -79,12 +90,28 @@ async function run() {
 
   assert.equal(res.statusCode, 200);
   assert.equal(body.ok, true);
+  assert.equal(flow.customersCreated[0].email, 'test@example.com');
+  assert.equal(flow.customersCreated[0].name, 'Rae Jordan');
   assert.deepEqual(flow.customersCreated[0].metadata, {
     leadId: 'lead_123',
+    email: 'test@example.com',
+    first_name: 'Rae',
+    last_name: 'Jordan',
+    full_name: 'Rae Jordan',
+    preferred_city: 'Austin, TX',
+    rent_budget: '1800',
+    move_timeline: '30_days',
     manychat_contact_id: '123456789',
   });
   assert.deepEqual(flow.setupIntentsCreated[0].metadata, {
     leadId: 'lead_123',
+    email: 'test@example.com',
+    first_name: 'Rae',
+    last_name: 'Jordan',
+    full_name: 'Rae Jordan',
+    preferred_city: 'Austin, TX',
+    rent_budget: '1800',
+    move_timeline: '30_days',
     manychat_contact_id: '123456789',
     product: 'listing_membership',
     plan: 'trial_then_monthly',
@@ -95,6 +122,29 @@ async function run() {
   assert.equal(flow.entitlementPatches[0].patch.manychat_contact_id, '123456789');
   assert.equal(flow.entitlementPatches[0].patch.listingSetupIntentId, 'seti_manychat');
   assert.equal(flow.entitlementPatches[0].patch.listingAccessStatus, 'inactive');
+
+  const existingCustomer = loadHandler({
+    existingEntitlements: { stripeCustomerId: 'cus_existing' },
+    existingCustomer: { id: 'cus_existing', email: 'old@example.com', name: null, metadata: { leadId: 'lead_existing' } },
+  });
+  await existingCustomer.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({
+      leadId: 'lead_existing',
+      email: 'existing@example.com',
+      answers: {
+        lead_id: 'lead_existing',
+        email: 'existing@example.com',
+        first_name: 'Existing',
+        last_name: 'Renter',
+      },
+    }),
+  });
+  assert.equal(existingCustomer.customersCreated.length, 0);
+  assert.equal(existingCustomer.customersUpdated[0].id, 'cus_existing');
+  assert.equal(existingCustomer.customersUpdated[0].payload.email, 'existing@example.com');
+  assert.equal(existingCustomer.customersUpdated[0].payload.name, 'Existing Renter');
+  assert.equal(existingCustomer.customersUpdated[0].payload.metadata.full_name, 'Existing Renter');
 
   const invalid = loadHandler();
   await invalid.handler({
