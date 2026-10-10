@@ -71,7 +71,7 @@ besides `GOOGLE_SCRIPT_URL` in step 2.
 
 ## 6) Upload the two protected PDFs
 
-The $27 Game Plan and $97 Credit Action Kit are real files a customer
+The $20 Game Plan and $97 Credit Action Kit are real files a customer
 downloads after paying — there's no public URL for them anywhere in the
 site; `download-file.js` only serves them after checking the server-side
 entitlement. Upload the actual PDFs once with the Netlify CLI:

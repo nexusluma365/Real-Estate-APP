@@ -126,7 +126,7 @@ async function run() {
   assert.equal(body.paymentIntentId, 'pi_upsell');
   assert.deepEqual(retrieveCalls, ['pi_prescreen']);
   assert.equal(createCalls.length, 1);
-  assert.equal(createCalls[0].amount, 2700);
+  assert.equal(createCalls[0].amount, 2000);
   assert.equal(createCalls[0].customer, 'cus_test');
   assert.equal(createCalls[0].payment_method, 'pm_test');
   assert.equal(createCalls[0].off_session, true);

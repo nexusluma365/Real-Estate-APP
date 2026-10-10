@@ -13,9 +13,9 @@ const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manycha
 const { logFunnelEvent } = require('./_lib/funnel');
 
 const PRODUCTS = {
-  gameplan: { amount: 2700, field: 'paid27', label: 'RentReady Game Plan' },
-  modern: { amount: 2700, field: 'paid27', label: 'RentReady Modern Apartment Matches & RentReady Guide', category: 'modern' },
-  luxury: { amount: 2700, field: 'paid27', label: 'RentReady Luxury Apartment Matches & RentReady Guide', category: 'luxury' },
+  gameplan: { amount: 2000, field: 'paid27', label: 'RentReady Game Plan' },
+  modern: { amount: 2000, field: 'paid27', label: 'RentReady Modern Apartment Matches & RentReady Guide', category: 'modern' },
+  luxury: { amount: 2000, field: 'paid27', label: 'RentReady Luxury Apartment Matches & RentReady Guide', category: 'luxury' },
   apartment_prep: { amount: 2000, field: 'paid47', legacyField: 'paid27', label: 'RentReady Apartment Approval Preparation Kit', category: 'apartment_prep' },
   creditkit: { amount: 9700, field: 'paid97', label: 'RentReady Credit Action Kit' },
 };

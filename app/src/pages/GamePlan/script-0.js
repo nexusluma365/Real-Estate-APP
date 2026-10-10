@@ -72,9 +72,9 @@ function renderLocked(answers) {
       <div class="p" style="margin-top:14px;"><strong>You already know where you stand. Now know what to do next.</strong></div>
 
       <div class="pay-box">
-        <div class="pay-row"><span class="pay-label">RentReady Game Plan</span><span class="pay-price">$27</span></div>
+        <div class="pay-row"><span class="pay-label">RentReady Game Plan</span><span class="pay-price">$20</span></div>
         <button class="btn-primary" id="gpBuyBtn" onclick="handleGamePlanPurchase()">Build My RentReady Game Plan <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-        <div class="microcopy">One-time $27 · Uses your saved payment method</div>
+        <div class="microcopy">One-time $20 · Uses your saved payment method</div>
         <div id="gpError"></div>
       </div>
       <a class="small-link" href="${RESULTS_URL}">Continue with my current results</a>
