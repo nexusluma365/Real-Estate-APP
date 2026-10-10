@@ -25,19 +25,12 @@ function stripeCustomerProfile(answers, existingLead, email) {
     [firstName, lastName].filter(Boolean).join(' '),
     160
   );
-  const city = cleanMetadataValue(source.preferred_city || source.city || source.searchArea, 120);
-  const rentBudget = cleanMetadataValue(source.rent_budget || source.rentBudget, 40);
-  const moveTimeline = cleanMetadataValue(source.move_timeline || source.moveTimeline, 80);
-
   const metadata = {
     email: cleanMetadataValue(email, 160),
   };
   if (firstName) metadata.first_name = firstName;
   if (lastName) metadata.last_name = lastName;
   if (fullName) metadata.full_name = fullName;
-  if (city) metadata.preferred_city = city;
-  if (rentBudget) metadata.rent_budget = rentBudget;
-  if (moveTimeline) metadata.move_timeline = moveTimeline;
 
   return {
     name: fullName,
