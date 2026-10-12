@@ -38,8 +38,10 @@
 <!-- Funnel step tracking for the Google Sheets "Funnel" tab (no UI, no Stripe access). -->
 <script src="/assets/funnel-tracker.js" defer></script>
 <style>
+  /* Hide Netlify's badge/drawer. Stripe's card iframes carry the page URL in
+     their src, which contains "netlify" on *.netlify.app hosts — never hide them. */
   a[href*="netlify.com"][style*="fixed"],
-  iframe[src*="netlify"],
+  iframe[src*="netlify"]:not([src*="stripe.com"]),
   iframe[title*="Netlify"],
   [aria-label*="Netlify"][style*="fixed"],
   [data-netlify-badge],
