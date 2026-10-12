@@ -25,6 +25,19 @@ const { productDef } = require('./_lib/products');
 const { fulfillUpsellPaymentIntent, idOf } = require('./_lib/fulfillment');
 const { paymentErrorLogFields } = require('./_lib/payment-errors');
 const { retryInvoiceWithBackupCards } = require('./_lib/backup-cards');
+const { invoiceFailureDetails } = require('./_lib/billing-diagnostics');
+
+// Keeps the most recent billing problem on the lead (in the existing
+// raw_entitlement JSON) for investigation. Diagnostics never fail the
+// webhook — a failed write here must not make Stripe redeliver the event.
+async function recordBillingIssue(leadId, issue) {
+  if (!leadId) return;
+  try {
+    await patchEntitlements(leadId, { lastBillingIssue: { ...issue, at: new Date().toISOString() } });
+  } catch (err) {
+    console.error('stripe-webhook could not store billing issue', err && err.message);
+  }
+}
 
 const MEMBERSHIP_PLANS = new Set(['monthly', 'yearly']);
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
@@ -212,8 +225,33 @@ exports.handler = async (event) => {
         const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription && invoice.subscription.id;
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          // Status sync only. Stripe's own retry/dunning schedule stays in
+          // charge: nothing here cancels the subscription.
           await syncListingSubscription(stripe, sub);
-          await logFunnelEvent('subscription_payment_failed', { lead_id: sub.metadata && sub.metadata.leadId, payment_id: invoice.id, amount: (invoice.amount_due || 0) / 100 });
+          const leadId = sub.metadata && sub.metadata.leadId;
+          // Why it failed, normalized (insufficient_funds, card_declined, ...).
+          let failure = { category: 'unknown' };
+          try {
+            failure = await invoiceFailureDetails(stripe, invoice);
+          } catch (err) {
+            console.warn('stripe-webhook could not read invoice failure reason', err && err.message);
+          }
+          console.warn('subscription payment failed', { leadId, invoiceId: invoice.id, ...failure });
+          await logFunnelEvent('subscription_payment_failed', {
+            lead_id: leadId,
+            payment_id: invoice.id,
+            amount: (invoice.amount_due || 0) / 100,
+            detail: { reason: failure.category, attempt_count: failure.attemptCount, billing_reason: failure.billingReason, funding: failure.funding },
+          });
+          await recordBillingIssue(leadId, {
+            type: 'payment_failed',
+            invoiceId: invoice.id,
+            category: failure.category,
+            stripeCode: failure.stripeCode || null,
+            declineCode: failure.declineCode || null,
+            attemptCount: failure.attemptCount,
+            nextAttemptAt: failure.nextAttemptAt || null,
+          });
           // Main card failed: try the customer's saved backup card(s) once each.
           if (isListingSubscription(sub)) {
             try {
@@ -222,6 +260,34 @@ exports.handler = async (event) => {
               console.error('stripe-webhook backup card retry error', err && err.message);
             }
           }
+        }
+        break;
+      }
+
+      case 'invoice.finalization_failed': {
+        // Diagnostics only: never grants/revokes access, never charges.
+        const invoice = stripeEvent.data.object;
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription && invoice.subscription.id;
+        if (subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          const leadId = sub.metadata && sub.metadata.leadId;
+          const finalizationError = invoice.last_finalization_error || {};
+          const issue = {
+            type: 'invoice_finalization_failed',
+            invoiceId: invoice.id,
+            code: finalizationError.code || null,
+            errorType: finalizationError.type || null,
+            billingReason: invoice.billing_reason || null,
+            listing: isListingSubscription(sub),
+          };
+          console.error('stripe-webhook invoice finalization failed', { leadId, ...issue });
+          await logFunnelEvent('invoice_finalization_failed', {
+            lead_id: leadId,
+            payment_id: invoice.id,
+            amount: (invoice.amount_due || 0) / 100,
+            detail: { code: issue.code, error_type: issue.errorType, billing_reason: issue.billingReason },
+          });
+          await recordBillingIssue(leadId, issue);
         }
         break;
       }

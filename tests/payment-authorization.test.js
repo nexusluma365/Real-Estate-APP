@@ -57,8 +57,8 @@ test('the $19.99 Price check follows the Stripe key mode (test key → test Pric
   assert.equal(h.stripe.state.subscriptionsCreated.length, 0);
 });
 
-test('AC/AD/AE: prepaid and debit cards are accepted at signup and for upsells; no $1 authorization exists', async () => {
-  for (const funding of ['prepaid', 'debit']) {
+test('AC/AD/AE: debit and credit start the trial; prepaid is rejected at signup; no $1 authorization exists', async () => {
+  for (const funding of ['debit', 'credit']) {
     const h = setup({ cards: { pm_card: { behavior: 'success', funding } } });
     const { cookie, confirmed } = await completeSignup(h, { leadId: `lead_${funding}`, pm: 'pm_card' });
     assert.equal(confirmed.json.status, 'succeeded', `${funding} trial starts`);
@@ -67,12 +67,19 @@ test('AC/AD/AE: prepaid and debit cards are accepted at signup and for upsells; 
     assert.equal(upsell.json.status, 'succeeded', `${funding} upsell`);
     assert.deepEqual(h.stripe.state.charges.map((c) => [c.amount, c.funding]), [[2000, funding]]);
   }
+  // Prepaid: card saves (SetupIntent), but the trial is NOT started.
+  const h = setup({ cards: { pm_card: { behavior: 'success', funding: 'prepaid' } } });
+  const { confirmed } = await completeSignup(h, { leadId: 'lead_prepaid', pm: 'pm_card' });
+  assert.equal(confirmed.json.status, 'payment_method_not_eligible');
+  assert.equal(confirmed.json.code, 'prepaid_not_supported');
+  assert.equal(h.stripe.state.subscriptionsCreated.length, 0);
+  assert.equal(h.stripe.state.createCalls.length, 0, 'no authorization hold either');
+
   const source = fs.readdirSync(path.join(__dirname, '../netlify/functions'), { recursive: true })
     .filter((f) => f.endsWith('.js'))
     .map((f) => fs.readFileSync(path.join(__dirname, '../netlify/functions', f), 'utf8'))
     .join('\n');
   assert.doesNotMatch(source, /capture_method\s*:\s*['"]manual/, 'no authorization-and-release charge anywhere');
-  assert.doesNotMatch(source, /funding\s*===?\s*['"]prepaid['"]/, 'no prepaid blocking');
 });
 
 test('AF/AG: no $10 checkout and no $27/$47 prices exist in the payment code', () => {

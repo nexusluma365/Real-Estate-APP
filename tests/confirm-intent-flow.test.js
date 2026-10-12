@@ -24,6 +24,12 @@ async function loadHandler({ paymentIntent, setupIntent, subscription, price, pr
         setupIntents: {
           retrieve: async () => setupIntent,
         },
+        // The saved card, as Stripe reports it: a credit card on the
+        // SetupIntent's customer (eligible for the trial).
+        paymentMethods: {
+          retrieve: async (id) => ({ id, type: 'card', customer: setupIntent && setupIntent.customer, card: { funding: 'credit' } }),
+          detach: async (id) => ({ id }),
+        },
         prices: {
           retrieve: async () => {
             if (priceError) throw priceError;

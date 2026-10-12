@@ -21,6 +21,7 @@ const { sessionForLead } = require('./_lib/session');
 const { productDef, paymentIntentMatches } = require('./_lib/products');
 const { fulfillUpsellPaymentIntent, idOf } = require('./_lib/fulfillment');
 const { describePaymentError } = require('./_lib/payment-errors');
+const { evaluatePaymentMethod, paymentMethodOwnedBy } = require('./_lib/payment-method-eligibility');
 
 const LISTING_PRODUCTS = ['prescreen', 'listing_membership', 'listing_membership_verification'];
 
@@ -200,6 +201,40 @@ exports.handler = async (event) => {
           }),
         };
       }
+
+      // Card eligibility for the trial, from Stripe's own record of the saved
+      // card (never from the browser): must be a card, belong to this
+      // SetupIntent's customer, and be credit or debit. Otherwise no
+      // subscription, no paid10, no listing access, and the card is not kept.
+      // A Stripe/API failure here is NOT a card problem: it falls through to
+      // the generic retryable error below instead of rejecting the card.
+      const paymentMethod = setupPaymentMethod ? await stripe.paymentMethods.retrieve(setupPaymentMethod) : null;
+      if (paymentMethod && !paymentMethodOwnedBy(paymentMethod, setupCustomer)) {
+        console.warn('confirm-intent payment method customer mismatch', { leadId });
+        return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Customer mismatch' }) };
+      }
+      const eligibility = evaluatePaymentMethod(paymentMethod);
+      if (!eligibility.eligible) {
+        console.warn('confirm-intent payment method not eligible for trial', { leadId, reason: eligibility.reason, funding: eligibility.funding });
+        await logFunnelEvent('payment_method_rejected', {
+          lead_id: leadId,
+          detail: { reason: eligibility.reason, funding: eligibility.funding || 'none' },
+        });
+        // Detach it so Stripe can never bill it as this customer's card.
+        if (paymentMethod && setupCustomer) {
+          await stripe.paymentMethods.detach(paymentMethod.id).catch((err) => console.warn('confirm-intent detach rejected card failed', err && err.code));
+        }
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            ok: false,
+            status: 'payment_method_not_eligible',
+            code: eligibility.reason,
+            error: 'Please use a standard bank debit or credit card to start your trial.',
+          }),
+        };
+      }
+
       const priceId = listingPriceId();
       const priceConfigError = await validateListingPrice(stripe, priceId);
       if (priceConfigError) {

@@ -270,6 +270,39 @@ async function runSubscriptionFailureDoesNotGrantAccess() {
   );
 }
 
+async function runIneligibleCardShowsErrorAndAcceptsANewCard() {
+  const notEligible = (code) => ({
+    ok: false,
+    json: async () => ({ ok: false, status: 'payment_method_not_eligible', code, error: 'Please use a standard bank debit or credit card to start your trial.' }),
+  });
+  for (const [code, message] of [
+    ['prepaid_not_supported', 'Please use a standard bank debit or credit card to start your free trial.'],
+    ['unsupported_card_funding', 'Please use a standard bank debit or credit card.'],
+  ]) {
+    const harness = createCheckoutHarness({
+      confirmSequence: [
+        notEligible(code),
+        { ok: true, json: async () => ({ ok: true, status: 'succeeded', subscriptionId: 'sub_checkout', subscriptionStatus: 'trialing', subscriptionAmount: 19.99, currency: 'USD' }) },
+      ],
+    });
+    const { elementsById, storage, mounted, requests } = harness;
+    await waitFor(() => mounted.length === 3 && elementsById.payBtn.disabled === false, 'card fields to mount');
+    elementsById.billingZip.value = '12345';
+    await elementsById.payBtn.listeners.click();
+
+    assert.equal(harness.confirmCalls, 1, 'an ineligible card is not retried');
+    assert.equal(elementsById.paymentError.textContent, message);
+    assert.equal(storage.rrn_flow_access_v1, undefined, 'no results access');
+    assert.equal(elementsById.payBtn.disabled, false);
+
+    // Customer enters a different card: a fresh SetupIntent, then the trial starts.
+    await elementsById.payBtn.listeners.click();
+    assert.equal(requests.filter((r) => String(r.url).includes('create-payment-intent')).length, 2);
+    assert.equal(harness.confirmCalls, 2);
+    assert.ok(storage.rrn_flow_access_v1, 'trial started with the new card');
+  }
+}
+
 async function runConfigUnavailableStopsCheckout() {
   const harness = createCheckoutHarness({ configUnavailable: true });
   const { elementsById, mounted } = harness;
@@ -283,6 +316,7 @@ async function runConfigUnavailableStopsCheckout() {
 async function run() {
   await runSuccessfulCheckout();
   await runSubscriptionFailureDoesNotGrantAccess();
+  await runIneligibleCardShowsErrorAndAcceptsANewCard();
   await runConfigUnavailableStopsCheckout();
 }
 

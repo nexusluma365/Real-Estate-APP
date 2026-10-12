@@ -214,8 +214,22 @@
   async function fetchJson(url, options){
     var res = await fetch(url, options);
     var data = await res.json().catch(function(){ return {}; });
-    if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || 'Request failed.');
+    if (!res.ok || !data || data.ok === false) {
+      var requestError = new Error((data && data.error) || 'Request failed.');
+      requestError.code = data && data.code;
+      requestError.status = data && data.status;
+      throw requestError;
+    }
     return data;
+  }
+
+  // The server checks the saved card with Stripe before starting the trial.
+  function cardNotEligibleError(err){
+    var notEligible = new Error(err && err.code === 'prepaid_not_supported'
+      ? 'Please use a standard bank debit or credit card to start your free trial.'
+      : 'Please use a standard bank debit or credit card.');
+    notEligible.isCardNotEligible = true;
+    return notEligible;
   }
 
   async function getStripePublishableKey(){
@@ -268,6 +282,8 @@
         if (isSubscriptionConfirmed(confirmed)) return confirmed;
         lastError = new Error(SUBSCRIPTION_RETRY_MESSAGE);
       } catch (err) {
+        // Not a temporary problem: retrying won't help, a different card will.
+        if (err && err.status === 'payment_method_not_eligible') throw cardNotEligibleError(err);
         lastError = err;
       }
       if (attempt < 3) await delay(attempt * 700);
@@ -558,6 +574,14 @@
       deferNavigation(function(){ window.location.href = RESULTS_URL; }, 800);
     } catch (error) {
       if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+      if (error && error.isCardNotEligible) {
+        // That card can't start the trial: the next attempt saves the new card
+        // the customer enters with a fresh SetupIntent.
+        setupSucceeded = false;
+        paymentClientSecret = '';
+        setupIntentId = '';
+        rrTrack('card_setup_failed', Object.assign(marketingContext(answers), { reason: 'card_not_eligible' }));
+      }
       if (error && error.isPaymentDecline) rrTrack('card_setup_failed', Object.assign(marketingContext(answers), { reason: 'card_error' }));
       rrTrack('checkout_payment_failed', Object.assign(marketingContext(answers), { reason: error && error.isPaymentDecline ? 'card_declined' : error && error.isSubscriptionRetryable ? 'subscription_confirmation_failed' : 'error' }));
       payInProgress = false;

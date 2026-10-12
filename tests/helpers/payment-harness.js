@@ -33,6 +33,7 @@ function createFakeStripe({ cards = {} } = {}) {
     authorizations: [],
     invoices: new Map(),
     invoicePayCalls: [],
+    detached: [],
   };
   const nextId = (prefix) => `${prefix}_${++state.seq}`;
 
@@ -233,7 +234,13 @@ function createFakeStripe({ cards = {} } = {}) {
       retrieve: async (id) => {
         const card = cards[id];
         if (!card) throw invalidRequest(`No such PaymentMethod: '${id}'`);
-        return { id, object: 'payment_method', customer: card.customer || null, card: { fingerprint: card.fingerprint || `fp_${id}`, funding: card.funding || 'credit' } };
+        if (card.pmType && card.pmType !== 'card') return { id, object: 'payment_method', type: card.pmType, customer: card.customer || null };
+        return { id, object: 'payment_method', type: 'card', customer: card.customer || null, card: { fingerprint: card.fingerprint || `fp_${id}`, funding: card.funding || 'credit', brand: 'visa', last4: '4242' } };
+      },
+      detach: async (id) => {
+        state.detached.push(id);
+        if (cards[id]) cards[id] = { ...cards[id], customer: null };
+        return { id, customer: null };
       },
     },
     invoices: {
