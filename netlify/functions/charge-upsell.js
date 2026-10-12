@@ -35,7 +35,7 @@ const { logFunnelEvent } = require('./_lib/funnel');
 const { sessionForLead } = require('./_lib/session');
 const { UPSELL_PRODUCTS, CURRENCY, productDef, ownsProduct } = require('./_lib/products');
 const { isVerifiedPayer } = require('./_lib/payer');
-const { fulfillUpsellPaymentIntent, idOf } = require('./_lib/fulfillment');
+const { fulfillUpsellPaymentIntent } = require('./_lib/fulfillment');
 const { describePaymentError, paymentErrorLogFields } = require('./_lib/payment-errors');
 const rateLimit = require('./_lib/rate-limit');
 
@@ -135,8 +135,11 @@ async function respondForIntent(stripe, pi, ctx) {
 
   if (pi.status === 'requires_payment_method' || pi.status === 'requires_confirmation') {
     const lastError = pi.last_payment_error;
-    const savedCardAlreadyFailed = !!lastError && idOf(lastError.payment_method) === savedPaymentMethod;
-    if (savedPaymentMethod && !savedCardAlreadyFailed && ctx.allowConfirm) {
+    // The saved card is tried once per purchase. After any failed attempt
+    // (the saved card, or a card typed into the form) the customer sees the
+    // latest real decline and the card form — never a stale reason, and the
+    // saved card is not hammered again.
+    if (savedPaymentMethod && !lastError && ctx.allowConfirm) {
       let confirmed;
       try {
         // On-session confirmation: no off_session flag. If the bank wants

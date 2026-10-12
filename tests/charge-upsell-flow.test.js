@@ -163,6 +163,20 @@ test('K/L: insufficient_funds is reported truthfully, nothing granted, saved car
   assert.equal(upsellCharges(h).length, 1);
 });
 
+test('after a typed card fails too, the latest real decline is shown — not the saved card\'s stale reason', async () => {
+  const { h, cookie } = await member();
+  h.stripe.cards.pm_saved = { ...h.stripe.cards.pm_saved, behavior: 'card_declined' };
+  h.stripe.cards.pm_broke = { behavior: 'insufficient_funds' };
+  const first = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie });
+  assert.equal(first.json.decline.code, 'card_declined');
+  h.stripe.browserConfirm(first.json.clientSecret, 'pm_broke');
+  const again = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie });
+  assert.equal(again.json.decline.code, 'insufficient_funds');
+  assert.equal(again.json.paymentIntentId, first.json.paymentIntentId);
+  assert.equal(h.stripe.state.confirmCalls.length, 1, 'saved card not retried');
+  assert.equal(upsellCharges(h).length, 0);
+});
+
 test('decline categories are kept distinct; API errors are never reported as bank declines', async () => {
   const cases = [
     ['card_declined', 'card_declined'],
