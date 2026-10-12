@@ -1,5 +1,11 @@
 // POST /.netlify/functions/create-subscription
-// Body: { leadId, plan, idempotencyKey }   plan: 'monthly'|'yearly'
+// Body: { plan, leadId? }   plan: 'monthly'|'yearly'
+//
+// Requires the signed 'paid' session cookie; the lead comes from the cookie
+// (a leadId in the body must match it). The idempotency key is derived on the
+// server per lead + plan + attempt window (see _lib/payment-attempts.js), and
+// the saved card is tried at most twice before the customer is asked to use a
+// different card.
 //
 // Real Stripe Subscriptions — not repeated manual one-time charges — so
 // recurring billing, retries, and cancellation are handled by Stripe.
@@ -8,6 +14,8 @@
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
+const { requireSession } = require('./_lib/session');
+const attempts = require('./_lib/payment-attempts');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -21,12 +29,17 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Invalid JSON body' }) };
   }
 
-  const { leadId, plan, idempotencyKey } = body;
+  const { plan } = body;
   const priceId = plan === 'yearly' ? process.env.STRIPE_PRICE_ANNUAL : plan === 'monthly' ? process.env.STRIPE_PRICE_MONTHLY : null;
 
-  if (!leadId || !priceId || !idempotencyKey) {
+  if (!priceId) {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing or invalid fields' }) };
   }
+
+  const auth = requireSession(event, { scope: 'paid', bodyLeadId: body.leadId });
+  if (auth.error) return auth.error;
+  const leadId = auth.leadId;
+  const attemptProduct = `membership_${plan}`;
 
   try {
     const entitlements = await getEntitlements(leadId);
@@ -39,6 +52,11 @@ exports.handler = async (event) => {
 
     if (entitlements.membershipStatus === 'active' && entitlements.membershipPlan === plan) {
       return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', alreadyOwned: true }) };
+    }
+
+    let attemptState = attempts.attemptState(entitlements, attemptProduct, entitlements.defaultPaymentMethodId);
+    if (attempts.blockedReason(attemptState)) {
+      return { statusCode: 200, body: JSON.stringify(attempts.failureResponse(attemptState)) };
     }
 
     const stripe = getStripe();
@@ -58,13 +76,14 @@ exports.handler = async (event) => {
         expand: ['latest_invoice.payment_intent'],
         metadata: { leadId, plan, ...manychatMetadata(manychatContactId) },
       },
-      { idempotencyKey: `${leadId}:membership:${idempotencyKey}` }
+      { idempotencyKey: attempts.idempotencyKey(leadId, attemptProduct, attemptState) }
     );
 
     const pi = subscription.latest_invoice && subscription.latest_invoice.payment_intent;
 
     if (pi && pi.status === 'succeeded') {
       await patchEntitlements(leadId, {
+        ...attempts.clearedAttemptsPatch(entitlements, attemptProduct),
         membershipStatus: 'active',
         membershipPlan: plan,
         stripeSubscriptionId: subscription.id,
@@ -92,7 +111,11 @@ exports.handler = async (event) => {
     } catch (_e) {
       /* best effort */
     }
-    return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'failed', message: 'We couldn\u2019t complete this purchase with your saved payment method.' }) };
+    const lastError = (pi && pi.last_payment_error) || {};
+    attemptState = attempts.afterFailure(attemptState, lastError.decline_code || lastError.code || 'declined');
+    await patchEntitlements(leadId, attempts.attemptsPatch(entitlements, attemptProduct, attemptState))
+      .catch((err) => console.error('create-subscription attempt save error', err));
+    return { statusCode: 200, body: JSON.stringify(attempts.failureResponse(attemptState)) };
   } catch (err) {
     console.error('create-subscription error', err);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: 'Could not process this membership.' }) };

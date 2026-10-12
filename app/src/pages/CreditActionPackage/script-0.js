@@ -133,6 +133,9 @@ async function handleCreditKitPurchase() {
     <div class="pay-error">We couldn't complete this purchase with your saved payment method.</div>
     <a class="small-link fade-in" href="#" onclick="skipCreditKit(event)">Continue Without This →</a>
   `;
+  const serverMessage = window.rrnLastChargeMessage ? rrnLastChargeMessage() : null;
+  const payErrorEl = errBox.querySelector('.pay-error');
+  if (serverMessage && payErrorEl) payErrorEl.textContent = serverMessage;
 }
 
 function pollForCreditKitCompletion(btn, originalLabel, errBox) {

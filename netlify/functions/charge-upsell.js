@@ -1,16 +1,30 @@
 // POST /.netlify/functions/charge-upsell
-// Body: { leadId, product, idempotencyKey }   product: 'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
+// Body: { product, leadId? }   product: 'modern'|'luxury'|'apartment_prep'|'gameplan'|'creditkit'
 //
 // This is the actual "one click" purchase: no card form, no redirect —
 // it charges the payment method saved during listing trial checkout. It only
 // runs when the customer presses the disclosed-price button on the page;
 // nothing here fires on page load, scroll, or navigation.
+//
+// Security / reliability rules:
+//  * Requires the signed 'paid' session cookie (issued by confirm-intent once
+//    the trial card is saved). The lead comes from that cookie; a leadId in
+//    the body is only accepted if it matches. A bare leadId is never enough.
+//  * Charged ON-SESSION (customer-initiated): the customer is on the page and
+//    clicked the button. If the bank wants 3-D Secure, we return
+//    requires_action and the page completes it with Stripe.js.
+//  * The idempotency key is derived on the server per lead + product +
+//    attempt window, so double clicks / two tabs can't double charge, and the
+//    saved card is tried at most twice (once on insufficient_funds) before
+//    the customer is asked to use a different card.
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
 const { determineFocus } = require('./_lib/focus');
 const { sendDownloadEmail } = require('./_lib/download-email');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
 const { logFunnelEvent } = require('./_lib/funnel');
+const { requireSession } = require('./_lib/session');
+const attempts = require('./_lib/payment-attempts');
 
 const PRODUCTS = {
   gameplan: { amount: 2000, field: 'paid27', label: 'RentReady Game Plan' },
@@ -77,6 +91,23 @@ async function recoverPrescreenEntitlements(stripe, leadId, prescreenPaymentInte
   }
 }
 
+function json(statusCode, body) {
+  return { statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) };
+}
+
+function alreadyOwned(entitlements, def) {
+  const hasField = entitlements[def.field] || (def.legacyField && entitlements[def.legacyField]);
+  return !!(hasField && (!def.category || (entitlements.purchasedCategories || []).includes(def.category)));
+}
+
+async function saveAttempts(leadId, entitlements, product, state) {
+  try {
+    await patchEntitlements(leadId, attempts.attemptsPatch(entitlements, product, state));
+  } catch (err) {
+    console.error('charge-upsell attempt save error', err);
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -86,14 +117,18 @@ exports.handler = async (event) => {
   try {
     body = JSON.parse(event.body || '{}');
   } catch (_e) {
-    return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Invalid JSON body' }) };
+    return json(400, { ok: false, error: 'Invalid JSON body' });
   }
 
-  const { leadId, product, idempotencyKey, prescreenPaymentIntentId } = body;
+  const { product, prescreenPaymentIntentId } = body;
   const def = PRODUCTS[product];
-  if (!leadId || !def || !idempotencyKey) {
-    return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing or invalid fields' }) };
+  if (!def) {
+    return json(400, { ok: false, error: 'Missing or invalid fields' });
   }
+
+  const auth = requireSession(event, { scope: 'paid', bodyLeadId: body.leadId });
+  if (auth.error) return auth.error;
+  const leadId = auth.leadId;
 
   try {
     let entitlements = await getEntitlements(leadId);
@@ -110,17 +145,13 @@ exports.handler = async (event) => {
     }
 
     if (!entitlements.paid10 || !entitlements.stripeCustomerId || !entitlements.defaultPaymentMethodId) {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({ ok: false, error: 'Complete the listing access checkout before this step.' }),
-      };
+      return json(403, { ok: false, error: 'Complete the listing access checkout before this step.' });
     }
 
     // Already-purchased is a no-op success, not a second charge. A customer
     // can own more than one apartment category, so this checks membership
     // in the full set, not equality against the single most-recent one.
-    const alreadyHasField = entitlements[def.field] || (def.legacyField && entitlements[def.legacyField]);
-    if (alreadyHasField && (!def.category || (entitlements.purchasedCategories || []).includes(def.category))) {
+    if (alreadyOwned(entitlements, def)) {
       if (def.category && def.sendDownloadEmail !== false) {
         try {
           await sendDownloadEmail(leadId, def.category);
@@ -128,7 +159,7 @@ exports.handler = async (event) => {
           console.error('charge-upsell download email error', err);
         }
       }
-      return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', alreadyOwned: true }) };
+      return json(200, { ok: true, status: 'succeeded', alreadyOwned: true });
     }
 
     // Server-side relevance guard for the conditional $97 offer — a
@@ -136,63 +167,93 @@ exports.handler = async (event) => {
     // answers don't indicate a credit/history issue worth reviewing.
     if (product === 'creditkit') {
       if (!lead || determineFocus(lead) !== 'credit') {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({ ok: false, error: 'This offer is not relevant to your results.' }),
-        };
+        return json(400, { ok: false, error: 'This offer is not relevant to your results.' });
       }
     }
 
-    let pi;
-    try {
-      const paymentIntentPayload = {
-        amount: def.amount,
-        currency: 'usd',
-        customer: entitlements.stripeCustomerId,
-        payment_method: entitlements.defaultPaymentMethodId,
-        payment_method_types: ['card'],
-        payment_method_options: { card: { request_three_d_secure: 'automatic' } },
-        confirm: true,
-        description: def.label,
-        receipt_email: receiptEmailFromLead(lead),
-        metadata: { leadId, product, category: def.category || '', ...manychatMetadata(manychatContactId) },
-      };
-      if (product !== 'apartment_prep') {
-        paymentIntentPayload.off_session = true;
+    // Retry cap: don't keep hitting a card the bank has already refused.
+    let attemptState = attempts.attemptState(entitlements, product, entitlements.defaultPaymentMethodId);
+    if (attempts.blockedReason(attemptState)) {
+      await logFunnelEvent('upsell_blocked', { lead_id: leadId, detail: { product, reason: attempts.blockedReason(attemptState) } });
+      return json(200, attempts.failureResponse(attemptState));
+    }
+
+    let pi = null;
+
+    // A previous click needed 3-D Secure. Look at where that payment ended
+    // up instead of replaying the cached "requires_action" response forever.
+    if (attemptState.pendingPaymentIntentId) {
+      const pending = await stripe.paymentIntents.retrieve(attemptState.pendingPaymentIntentId).catch(() => null);
+      if (pending && pending.status === 'requires_action') {
+        return json(200, { ok: true, status: 'requires_action', clientSecret: pending.client_secret, paymentIntentId: pending.id });
       }
-      pi = await stripe.paymentIntents.create(
-        paymentIntentPayload,
-        { idempotencyKey: `${leadId}:${product}:${idempotencyKey}` }
-      );
-    } catch (err) {
-      if (err.code === 'authentication_required' && err.raw && err.raw.payment_intent) {
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            ok: true,
-            status: 'requires_action',
-            clientSecret: err.raw.payment_intent.client_secret,
-            paymentIntentId: err.raw.payment_intent.id,
-          }),
-        };
+      if (pending && pending.status === 'processing') {
+        return json(200, { ok: true, status: 'processing', paymentIntentId: pending.id });
       }
-      const declineDetails = safeDeclineLog(err, product, def, leadId);
-      console.error('charge-upsell decline', declineDetails);
-      await logFunnelEvent('upsell_failed', { lead_id: leadId, detail: { product, reason: safeDeclineReason(err), amount: def.amount } });
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          ok: true,
-          status: 'failed',
-          message: product === 'apartment_prep'
-            ? 'We couldn\u2019t complete the $20 purchase with this card.'
-            : 'We couldn\u2019t complete this purchase with your saved payment method.',
-        }),
-      };
+      if (pending && pending.status === 'succeeded') {
+        // Paid after authentication — grant it below, never charge again.
+        pi = pending;
+      } else {
+        const pendingError = (pending && pending.last_payment_error) || {};
+        attemptState = attempts.afterFailure(
+          { ...attemptState, pendingPaymentIntentId: null },
+          pendingError.decline_code || (pendingError.code === 'payment_intent_authentication_failure' ? 'authentication_failed' : pendingError.code) || 'authentication_failed'
+        );
+        await saveAttempts(leadId, entitlements, product, attemptState);
+        if (attempts.blockedReason(attemptState)) {
+          return json(200, attempts.failureResponse(attemptState));
+        }
+      }
+    }
+
+    if (!pi) {
+      try {
+        pi = await stripe.paymentIntents.create(
+          {
+            amount: def.amount,
+            currency: 'usd',
+            customer: entitlements.stripeCustomerId,
+            payment_method: entitlements.defaultPaymentMethodId,
+            payment_method_types: ['card'],
+            payment_method_options: { card: { request_three_d_secure: 'automatic' } },
+            confirm: true,
+            description: def.label,
+            receipt_email: receiptEmailFromLead(lead),
+            metadata: { leadId, product, category: def.category || '', ...manychatMetadata(manychatContactId) },
+          },
+          { idempotencyKey: attempts.idempotencyKey(leadId, product, attemptState) }
+        );
+      } catch (err) {
+        // Same click arriving twice while the first is still running.
+        if (err && (err.type === 'StripeIdempotencyError' || (err.raw && err.raw.type === 'idempotency_error'))) {
+          return json(200, { ok: true, status: 'processing' });
+        }
+        const intent = (err && err.raw && err.raw.payment_intent) || (err && err.payment_intent);
+        if (err.code === 'authentication_required' && intent && intent.client_secret) {
+          await saveAttempts(leadId, entitlements, product, { ...attemptState, pendingPaymentIntentId: intent.id });
+          return json(200, { ok: true, status: 'requires_action', clientSecret: intent.client_secret, paymentIntentId: intent.id });
+        }
+        const isCardError = !!(err && (
+          err.type === 'StripeCardError' ||
+          (err.raw && err.raw.type === 'card_error') ||
+          err.code === 'card_declined' ||
+          err.decline_code
+        ));
+        const declineDetails = safeDeclineLog(err, product, def, leadId);
+        console.error('charge-upsell decline', declineDetails);
+        await logFunnelEvent('upsell_failed', { lead_id: leadId, detail: { product, reason: safeDeclineReason(err), amount: def.amount } });
+        if (!isCardError) {
+          // Stripe/API problem, not the customer's card: don't burn an attempt.
+          return json(200, { ok: true, status: 'failed', reason: 'error', message: 'We couldn’t reach the payment processor. Please try again in a moment.' });
+        }
+        attemptState = attempts.afterFailure(attemptState, attempts.declineCodeFromError(err));
+        await saveAttempts(leadId, entitlements, product, attemptState);
+        return json(200, attempts.failureResponse(attemptState));
+      }
     }
 
     if (pi.status === 'succeeded') {
-      const patch = { [def.field]: true };
+      const patch = { [def.field]: true, ...attempts.clearedAttemptsPatch(entitlements, product) };
       if (def.legacyField) patch[def.legacyField] = true;
       if (manychatContactId) {
         patch.manychat_contact_id = manychatContactId;
@@ -214,23 +275,24 @@ exports.handler = async (event) => {
         }
       }
       await logFunnelEvent('upsell_paid', { lead_id: leadId, payment_id: pi.id, amount: def.amount / 100, detail: { product } });
-      return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', paymentIntentId: pi.id, warning }) };
+      return json(200, { ok: true, status: 'succeeded', paymentIntentId: pi.id, warning });
     }
 
     if (pi.status === 'requires_action') {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ ok: true, status: 'requires_action', clientSecret: pi.client_secret, paymentIntentId: pi.id }),
-      };
+      await saveAttempts(leadId, entitlements, product, { ...attemptState, pendingPaymentIntentId: pi.id });
+      return json(200, { ok: true, status: 'requires_action', clientSecret: pi.client_secret, paymentIntentId: pi.id });
     }
 
     if (pi.status === 'processing') {
-      return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'processing', paymentIntentId: pi.id }) };
+      return json(200, { ok: true, status: 'processing', paymentIntentId: pi.id });
     }
 
-    return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'failed' }) };
+    const lastError = pi.last_payment_error || {};
+    attemptState = attempts.afterFailure(attemptState, lastError.decline_code || lastError.code || 'declined');
+    await saveAttempts(leadId, entitlements, product, attemptState);
+    return json(200, attempts.failureResponse(attemptState));
   } catch (err) {
     console.error('charge-upsell error', err);
-    return { statusCode: 500, body: JSON.stringify({ ok: false, error: 'Could not process this purchase.' }) };
+    return json(500, { ok: false, error: 'Could not process this purchase.' });
   }
 };

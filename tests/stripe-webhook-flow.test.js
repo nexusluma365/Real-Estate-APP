@@ -211,6 +211,34 @@ async function run() {
     body: prepJson,
   });
   assert.deepEqual(prepAlreadyHandled.downloadEmailCalls, []);
+
+  // A /membership subscription (plan monthly|yearly) must update only the
+  // membership fields, never the listing trial's status or subscription ID.
+  const membershipPatches = [];
+  const membershipEvent = (type, status) => loadHandler({
+    constructEvent: () => ({
+      type,
+      data: { object: { id: 'sub_member', status, customer: 'cus_m', metadata: { leadId: 'lead_member', plan: 'monthly' } } },
+    }),
+    patchEntitlements: async (leadId, patch) => { membershipPatches.push({ leadId, patch }); return patch; },
+    entitlements: { paid10: true, listingSubscriptionId: 'sub_listing', listingSubscriptionStatus: 'trialing' },
+  });
+  const updatedRes = await membershipEvent('customer.subscription.updated', 'active').handler({
+    httpMethod: 'POST', headers: { 'stripe-signature': 'test_sig' }, body: '{}',
+  });
+  assert.equal(updatedRes.statusCode, 200);
+  const deletedRes = await membershipEvent('customer.subscription.deleted', 'canceled').handler({
+    httpMethod: 'POST', headers: { 'stripe-signature': 'test_sig' }, body: '{}',
+  });
+  assert.equal(deletedRes.statusCode, 200);
+  assert.deepEqual(membershipPatches, [
+    { leadId: 'lead_member', patch: { membershipStatus: 'active', membershipPlan: 'monthly', stripeSubscriptionId: 'sub_member' } },
+    { leadId: 'lead_member', patch: { membershipStatus: 'inactive', membershipPlan: 'monthly', stripeSubscriptionId: 'sub_member' } },
+  ]);
+  membershipPatches.forEach(({ patch }) => {
+    assert.equal(patch.listingSubscriptionStatus, undefined);
+    assert.equal(patch.listingAccessStatus, undefined);
+  });
 }
 
 run()

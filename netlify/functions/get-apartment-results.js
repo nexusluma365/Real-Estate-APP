@@ -101,16 +101,35 @@ function parseRequest(event) {
   const token = body.token || q.token;
   const preview = body.preview === true || body.preview === '1' || q.preview === '1';
 
+  let previewTokenOnly = false;
   if (token) {
     const data = verify(token);
-    if (!data || data.product !== 'apartment-results') {
+    if (data && data.product === 'apartment-results-preview' && data.leadId) {
+      // Short-lived token from the returning-renter email lookup. It can only
+      // ever show the blurred preview, never unlocked listings, and the
+      // response never echoes the underlying lead id.
+      leadId = data.leadId;
+      category = normalizeResultsCategory(data.category);
+      previewTokenOnly = true;
+    } else if (!data || data.product !== 'apartment-results') {
       return { error: json(403, { ok: false, error: 'This link has expired. Request a new one from the site.' }) };
+    } else {
+      leadId = data.leadId;
+      category = normalizeResultsCategory(data.category);
     }
-    leadId = data.leadId;
-    category = normalizeResultsCategory(data.category);
   }
 
-  return { leadId, category, upsellPaymentIntentId, prescreenPaymentIntentId, answers, fallbackCriteria, requestCriteria, searchOverride, preview };
+  return {
+    leadId,
+    category,
+    upsellPaymentIntentId: previewTokenOnly ? '' : upsellPaymentIntentId,
+    prescreenPaymentIntentId: previewTokenOnly ? '' : prescreenPaymentIntentId,
+    answers: previewTokenOnly ? null : answers,
+    fallbackCriteria: previewTokenOnly ? null : fallbackCriteria,
+    requestCriteria: previewTokenOnly ? null : requestCriteria,
+    searchOverride: previewTokenOnly ? null : searchOverride,
+    preview: previewTokenOnly ? PREVIEW_TOKEN_ONLY : preview,
+  };
 }
 
 function normalizeResultsCategory(value) {
@@ -250,7 +269,13 @@ exports.handler = async (event) => {
 };
 
 
+const PREVIEW_TOKEN_ONLY = 'preview_token_only';
+
 function previewResponse(payload, preview) {
+  if (payload && preview === PREVIEW_TOKEN_ONLY) {
+    const { leadId: _hiddenLeadId, ...withoutLead } = payload;
+    return previewResponse(withoutLead, true);
+  }
   if (!payload || !Array.isArray(payload.properties)) return payload;
   if (!preview) {
     return {

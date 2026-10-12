@@ -8,6 +8,7 @@
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const { getEntitlements, getLead } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
+const { sessionOwnsLead } = require('./_lib/session');
 const { creditTier, incomeMeetsBenchmark } = require('./_lib/focus');
 
 const TIMELINE_LABELS = {
@@ -41,6 +42,9 @@ exports.handler = async (event) => {
       return { statusCode: 403, body: 'This link has expired. Request a new one from the site.' };
     }
     leadId = data.leadId;
+  } else if (leadId && !sessionOwnsLead(event, leadId)) {
+    // The PDF holds the renter's answers; a bare leadId is not enough.
+    return { statusCode: 401, body: 'Your session has expired. Reopen your RentReady email link to download your results.' };
   }
 
   if (!leadId) {

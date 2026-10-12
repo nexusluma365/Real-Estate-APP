@@ -161,6 +161,8 @@
       try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', city }); } catch (_e) {}
       sheetTitle.textContent = "We Couldn’t Complete Your Upgrade Yet.";
       showSheetMessage(`Returning you to your RentReady listings. You can retry Modern Apartment Listings for ${city} when you’re ready.`);
+      const serverMessage = window.rrnLastChargeMessage ? rrnLastChargeMessage() : null;
+      if (serverMessage) showSheetMessage(serverMessage);
       sheetConfirm.textContent = originalConfirmText;
       sheetConfirm.disabled = false;
       sheetConfirm.dataset.busy = '0';
@@ -169,7 +171,7 @@
       sheetScrim.classList.add('open');
       setTimeout(() => {
         window.location.href = realEstateListUrl();
-      }, 1800);
+      }, serverMessage ? 4500 : 1800);
     }
 
     function showSheetMessage(message) {

@@ -664,6 +664,7 @@ function redirectRegisteredEmailLead(lead) {
   grantRegisteredListingAccess(category, payload.preferred_city);
   const params = new URLSearchParams({ category });
   if (payload.lead_id) params.set('leadId', payload.lead_id);
+  else if (existing.preview_token) params.set('token', existing.preview_token);
   if (payload.preferred_city) params.set('city', payload.preferred_city);
   // REGISTERED_EMAIL_REDIRECT_URL already carries a query string
   // (?preview=1), so append with "&" — a second "?" corrupted the preview flag

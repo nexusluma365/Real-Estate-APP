@@ -4,8 +4,16 @@
 // Kept at the legacy endpoint name so the existing checkout page does not
 // need a routing rewrite. It creates a SetupIntent to collect a valid card
 // with $0 due today. The actual trial subscription is created only after
-// Stripe confirms that SetupIntent.
+// Stripe confirms that SetupIntent (and the card passes screening — see
+// _lib/card-screening.js and confirm-intent.js).
+//
+// Requires the signed session cookie for this lead (issued by submit-lead or
+// a signed email link). The only exception is a brand-new lead that has never
+// been claimed and has no card/payment on file (e.g. the questionnaire's save
+// request failed on a bad connection) — that lead is claimed here, and the
+// cookie is issued, so nobody else can use it afterwards.
 const { getStripe } = require('./_lib/stripe');
+const { readSession, issueSessionCookie, withCookie } = require('./_lib/session');
 const { saveLead, getLead, getEntitlements, patchEntitlements } = require('./_lib/store');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
@@ -47,6 +55,14 @@ function listingPriceId() {
   ).trim();
 }
 
+const REUSABLE_SETUP_STATUSES = new Set(['requires_payment_method', 'requires_confirmation', 'requires_action']);
+
+function canBootstrapLead(existingLead, entitlements) {
+  if (!existingLead) return true;
+  const e = entitlements || {};
+  return !e.sessionClaimedAt && !e.paid10 && !e.defaultPaymentMethodId;
+}
+
 async function findCustomerByLeadId(stripe, leadId) {
   try {
     const existing = await stripe.customers.search({
@@ -85,9 +101,32 @@ exports.handler = async (event) => {
   }
 
   try {
-    const stripe = getStripe();
     const existingLead = await getLead(normalizedLeadId).catch(() => null);
     const existingEntitlements = await getEntitlements(normalizedLeadId).catch(() => null);
+
+    const session = readSession(event);
+    const ownsLead = !!(session && session.leadId === normalizedLeadId);
+    if (!ownsLead && !canBootstrapLead(existingLead, existingEntitlements)) {
+      return {
+        statusCode: 401,
+        body: JSON.stringify({
+          ok: false,
+          code: 'session_required',
+          error: 'Your secure session has expired. Please reopen your RentReady link or start again.',
+        }),
+      };
+    }
+    const sessionCookie = issueSessionCookie(event, normalizedLeadId, 'lead');
+
+    if (existingEntitlements && existingEntitlements.paid10 &&
+        ['active', 'trialing'].includes(String(existingEntitlements.listingSubscriptionStatus || '').toLowerCase())) {
+      return withCookie({
+        statusCode: 409,
+        body: JSON.stringify({ ok: false, code: 'already_active', error: 'Your RentReady access is already active.' }),
+      }, sessionCookie);
+    }
+
+    const stripe = getStripe();
     const manychatContactId = normalizeManyChatContactId(
       (answers && (answers.manychat_contact_id || answers.manychatContactId)) ||
       (existingLead && existingLead.manychat_contact_id)
@@ -116,15 +155,46 @@ exports.handler = async (event) => {
       });
     }
 
-    const setupIntent = await stripe.setupIntents.create(
-      {
+    // Reuse this lead's still-open SetupIntent (page refresh), but never one
+    // that already finished or whose card was rejected — the old fixed
+    // idempotency key handed back the same completed SetupIntent forever, so
+    // a customer could not switch to a different card.
+    const previousSetupIntentId = existingEntitlements && existingEntitlements.listingSetupIntentId;
+    let setupIntent = null;
+    if (previousSetupIntentId) {
+      const previous = await stripe.setupIntents.retrieve(previousSetupIntentId).catch(() => null);
+      if (
+        previous &&
+        REUSABLE_SETUP_STATUSES.has(previous.status) &&
+        previous.customer === customer.id &&
+        previous.id !== (existingEntitlements && existingEntitlements.rejectedSetupIntentId)
+      ) {
+        setupIntent = previous;
+      }
+    }
+    if (!setupIntent) {
+      // Key on the last SetupIntent this lead used (open, finished, or
+      // rejected) so simultaneous requests share one SetupIntent, while every
+      // new card attempt after a rejection gets a brand-new one.
+      const lastSetupIntentId =
+        previousSetupIntentId ||
+        (existingEntitlements && existingEntitlements.rejectedSetupIntentId) ||
+        'none';
+      const setupPayload = {
         customer: customer.id,
         payment_method_types: ['card'],
         usage: 'off_session',
         metadata: { ...metadata, product: 'listing_membership', plan: 'trial_then_monthly' },
-      },
-      { idempotencyKey: `${normalizedLeadId}:listing-setup-intent:trial-v1` }
-    );
+      };
+      setupIntent = await stripe.setupIntents.create(
+        setupPayload,
+        { idempotencyKey: `${normalizedLeadId}:listing-setup-intent:after-${lastSetupIntentId}` }
+      );
+      if (!REUSABLE_SETUP_STATUSES.has(setupIntent.status)) {
+        // Defensive: never hand the browser a SetupIntent that is already used.
+        setupIntent = await stripe.setupIntents.create(setupPayload);
+      }
+    }
     if (!setupIntent || !setupIntent.client_secret) {
       throw new Error('Stripe did not return a setup client secret.');
     }
@@ -137,6 +207,7 @@ exports.handler = async (event) => {
         await saveLead(normalizedLeadId, { ...answers, email: normalizedEmail, ...(manychatContactId ? { manychat_contact_id: manychatContactId } : {}) });
       }
       await patchEntitlements(normalizedLeadId, {
+        ...(!(existingEntitlements && existingEntitlements.sessionClaimedAt) ? { sessionClaimedAt: new Date().toISOString() } : {}),
         stripeCustomerId: customer.id,
         listingSetupIntentId: setupIntent.id,
         listingSubscriptionStatus: 'setup_pending',
@@ -147,7 +218,7 @@ exports.handler = async (event) => {
       console.warn('pre-payment lead save failed', err);
     }
 
-    return {
+    return withCookie({
       statusCode: 200,
       body: JSON.stringify({
         ok: true,
@@ -155,7 +226,7 @@ exports.handler = async (event) => {
         setupIntentId: setupIntent.id,
         intentType: 'setup',
       }),
-    };
+    }, sessionCookie);
   } catch (err) {
     console.error('create-payment-intent error', err);
     const message = err && err.message ? err.message : '';

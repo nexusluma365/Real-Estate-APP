@@ -20,8 +20,28 @@ const { logFunnelEvent } = require('./_lib/funnel');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
 
+// create-subscription.js tags /membership subscriptions with plan
+// 'monthly'|'yearly'; the listing trial uses 'trial_then_monthly'. Membership
+// events must never overwrite the listing subscription's status/ID.
+function isMembershipSubscription(subscription) {
+  const plan = subscription && subscription.metadata && subscription.metadata.plan;
+  return plan === 'monthly' || plan === 'yearly';
+}
+
+async function syncMembershipSubscription(subscription) {
+  const metadata = subscription.metadata || {};
+  if (!metadata.leadId) return;
+  const status = String(subscription.status || '').toLowerCase();
+  await patchEntitlements(metadata.leadId, {
+    membershipStatus: status === 'active' || status === 'trialing' ? 'active' : 'inactive',
+    membershipPlan: metadata.plan,
+    stripeSubscriptionId: subscription.id,
+  });
+}
+
 async function syncListingSubscription(stripe, subscription, options = {}) {
   if (!subscription || !subscription.id) return;
+  if (isMembershipSubscription(subscription)) return syncMembershipSubscription(subscription);
   const metadata = subscription.metadata || {};
   const leadId = metadata.leadId;
   if (!leadId) return;
@@ -141,7 +161,9 @@ exports.handler = async (event) => {
       case 'customer.subscription.deleted': {
         const sub = stripeEvent.data.object;
         const leadId = sub.metadata && sub.metadata.leadId;
-        if (leadId) {
+        if (leadId && isMembershipSubscription(sub)) {
+          await syncMembershipSubscription(sub);
+        } else if (leadId) {
           await patchEntitlements(leadId, {
             ...subscriptionStatusPatch(sub),
             listingSubscriptionStatus: sub.status || 'canceled',

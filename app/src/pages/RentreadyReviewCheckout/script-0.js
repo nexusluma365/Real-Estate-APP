@@ -182,7 +182,7 @@
     if (code === 'incorrect_number' || code === 'invalid_number') return 'Check your card number and try again.';
     if (code === 'processing_error') return "We couldn't process this card. Please try again.";
     if (code === 'card_declined' || code === 'generic_decline' || code === 'do_not_honor') return "This card couldn't be verified. Try another card.";
-    if (code === 'insufficient_funds') return 'This card was declined. Try another card.';
+    if (code === 'insufficient_funds') return "This card doesn't have enough available funds. Please try a different card.";
     return "We couldn't verify your card. Please check your information and try again.";
   }
 
@@ -266,8 +266,21 @@
           }),
         });
         if (isSubscriptionConfirmed(confirmed)) return confirmed;
+        if (confirmed && confirmed.status === 'card_rejected') {
+          // The server screened the saved card (prepaid / no available funds /
+          // declined $1 check). Start over with a fresh card setup instead of
+          // retrying the same card.
+          setupSucceeded = false;
+          paymentClientSecret = '';
+          setupIntentId = '';
+          var rejected = new Error(confirmed.message || 'Your bank declined this card. Please try a different card.');
+          rejected.isPaymentDecline = true;
+          rejected.isCardRejected = true;
+          throw rejected;
+        }
         lastError = new Error(SUBSCRIPTION_RETRY_MESSAGE);
       } catch (err) {
+        if (err && err.isCardRejected) throw err;
         lastError = err;
       }
       if (attempt < 3) await delay(attempt * 700);
@@ -408,6 +421,12 @@
         }
       } catch (err) {
         showSetupNote(err.message || 'This secure access link could not be verified.');
+        if (!answers.lead_id) {
+          // Keep the explanation on screen (e.g. "open the link in your
+          // welcome email") instead of bouncing to the start page.
+          if (btn) btn.disabled = true;
+          return;
+        }
       }
     }
     if (!answers.lead_id) {

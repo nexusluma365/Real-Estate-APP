@@ -219,6 +219,8 @@
       const city = selectedCity();
       try { rrnGrantFlowAccess('apartment-list', { status: 'upsell-declined', city }); } catch (_e) {}
       showPaymentStatus('failed');
+      const serverMessage = window.rrnLastChargeMessage ? rrnLastChargeMessage() : null;
+      if (serverMessage) sheetSub.textContent = serverMessage;
       sheetConfirm.textContent = originalConfirmText;
       sheetConfirm.disabled = false;
       sheetConfirm.dataset.busy = '0';
@@ -227,7 +229,7 @@
       sheetScrim.classList.add('open');
       setTimeout(() => {
         window.location.href = realEstateListUrl();
-      }, 1800);
+      }, serverMessage ? 4500 : 1800);
     }
 
     function showSheetMessage(message) {

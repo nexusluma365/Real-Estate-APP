@@ -1,4 +1,6 @@
 const assert = require('assert');
+const { withSession, sessionFromSetCookie } = require('./_session-helper');
+const { verify } = require('../netlify/functions/_lib/sign');
 
 function loadHandler(options = {}) {
   const storePath = require.resolve('../netlify/functions/_lib/store');
@@ -7,6 +9,7 @@ function loadHandler(options = {}) {
 
   const savedLeads = [];
   const lookedUpEmails = [];
+  const entitlementPatches = [];
   require.cache[storePath] = {
     id: storePath,
     filename: storePath,
@@ -17,6 +20,11 @@ function loadHandler(options = {}) {
         (async (leadId, answers) => {
           savedLeads.push({ leadId, answers });
         }),
+      getLead: options.getLead || (async () => null),
+      patchEntitlements: async (leadId, patch) => {
+        entitlementPatches.push({ leadId, patch });
+        return patch;
+      },
       getLeadByEmail:
         options.getLeadByEmail ||
         (async (email) => {
@@ -26,7 +34,7 @@ function loadHandler(options = {}) {
     },
   };
 
-  return { handler: require('../netlify/functions/submit-lead').handler, savedLeads, lookedUpEmails };
+  return { handler: require('../netlify/functions/submit-lead').handler, savedLeads, lookedUpEmails, entitlementPatches };
 }
 
 async function run() {
@@ -107,8 +115,48 @@ async function run() {
     assert.equal(registeredEmailRes.statusCode, 200);
     assert.equal(registeredEmailBody.ok, true);
     assert.equal(registeredEmailBody.registered, true);
-    assert.equal(registeredEmailBody.lead.lead_id, 'lead_existing');
+    // The lookup is unauthenticated: it must never reveal the lead_id.
+    assert.equal(registeredEmailBody.lead.lead_id, undefined);
+    assert.ok(!JSON.stringify(registeredEmailBody).includes('lead_existing'));
+    const previewToken = verify(registeredEmailBody.lead.preview_token);
+    assert.equal(previewToken.product, 'apartment-results-preview');
     assert.equal(registeredEmail.savedLeads.length, 0);
+
+    // The browser that already owns the lead (holds its session) gets it back.
+    const ownerLookup = loadHandler({
+      getLeadByEmail: async (email) => ({ lead_id: 'lead_existing', email }),
+    });
+    const ownerLookupBody = JSON.parse((await ownerLookup.handler(withSession({
+      httpMethod: 'POST',
+      body: JSON.stringify({ lookupOnly: true, email: 'renter@example.com' }),
+    }, 'lead_existing', 'lead'))).body);
+    assert.equal(ownerLookupBody.lead.lead_id, 'lead_existing');
+    assert.equal(ownerLookupBody.lead.preview_token, undefined);
+
+    // New lead -> saved, claimed, and a 'lead' session cookie is issued.
+    assert.equal(sessionFromSetCookie(missingSheetsRes).leadId, 'lead_123');
+    assert.equal(sessionFromSetCookie(missingSheetsRes).scope, 'lead');
+    assert.ok(missingSheets.entitlementPatches[0].patch.sessionClaimedAt);
+
+    // Existing lead + no session -> refused, nothing overwritten.
+    const hijack = loadHandler({ getLead: async (id) => ({ lead_id: id, email: 'victim@example.com', credit_score: '750_plus' }) });
+    const hijackRes = await hijack.handler({
+      httpMethod: 'POST',
+      body: JSON.stringify({ lead_id: 'lead_victim', email: 'attacker@example.com', credit_score: 'under_580' }),
+    });
+    assert.equal(hijackRes.statusCode, 403);
+    assert.equal(JSON.parse(hijackRes.body).code, 'lead_exists');
+    assert.equal(hijack.savedLeads.length, 0);
+
+    // Existing lead + its own session -> update allowed.
+    const ownerUpdate = loadHandler({ getLead: async (id) => ({ lead_id: id, email: 'owner@example.com' }) });
+    const ownerUpdateRes = await ownerUpdate.handler(withSession({
+      httpMethod: 'POST',
+      body: JSON.stringify({ lead_id: 'lead_owner', email: 'owner@example.com', preferred_city: 'Austin, TX' }),
+    }, 'lead_owner', 'lead'));
+    assert.equal(ownerUpdateRes.statusCode, 200);
+    assert.equal(ownerUpdate.savedLeads.length, 1);
+    assert.equal(ownerUpdate.entitlementPatches.length, 0, 'existing lead is not re-claimed');
 
     const invalidEmail = loadHandler();
     const invalidEmailRes = await invalidEmail.handler({

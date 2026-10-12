@@ -13,6 +13,8 @@ const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
 const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
 const { logFunnelEvent } = require('./_lib/funnel');
+const { requireSession, issueSessionCookie, withCookie } = require('./_lib/session');
+const { screenTrialCard } = require('./_lib/card-screening');
 
 const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
 
@@ -51,8 +53,14 @@ async function validateListingPrice(stripe, priceId) {
   if (price.active === false) {
     return 'STRIPE_LISTING_PRICE_MONTHLY points to an inactive Stripe Price.';
   }
-  if (price.livemode !== true) {
+  // The Price must be in the same mode as STRIPE_SECRET_KEY: live keys need a
+  // live Price, and sk_test_ keys (staging / Stripe test cards) a test Price.
+  const testKey = String(process.env.STRIPE_SECRET_KEY || '').startsWith('sk_test_');
+  if (!testKey && price.livemode !== true) {
     return 'STRIPE_LISTING_PRICE_MONTHLY must point to a live-mode Stripe Price.';
+  }
+  if (testKey && price.livemode !== false) {
+    return 'STRIPE_SECRET_KEY is a test key, so STRIPE_LISTING_PRICE_MONTHLY must point to a test-mode Stripe Price.';
   }
   if (!price.recurring) {
     return 'STRIPE_LISTING_PRICE_MONTHLY must point to a recurring monthly Price, not a one-time Price.';
@@ -111,6 +119,11 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing or invalid fields' }) };
   }
 
+  // The trial checkout needs the lead session; finishing a 3-D Secure upsell
+  // payment needs the paid session that charge-upsell itself required.
+  const auth = requireSession(event, { scope: product === 'prescreen' ? 'lead' : 'paid', bodyLeadId: leadId });
+  if (auth.error) return auth.error;
+
   try {
     const stripe = getStripe();
     if (setupIntentId) {
@@ -129,6 +142,77 @@ exports.handler = async (event) => {
       if (setupIntent.status !== 'succeeded') {
         return { statusCode: 200, body: JSON.stringify({ ok: true, status: setupIntent.status || 'failed' }) };
       }
+
+      const priorEntitlements = await getEntitlements(leadId);
+
+      // Retries of the same confirmation (the checkout page retries up to 3x)
+      // must never start a second trial subscription.
+      if (
+        priorEntitlements.listingSetupIntentConfirmedId === setupIntent.id &&
+        priorEntitlements.listingSubscriptionId &&
+        hasActiveListingAccess(priorEntitlements)
+      ) {
+        return withCookie({
+          statusCode: 200,
+          body: JSON.stringify({
+            ok: true,
+            status: 'succeeded',
+            subscriptionId: priorEntitlements.listingSubscriptionId,
+            subscriptionStatus: priorEntitlements.listingSubscriptionStatus,
+            entitlements: priorEntitlements,
+            alreadyConfirmed: true,
+          }),
+        }, issueSessionCookie(event, leadId, 'paid'));
+      }
+
+      // Card screening: block prepaid cards and run a $1 authorization that is
+      // cancelled immediately, so cards with no available funds are caught
+      // here — where the customer can enter another card — instead of at the
+      // first real charge.
+      if (priorEntitlements.rejectedSetupIntentId === setupIntent.id) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            ok: true,
+            status: 'card_rejected',
+            reason: priorEntitlements.cardRejectReason || 'declined',
+            useDifferentCard: true,
+            message: priorEntitlements.cardRejectMessage || 'Your bank declined this card. Please try a different card.',
+          }),
+        };
+      }
+      const screening = await screenTrialCard(stripe, {
+        leadId,
+        customerId: setupIntent.customer,
+        paymentMethodId: setupIntent.payment_method,
+        setupIntentId: setupIntent.id,
+      });
+      if (!screening.ok) {
+        if (setupIntent.payment_method) {
+          await stripe.paymentMethods.detach(setupIntent.payment_method).catch((err) =>
+            console.error('confirm-intent detach rejected card error', err.code || err.message));
+        }
+        await patchEntitlements(leadId, {
+          rejectedSetupIntentId: setupIntent.id,
+          cardRejectReason: screening.reason,
+          cardRejectMessage: screening.message,
+          listingSetupIntentId: null,
+          listingSubscriptionStatus: hasActiveListingAccess(priorEntitlements) ? priorEntitlements.listingSubscriptionStatus : 'card_rejected',
+        }).catch((err) => console.error('confirm-intent card rejection save error', err));
+        await logFunnelEvent('trial_card_rejected', { lead_id: leadId, detail: { reason: screening.reason, decline_code: screening.declineCode || '' } });
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            ok: true,
+            status: 'card_rejected',
+            reason: screening.reason,
+            declineCode: screening.declineCode || null,
+            useDifferentCard: true,
+            message: screening.message,
+          }),
+        };
+      }
+
       const priceId = listingPriceId();
       const priceConfigError = await validateListingPrice(stripe, priceId);
       if (priceConfigError) {
@@ -146,7 +230,11 @@ exports.handler = async (event) => {
           },
           metadata: { ...metadata, product: 'listing_membership', plan: 'trial_then_monthly' },
         },
-        { idempotencyKey: `${leadId}:listing-subscription:trial-1999-v4` }
+        // One subscription per saved card: the same SetupIntent always maps to
+        // the same subscription, and a different card gets a fresh key (the
+        // old fixed key made Stripe reject a second card with an
+        // idempotency error).
+        { idempotencyKey: `${leadId}:listing-subscription:trial-1999:${setupIntent.id}` }
       );
       const statusPatch = subscriptionStatusPatch(subscription);
       if (!hasActiveListingAccess(statusPatch)) {
@@ -166,11 +254,14 @@ exports.handler = async (event) => {
         };
       }
 
-      const currentEntitlements = await getEntitlements(leadId);
+      const currentEntitlements = priorEntitlements;
       const patch = {
         [field]: true,
         stripeCustomerId: setupIntent.customer || currentEntitlements.stripeCustomerId || null,
         defaultPaymentMethodId: setupIntent.payment_method || currentEntitlements.defaultPaymentMethodId || null,
+        listingSetupIntentConfirmedId: setupIntent.id,
+        cardRejectReason: null,
+        cardRejectMessage: null,
         ...statusPatch,
       };
       Object.assign(patch, manychatMetadata(metadata.manychat_contact_id));
@@ -192,7 +283,10 @@ exports.handler = async (event) => {
           console.error('confirm-intent customer update error', err);
         }
       }
-      if (!currentEntitlements.paid10 && hasActiveListingAccess(entitlements || patch)) {
+      // The subscription.created webhook can race this request; whichever
+      // side records listingSubscriptionWelcomeSentAt first sends the email.
+      const latest = await getEntitlements(leadId).catch(() => currentEntitlements);
+      if (!currentEntitlements.paid10 && !(latest && latest.listingSubscriptionWelcomeSentAt) && hasActiveListingAccess(entitlements || patch)) {
         try {
           await sendWelcomeEmail(leadId);
           await patchEntitlements(leadId, { listingSubscriptionWelcomeSentAt: new Date().toISOString() });
@@ -202,7 +296,7 @@ exports.handler = async (event) => {
       }
       await logFunnelEvent('trial_started', { lead_id: leadId, payment_id: subscription.id, detail: { subscription_status: subscription.status || '' } });
       const conversion = subscriptionConversion(subscription);
-      return {
+      return withCookie({
         statusCode: 200,
         body: JSON.stringify({
           ok: true,
@@ -220,7 +314,7 @@ exports.handler = async (event) => {
           entitlements,
           warning: entitlementWarning,
         }),
-      };
+      }, issueSessionCookie(event, leadId, 'paid'));
     }
 
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
@@ -308,7 +402,11 @@ exports.handler = async (event) => {
       if (product !== 'prescreen') {
         await logFunnelEvent('upsell_paid', { lead_id: leadId, payment_id: pi.id, amount: (pi.amount_received || pi.amount || 0) / 100, detail: { product } });
       }
-      return { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', entitlements, warning: entitlementWarning }) };
+      const successResponse = { statusCode: 200, body: JSON.stringify({ ok: true, status: 'succeeded', entitlements, warning: entitlementWarning }) };
+      if (product === 'prescreen' && pi.customer && pi.payment_method) {
+        return withCookie(successResponse, issueSessionCookie(event, leadId, 'paid'));
+      }
+      return successResponse;
     }
 
     if (pi.status === 'requires_action' || pi.status === 'requires_confirmation') {

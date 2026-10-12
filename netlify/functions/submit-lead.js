@@ -1,15 +1,23 @@
-const { saveLead, getLeadByEmail } = require('./_lib/store');
+const store = require('./_lib/store');
+const { sign } = require('./_lib/sign');
+const { sessionOwnsLead, issueSessionCookie, withCookie } = require('./_lib/session');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId } = require('./_lib/manychat');
 const { normalizeAgentLead } = require('./_lib/agent-number-one');
 
 const AGENT_HANDOFF_TIMEOUT_MS = 25000;
 
+const PREVIEW_TOKEN_TTL_MS = 30 * 60 * 1000;
+
 // The email lookup is unauthenticated (anyone can type any email), so it only
 // returns the fields the returning-renter listing redirect actually uses —
 // never phone, income, credit range, last name, or agent/activity history.
+// It also never returns the lead_id: a lead_id used to be enough to charge the
+// card saved on that profile. Instead the caller gets a short-lived,
+// preview-only token (see get-apartment-results / return-access). The browser
+// that already owns the lead (it holds that lead's signed session cookie) is
+// the only caller that gets the lead_id back.
 const PUBLIC_LOOKUP_FIELDS = [
-  'lead_id',
   'email',
   'first_name',
   'preferred_city',
@@ -104,16 +112,25 @@ exports.handler = async function handler(event) {
   if (payload.lookupOnly || payload.lookup_only) {
     let lead = null;
     try {
-      lead = await getLeadByEmail(email);
+      lead = await store.getLeadByEmail(email);
     } catch (err) {
       console.error('lead lookup failed', err);
       return json(200, { ok: true, registered: false, error: 'Could not check this email right now.' });
     }
-    return json(200, {
-      ok: true,
-      registered: !!(lead && lead.lead_id),
-      lead: lead && lead.lead_id ? publicLeadSummary(lead) : undefined,
-    });
+    if (!lead || !lead.lead_id) {
+      return json(200, { ok: true, registered: false });
+    }
+    const summary = publicLeadSummary(lead);
+    if (sessionOwnsLead(event, lead.lead_id)) {
+      summary.lead_id = lead.lead_id;
+    } else {
+      try {
+        summary.preview_token = sign({ product: 'apartment-results-preview', leadId: lead.lead_id }, PREVIEW_TOKEN_TTL_MS);
+      } catch (err) {
+        console.error('preview token sign failed', err.message);
+      }
+    }
+    return json(200, { ok: true, registered: true, lead: summary });
   }
 
   const leadId = String(payload.lead_id || payload.leadId || '').trim();
@@ -129,13 +146,45 @@ exports.handler = async function handler(event) {
   }
   Object.assign(payload, normalizeAgentLead(payload));
 
+  // Never let an unauthenticated request overwrite a lead that already
+  // exists. New leads get a fresh random id from the questionnaire; only the
+  // browser that created a lead (it holds the signed session cookie) may
+  // update it later.
+  let existingLead = null;
+  try {
+    existingLead = typeof store.getLead === 'function' ? await store.getLead(leadId) : null;
+  } catch (err) {
+    console.error('existing lead lookup failed', err);
+    return json(503, { ok: false, error: 'Could not save questionnaire right now. Please try again.' });
+  }
+  if (existingLead && !sessionOwnsLead(event, leadId)) {
+    return json(403, {
+      ok: false,
+      code: 'lead_exists',
+      error: 'This profile already exists. Open the secure link in your RentReady email to update it.',
+    });
+  }
+
   let saved = false;
   try {
-    await saveLead(leadId, { ...payload, lead_id: leadId });
+    await store.saveLead(leadId, { ...payload, lead_id: leadId });
     saved = true;
   } catch (err) {
     console.error('lead save failed', err);
   }
+
+  let sessionCookie = null;
+  if (saved) {
+    try {
+      sessionCookie = issueSessionCookie(event, leadId, 'lead');
+      if (!existingLead && typeof store.patchEntitlements === 'function') {
+        await store.patchEntitlements(leadId, { sessionClaimedAt: new Date().toISOString() });
+      }
+    } catch (err) {
+      console.error('lead session issue failed', err.message || err);
+    }
+  }
+  const respond = (statusCode, body) => withCookie(json(statusCode, body), sessionCookie);
 
   const agentHandoff = saved
     ? await triggerAgentHandoff(event, leadId)
@@ -143,7 +192,7 @@ exports.handler = async function handler(event) {
 
   const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL || '';
   if (!googleScriptUrl) {
-    return json(200, {
+    return respond(200, {
       ok: saved,
       saved,
       sheetsOk: false,
@@ -164,7 +213,7 @@ exports.handler = async function handler(event) {
     try { data = JSON.parse(text); } catch (_err) { data = { ok: res.ok, raw: text }; }
 
     const sheetsOk = !!(res.ok && data && data.ok !== false);
-    return json(200, {
+    return respond(200, {
       ok: saved || sheetsOk,
       saved,
       sheetsOk,
@@ -174,7 +223,7 @@ exports.handler = async function handler(event) {
       error: saved || sheetsOk ? undefined : 'Could not save questionnaire.',
     });
   } catch (err) {
-    return json(200, {
+    return respond(200, {
       ok: saved,
       saved,
       sheetsOk: false,

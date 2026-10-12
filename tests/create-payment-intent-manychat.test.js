@@ -1,4 +1,5 @@
 const assert = require('assert');
+const { withSession, sessionFromSetCookie } = require('./_session-helper');
 
 function loadHandler(options = {}) {
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
@@ -9,6 +10,7 @@ function loadHandler(options = {}) {
   const customersCreated = [];
   const customersUpdated = [];
   const setupIntentsCreated = [];
+  const setupIntentCreateOptions = [];
   const savedLeads = [];
   const entitlementPatches = [];
   process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_listing_monthly';
@@ -32,8 +34,10 @@ function loadHandler(options = {}) {
           },
         },
         setupIntents: {
-          create: async (payload) => {
+          retrieve: async (id) => (options.previousSetupIntent && options.previousSetupIntent.id === id ? options.previousSetupIntent : null),
+          create: async (payload, opts) => {
             setupIntentsCreated.push(payload);
+            setupIntentCreateOptions.push(opts);
             return {
               id: 'seti_manychat',
               status: 'requires_payment_method',
@@ -50,7 +54,7 @@ function loadHandler(options = {}) {
     filename: storePath,
     loaded: true,
     exports: {
-      getLead: async () => null,
+      getLead: async () => options.existingLead || null,
       getEntitlements: async () => options.existingEntitlements || { stripeCustomerId: null },
       saveLead: async (leadId, answers) => savedLeads.push({ leadId, answers }),
       patchEntitlements: async (leadId, patch) => entitlementPatches.push({ leadId, patch }),
@@ -62,6 +66,7 @@ function loadHandler(options = {}) {
     customersCreated,
     customersUpdated,
     setupIntentsCreated,
+    setupIntentCreateOptions,
     savedLeads,
     entitlementPatches,
   };
@@ -151,6 +156,89 @@ async function run() {
     }),
   });
   assert.equal(invalid.setupIntentsCreated[0].metadata.manychat_contact_id, undefined);
+
+  // A brand-new (unclaimed) lead is claimed here and gets a session cookie.
+  assert.equal(sessionFromSetCookie(res).leadId, 'lead_123');
+  assert.equal(sessionFromSetCookie(res).scope, 'lead');
+  assert.ok(flow.entitlementPatches[0].patch.sessionClaimedAt);
+
+  const checkoutBody = (leadId) => JSON.stringify({ leadId, email: 'owner@example.com', answers: { lead_id: leadId, email: 'owner@example.com' } });
+
+  // A lead someone else already claimed can't be driven with a bare leadId:
+  // no customer/email changes, no SetupIntent.
+  const claimed = loadHandler({
+    existingLead: { lead_id: 'lead_owned', email: 'owner@example.com' },
+    existingEntitlements: { stripeCustomerId: 'cus_existing', sessionClaimedAt: '2026-10-01T00:00:00.000Z' },
+  });
+  const claimedRes = await claimed.handler({ httpMethod: 'POST', body: checkoutBody('lead_owned') });
+  assert.equal(claimedRes.statusCode, 401);
+  assert.equal(claimed.customersUpdated.length, 0);
+  assert.equal(claimed.customersCreated.length, 0);
+  assert.equal(claimed.setupIntentsCreated.length, 0);
+
+  // Same lead with its session cookie works.
+  const owner = loadHandler({
+    existingLead: { lead_id: 'lead_owned', email: 'owner@example.com' },
+    existingEntitlements: { stripeCustomerId: 'cus_existing', sessionClaimedAt: '2026-10-01T00:00:00.000Z' },
+  });
+  const ownerRes = await owner.handler(withSession({ httpMethod: 'POST', body: checkoutBody('lead_owned') }, 'lead_owned', 'lead'));
+  assert.equal(ownerRes.statusCode, 200);
+  assert.equal(owner.setupIntentsCreated.length, 1);
+
+  // A paid lead (card on file) is never claimable without a session, even if
+  // it predates session cookies.
+  const legacyPaid = loadHandler({
+    existingLead: { lead_id: 'lead_paid', email: 'owner@example.com' },
+    existingEntitlements: { paid10: true, defaultPaymentMethodId: 'pm_saved', stripeCustomerId: 'cus_existing' },
+  });
+  assert.equal((await legacyPaid.handler({ httpMethod: 'POST', body: checkoutBody('lead_paid') })).statusCode, 401);
+  assert.equal(legacyPaid.setupIntentsCreated.length, 0);
+
+  // Active trial: don't start a second checkout.
+  const active = loadHandler({
+    existingLead: { lead_id: 'lead_active' },
+    existingEntitlements: { paid10: true, listingSubscriptionStatus: 'trialing', stripeCustomerId: 'cus_existing', sessionClaimedAt: 'x' },
+  });
+  const activeRes = await active.handler(withSession({ httpMethod: 'POST', body: checkoutBody('lead_active') }, 'lead_active', 'paid'));
+  assert.equal(activeRes.statusCode, 409);
+  assert.equal(active.setupIntentsCreated.length, 0);
+  // ...and a 'paid' session is never downgraded to 'lead'.
+  assert.equal(sessionFromSetCookie(activeRes).scope, 'paid');
+
+  // After a card was rejected, a NEW SetupIntent is created (the old fixed
+  // idempotency key returned the finished one forever).
+  const afterReject = loadHandler({
+    existingLead: { lead_id: 'lead_retry' },
+    existingEntitlements: { stripeCustomerId: 'cus_existing', sessionClaimedAt: 'x', listingSetupIntentId: 'seti_old', rejectedSetupIntentId: 'seti_old' },
+    existingCustomer: { id: 'cus_existing', metadata: {} },
+    previousSetupIntent: { id: 'seti_old', status: 'succeeded', customer: 'cus_existing', client_secret: 'old_secret' },
+  });
+  const afterRejectRes = await afterReject.handler(withSession({ httpMethod: 'POST', body: checkoutBody('lead_retry') }, 'lead_retry', 'lead'));
+  assert.equal(afterRejectRes.statusCode, 200);
+  assert.equal(afterReject.setupIntentsCreated.length, 1);
+  assert.equal(afterReject.setupIntentCreateOptions[0].idempotencyKey, 'lead_retry:listing-setup-intent:after-seti_old');
+
+  // Regression (found in end-to-end run): confirm-intent clears
+  // listingSetupIntentId on rejection; the next checkout must still get a
+  // NEW SetupIntent instead of replaying the first idempotency key.
+  const clearedAfterReject = loadHandler({
+    existingLead: { lead_id: 'lead_retry2' },
+    existingEntitlements: { stripeCustomerId: 'cus_existing', sessionClaimedAt: 'x', listingSetupIntentId: null, rejectedSetupIntentId: 'seti_rejected' },
+    existingCustomer: { id: 'cus_existing', metadata: {} },
+  });
+  await clearedAfterReject.handler(withSession({ httpMethod: 'POST', body: checkoutBody('lead_retry2') }, 'lead_retry2', 'lead'));
+  assert.equal(clearedAfterReject.setupIntentCreateOptions[0].idempotencyKey, 'lead_retry2:listing-setup-intent:after-seti_rejected');
+
+  // Page refresh with an unfinished SetupIntent reuses it.
+  const refresh = loadHandler({
+    existingLead: { lead_id: 'lead_refresh' },
+    existingEntitlements: { stripeCustomerId: 'cus_existing', sessionClaimedAt: 'x', listingSetupIntentId: 'seti_open' },
+    existingCustomer: { id: 'cus_existing', metadata: {} },
+    previousSetupIntent: { id: 'seti_open', status: 'requires_payment_method', customer: 'cus_existing', client_secret: 'open_secret' },
+  });
+  const refreshBody = JSON.parse((await refresh.handler(withSession({ httpMethod: 'POST', body: checkoutBody('lead_refresh') }, 'lead_refresh', 'lead'))).body);
+  assert.equal(refresh.setupIntentsCreated.length, 0);
+  assert.equal(refreshBody.clientSecret, 'open_secret');
 }
 
 run()

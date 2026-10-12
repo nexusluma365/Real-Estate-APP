@@ -1,5 +1,5 @@
 // POST /.netlify/functions/confirm-subscription
-// Body: { leadId, subscriptionId, plan }
+// Body: { subscriptionId, plan, leadId? }   (lead comes from the 'paid' session cookie)
 //
 // Called after stripe.confirmCardPayment() resolves client-side for a
 // subscription's first invoice that required 3D Secure. Re-checks with
@@ -7,6 +7,7 @@
 const { getStripe } = require('./_lib/stripe');
 const { patchEntitlements } = require('./_lib/store');
 const { manychatMetadata } = require('./_lib/manychat');
+const { requireSession } = require('./_lib/session');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -20,10 +21,13 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Invalid JSON body' }) };
   }
 
-  const { leadId, subscriptionId, plan } = body;
-  if (!leadId || !subscriptionId || !plan) {
+  const { subscriptionId, plan } = body;
+  if (!subscriptionId || !plan) {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing fields' }) };
   }
+  const auth = requireSession(event, { scope: 'paid', bodyLeadId: body.leadId });
+  if (auth.error) return auth.error;
+  const leadId = auth.leadId;
 
   try {
     const stripe = getStripe();

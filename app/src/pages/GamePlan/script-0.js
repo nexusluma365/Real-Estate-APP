@@ -145,6 +145,9 @@ async function handleGamePlanPurchase() {
     <div class="pay-error">We couldn't complete this purchase with your saved payment method.</div>
     <a class="small-link fade-in" href="#" onclick="skipGamePlan(event)">Continue Without This →</a>
   `;
+  const serverMessage = window.rrnLastChargeMessage ? rrnLastChargeMessage() : null;
+  const payErrorEl = errBox.querySelector('.pay-error');
+  if (serverMessage && payErrorEl) payErrorEl.textContent = serverMessage;
 }
 
 function pollForGamePlanCompletion(btn, originalLabel, errBox) {
@@ -207,7 +210,7 @@ function renderSkipped() {
     <div class="card">
       <div class="eyebrow">Continuing Without The Game Plan</div>
       <div class="h2">No problem — you can pick this up again any time.</div>
-      <div class="p">Your $10 RentReady Results are still yours. Here's what's next.</div>
+      <div class="p">Your RentReady Results are still yours. Here's what's next.</div>
       <a class="btn-secondary" href="${MEMBERSHIP_URL}">See RentReady Support →</a>
       <a class="small-link" href="${RESULTS_URL}">Back to my RentReady Results</a>
     </div>

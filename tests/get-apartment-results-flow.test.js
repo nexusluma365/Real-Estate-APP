@@ -1,6 +1,6 @@
 const assert = require('assert');
 
-async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEntitlements }) {
+async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEntitlements, verifyToken }) {
   const storePath = require.resolve('../netlify/functions/_lib/store');
   const signPath = require.resolve('../netlify/functions/_lib/sign');
   const stripePath = require.resolve('../netlify/functions/_lib/stripe');
@@ -46,7 +46,7 @@ async function loadHandler({ lead, entitlements, cached, upsellIntent, patchEnti
     filename: signPath,
     loaded: true,
     exports: {
-      verify: () => null,
+      verify: verifyToken || (() => null),
       seal: (payload) => `sealed_${Buffer.from(JSON.stringify(payload)).toString('base64url')}`,
     },
   };
@@ -308,6 +308,27 @@ async function run() {
     assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewTag, undefined);
     assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.screeningStatus, 'unverified');
     assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.is_second_chance_verified, false);
+
+    // Returning-renter preview token (from the email lookup): even for a lead
+    // with full access it only ever returns the blurred preview, ignores
+    // client-supplied criteria/answers, and never echoes the lead id.
+    const previewTokenOnly = await loadHandler({
+      lead: { preferred_city: 'Concord, NC', rent_budget: 1600, beds_needed: '1' },
+      entitlements: { paid10: true, listingSubscriptionStatus: 'active', listingAccessStatus: 'active', purchasedCategories: [] },
+      cached: { ...paidBaseCachedResult, leadId: 'lead_paid10' },
+      verifyToken: () => ({ product: 'apartment-results-preview', leadId: 'lead_paid10' }),
+    });
+    const previewTokenRes = await previewTokenOnly.handler({
+      httpMethod: 'POST',
+      body: JSON.stringify({ token: 'preview-token', preview: false, answers: { preferred_city: 'Elsewhere, CA' } }),
+    });
+    const previewTokenBody = JSON.parse(previewTokenRes.body);
+    assert.equal(previewTokenRes.statusCode, 200);
+    assert.equal(previewTokenBody.preview, true);
+    assert.equal(previewTokenBody.properties[0].name, 'Apartment Match');
+    assert.equal(previewTokenBody.properties[0].phone, '');
+    assert.ok(!JSON.stringify(previewTokenBody).includes('lead_paid10'), 'preview token response must not leak the lead id');
+    assert.equal(previewTokenOnly.savedLeads.length, 0);
     assert.equal(previewBaseCheckoutBody.properties[0].screeningVerification.previewOnlySecondChance, undefined);
     assert.equal(previewBaseCheckoutBody.properties[1].screeningVerification.screeningStatus, 'unverified');
     assert.equal(previewBaseCheckoutBody.properties[2].screeningVerification.screeningStatus, 'unverified');

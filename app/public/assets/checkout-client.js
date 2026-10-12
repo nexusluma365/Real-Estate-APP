@@ -170,17 +170,39 @@ async function rrnFetchEntitlements(leadId) {
  * transparently handling a bank's 3-D Secure challenge if Stripe requires
  * one. Resolves to one of: 'succeeded' | 'failed' | 'processing'.
  */
+let rrnLastChargeResult = null;
+
+// The server's explanation for the most recent failed charge (e.g. "Your
+// bank declined this card for insufficient funds ... use a different card").
+// Pages show it in their existing failure message slot; null when none.
+function rrnLastChargeMessage() {
+  return (rrnLastChargeResult && rrnLastChargeResult.message) || null;
+}
+
+function rrnLastChargeDetails() {
+  return rrnLastChargeResult;
+}
+
 async function rrnChargeUpsell(product, publishableKey) {
+  rrnLastChargeResult = null;
   const leadId = rrnLeadId();
   if (!leadId) return 'failed';
 
-  const idempotencyKey = rrnNewIdempotencyKey();
+  // The server derives the idempotency key and authenticates with the
+  // httpOnly session cookie (sent automatically on same-origin requests).
   const res = await fetch('/.netlify/functions/charge-upsell', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadId, product, idempotencyKey, prescreenPaymentIntentId: rrnPrescreenPaymentIntentId() }),
+    body: JSON.stringify({ leadId, product, prescreenPaymentIntentId: rrnPrescreenPaymentIntentId() }),
   });
   const data = await res.json().catch(() => ({}));
+  rrnLastChargeResult = data && typeof data === 'object' ? {
+    status: data.status || 'failed',
+    reason: data.reason || data.code || null,
+    message: data.message || (data.ok === false ? data.error : null) || null,
+    useDifferentCard: !!data.useDifferentCard,
+  } : null;
   if (!data || !data.ok) return 'failed';
 
   if (data.status === 'requires_action') {
@@ -197,16 +219,23 @@ async function rrnChargeUpsell(product, publishableKey) {
  * Same idea as rrnChargeUpsell, for the RentReady Support subscription.
  */
 async function rrnCreateSubscription(plan, publishableKey) {
+  rrnLastChargeResult = null;
   const leadId = rrnLeadId();
   if (!leadId) return 'failed';
 
-  const idempotencyKey = rrnNewIdempotencyKey();
   const res = await fetch('/.netlify/functions/create-subscription', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadId, plan, idempotencyKey }),
+    body: JSON.stringify({ leadId, plan }),
   });
   const data = await res.json().catch(() => ({}));
+  rrnLastChargeResult = data && typeof data === 'object' ? {
+    status: data.status || 'failed',
+    reason: data.reason || data.code || null,
+    message: data.message || (data.ok === false ? data.error : null) || null,
+    useDifferentCard: !!data.useDifferentCard,
+  } : null;
   if (!data || !data.ok) return 'failed';
 
   if (data.status === 'requires_action') {
@@ -218,6 +247,7 @@ async function rrnCreateSubscription(plan, publishableKey) {
     const confirmRes = await fetch('/.netlify/functions/confirm-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({ leadId, subscriptionId: data.subscriptionId, plan }),
     });
     const confirmData = await confirmRes.json().catch(() => ({}));
@@ -237,6 +267,7 @@ async function rrnHandleAction(clientSecret, leadId, product, publishableKey) {
   try {
     const confirmRes = await fetch('/.netlify/functions/confirm-intent', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leadId, paymentIntentId: result.paymentIntent.id, product }),
     });
@@ -380,6 +411,8 @@ window.rrnGetConfig = rrnGetConfig;
 window.rrnGetStripePublishableKey = rrnGetStripePublishableKey;
 window.rrnFetchEntitlements = rrnFetchEntitlements;
 window.rrnChargeUpsell = rrnChargeUpsell;
+window.rrnLastChargeMessage = rrnLastChargeMessage;
+window.rrnLastChargeDetails = rrnLastChargeDetails;
 window.rrnCreateSubscription = rrnCreateSubscription;
 window.rrnDownloadUrl = rrnDownloadUrl;
 window.rrnEmailAsset = rrnEmailAsset;

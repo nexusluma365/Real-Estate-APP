@@ -7,6 +7,7 @@
 // events) before it will read anything out of storage.
 const { getEntitlements, getProtectedFile } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
+const { sessionOwnsLead } = require('./_lib/session');
 
 const FIELD_BY_PRODUCT = { gameplan: 'paid27', creditkit: 'paid97' };
 const FILENAME_BY_PRODUCT = {
@@ -30,6 +31,11 @@ exports.handler = async (event) => {
     }
     leadId = data.leadId;
     product = data.product;
+  } else if (!sessionOwnsLead(event, leadId)) {
+    // A bare leadId is not proof of ownership (it leaks through URLs and
+    // shared devices); without a signed email token, require the lead's
+    // own session cookie, which same-site download links carry.
+    return { statusCode: 401, body: 'Your session has expired. Reopen your RentReady email link to download this file.' };
   }
 
   const field = FIELD_BY_PRODUCT[product];
