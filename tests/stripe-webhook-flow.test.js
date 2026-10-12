@@ -1,221 +1,150 @@
+// Stripe webhook on the production trial funnel: real signature checks over
+// the raw body, idempotent upsell fulfillment, trial/listing subscription
+// sync, renewals, cancellations, and funnel tracking.
+const test = require('node:test');
 const assert = require('assert');
+const { setup } = require('./helpers/payment-harness');
 
-function loadHandler({ constructEvent, patchEntitlements, entitlements, sendWelcomeEmail, sendDownloadEmail }) {
-  const stripePath = require.resolve('../netlify/functions/_lib/stripe');
-  const storePath = require.resolve('../netlify/functions/_lib/store');
-  const welcomeEmailPath = require.resolve('../netlify/functions/_lib/welcome-email');
-  const downloadEmailPath = require.resolve('../netlify/functions/_lib/download-email');
-  const fnPath = require.resolve('../netlify/functions/stripe-webhook');
-  delete require.cache[fnPath];
+const SECRET = 'whsec_test_secret';
 
-  const welcomeEmailCalls = [];
-  const downloadEmailCalls = [];
-
-  require.cache[stripePath] = {
-    id: stripePath,
-    filename: stripePath,
-    loaded: true,
-    exports: {
-      getStripe: () => ({
-        webhooks: { constructEvent },
-        customers: { update: async () => ({}) },
-      }),
-    },
+function signed(h, event, { base64 = false, secret = SECRET } = {}) {
+  const payload = JSON.stringify(event);
+  return {
+    httpMethod: 'POST',
+    headers: { 'stripe-signature': h.stripe.webhooks.generateTestHeaderString({ payload, secret }) },
+    isBase64Encoded: base64,
+    body: base64 ? Buffer.from(payload, 'utf8').toString('base64') : payload,
   };
-
-  require.cache[storePath] = {
-    id: storePath,
-    filename: storePath,
-    loaded: true,
-    exports: {
-      getEntitlements: async () => entitlements || { paid10: false },
-      patchEntitlements,
-    },
-  };
-
-  require.cache[welcomeEmailPath] = {
-    id: welcomeEmailPath,
-    filename: welcomeEmailPath,
-    loaded: true,
-    exports: {
-      sendWelcomeEmail:
-        sendWelcomeEmail ||
-        (async (leadId) => {
-          welcomeEmailCalls.push(leadId);
-        }),
-    },
-  };
-  require.cache[downloadEmailPath] = {
-    id: downloadEmailPath,
-    filename: downloadEmailPath,
-    loaded: true,
-    exports: {
-      sendDownloadEmail:
-        sendDownloadEmail ||
-        (async (leadId, product) => {
-          downloadEmailCalls.push({ leadId, product });
-        }),
-    },
-  };
-
-  return { handler: require('../netlify/functions/stripe-webhook').handler, welcomeEmailCalls, downloadEmailCalls };
 }
 
-async function run() {
-  // A base64-encoded event body (as Netlify delivers for some content types)
-  // must be decoded back to raw bytes before signature verification, or
-  // every real webhook call would fail with a signature mismatch.
-  const patchCalls = [];
-  const rawJson = JSON.stringify({
+function piSucceeded(id, leadId, product, amount) {
+  return {
+    id: `evt_${id}`,
     type: 'payment_intent.succeeded',
-    data: { object: { metadata: { leadId: 'lead_123', product: 'modern' }, customer: 'cus_1', payment_method: 'pm_1' } },
-  });
-  const seenPayloads = [];
-  const modernBackstop = loadHandler({
-    constructEvent: (payload, sig, secret) => {
-      seenPayloads.push(payload);
-      assert.equal(sig, 'test_sig');
-      assert.equal(secret, process.env.STRIPE_WEBHOOK_SECRET);
-      return JSON.parse(payload.toString());
-    },
-    patchEntitlements: async (leadId, patch) => {
-      patchCalls.push({ leadId, patch });
-    },
-    entitlements: { paid10: true, purchasedCategories: [] },
-  });
+    data: { object: { id, object: 'payment_intent', status: 'succeeded', amount, currency: 'usd', customer: 'cus_x', payment_method: 'pm_x', metadata: { leadId, product } } },
+  };
+}
 
-  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
-  const res = await modernBackstop.handler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'test_sig' },
-    isBase64Encoded: true,
-    body: Buffer.from(rawJson, 'utf8').toString('base64'),
-  });
+function listingSub(id, leadId, status, extra = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    id,
+    object: 'subscription',
+    status,
+    customer: 'cus_1',
+    default_payment_method: 'pm_1',
+    current_period_start: now,
+    current_period_end: now + 7 * 86400,
+    cancel_at_period_end: false,
+    metadata: { leadId, product: 'listing_membership', plan: 'trial_then_monthly' },
+    ...extra,
+  };
+}
 
+test.beforeEach(() => {
+  process.env.STRIPE_WEBHOOK_SECRET = SECRET;
+});
+
+test('T: forged, unsigned, wrong-secret and tampered webhooks are rejected and grant nothing', async () => {
+  const h = setup();
+  const fake = piSucceeded('pi_fake', 'lead_x', 'creditkit', 9700);
+  assert.equal((await h.handlers['stripe-webhook']({ httpMethod: 'POST', headers: {}, body: JSON.stringify(fake) })).statusCode, 400);
+  assert.equal((await h.handlers['stripe-webhook']({ httpMethod: 'POST', headers: { 'stripe-signature': 't=1,v1=deadbeef' }, body: JSON.stringify(fake) })).statusCode, 400);
+  assert.equal((await h.handlers['stripe-webhook'](signed(h, fake, { secret: 'whsec_attacker' }))).statusCode, 400);
+  const tampered = signed(h, piSucceeded('pi_fake', 'lead_x', 'creditkit', 2000));
+  tampered.body = tampered.body.replace('"amount":2000', '"amount":9700');
+  assert.equal((await h.handlers['stripe-webhook'](tampered)).statusCode, 400);
+  delete process.env.STRIPE_WEBHOOK_SECRET;
+  assert.equal((await h.handlers['stripe-webhook'](signed(h, fake))).statusCode, 400);
+  assert.equal(h.store.patches.length, 0);
+});
+
+test('raw base64 body verified byte-for-byte; $20 Modern purchase granted with download email and funnel row', async () => {
+  const h = setup({ entitlements: { lead_123: { paid10: true } } });
+  const res = await h.handlers['stripe-webhook'](signed(h, piSucceeded('pi_m', 'lead_123', 'modern', 2000), { base64: true }));
   assert.equal(res.statusCode, 200);
-  assert.ok(Buffer.isBuffer(seenPayloads[0]));
-  assert.equal(seenPayloads[0].toString('utf8'), rawJson);
-  assert.equal(patchCalls.length, 1);
-  assert.deepEqual(patchCalls[0], {
+  assert.deepEqual(h.store.patches, [{
     leadId: 'lead_123',
-    patch: { paid27: true, stripeCustomerId: 'cus_1', defaultPaymentMethodId: 'pm_1', addPurchasedCategory: 'modern' },
-  });
-  assert.deepEqual(modernBackstop.downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
-
-  // A plain (non-base64) body must still be passed through unchanged.
-  const plainCalls = [];
-  const { handler: plainHandler } = loadHandler({
-    constructEvent: (payload) => {
-      plainCalls.push(payload);
-      return { type: 'unhandled.event.type', data: { object: {} } };
-    },
-    patchEntitlements: async () => {},
-  });
-  const plainRes = await plainHandler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'test_sig' },
-    body: rawJson,
-  });
-  assert.equal(plainRes.statusCode, 200);
-  assert.equal(plainCalls[0], rawJson);
-
-  // A bad signature must be rejected with a 400, not silently accepted.
-  const { handler: rejectingHandler } = loadHandler({
-    constructEvent: () => {
-      throw new Error('signature mismatch');
-    },
-    patchEntitlements: async () => {},
-  });
-  const rejectedRes = await rejectingHandler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'bad_sig' },
-    body: rawJson,
-  });
-  assert.equal(rejectedRes.statusCode, 400);
-
-  // Regression: this webhook is the welcome-email backstop for a lead whose
-  // first $10 pre-screen payment it is the first thing to see succeed (e.g.
-  // the customer closed the tab before confirm-intent.js's own call landed).
-  const prescreenJson = JSON.stringify({
-    type: 'payment_intent.succeeded',
-    data: { object: { metadata: { leadId: 'lead_456', product: 'prescreen' }, customer: 'cus_2', payment_method: 'pm_2' } },
-  });
-  const firstTime = loadHandler({
-    constructEvent: (payload) => JSON.parse(payload.toString()),
-    patchEntitlements: async () => ({}),
-    entitlements: { paid10: false },
-  });
-  await firstTime.handler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'test_sig' },
-    body: prescreenJson,
-  });
-  assert.deepEqual(firstTime.welcomeEmailCalls, ['lead_456']);
-
-  // But not if confirm-intent.js (or an earlier webhook delivery) already
-  // set paid10 for this lead — no double-send.
-  const alreadyPaid = loadHandler({
-    constructEvent: (payload) => JSON.parse(payload.toString()),
-    patchEntitlements: async () => ({}),
-    entitlements: { paid10: true },
-  });
-  await alreadyPaid.handler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'test_sig' },
-    body: prescreenJson,
-  });
-  assert.deepEqual(alreadyPaid.welcomeEmailCalls, []);
-
-  // The Apartment Prep Kit download email is also covered by the webhook
-  // backstop if the browser never returns to confirm-intent after Stripe wins.
-  const prepJson = JSON.stringify({
-    type: 'payment_intent.succeeded',
-    data: { object: { metadata: { leadId: 'lead_789', product: 'apartment_prep' }, customer: 'cus_3', payment_method: 'pm_3' } },
-  });
-  const prepPatchCalls = [];
-  const prepBackstop = loadHandler({
-    constructEvent: (payload) => JSON.parse(payload.toString()),
-    patchEntitlements: async (leadId, patch) => {
-      prepPatchCalls.push({ leadId, patch });
-      return {};
-    },
-    entitlements: { paid10: true, purchasedCategories: [] },
-  });
-  await prepBackstop.handler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'test_sig' },
-    body: prepJson,
-  });
-  assert.deepEqual(prepPatchCalls, [{
-    leadId: 'lead_789',
-    patch: {
-      paid47: true,
-      paid27: true,
-      stripeCustomerId: 'cus_3',
-      defaultPaymentMethodId: 'pm_3',
-      addPurchasedCategory: 'apartment_prep',
-    },
+    patch: { paid27: true, addPurchasedCategory: 'modern', productPaymentIntents: { modern: 'pi_m' } },
   }]);
-  assert.deepEqual(prepBackstop.downloadEmailCalls, [{ leadId: 'lead_789', product: 'apartment_prep' }]);
+  assert.deepEqual(h.emails.download, [{ leadId: 'lead_123', product: 'modern' }]);
+  assert.deepEqual(h.funnel.map((e) => e.event), ['upsell_paid']);
+});
 
-  // If the synchronous checkout path already recorded the purchase, the
-  // webhook must not send a duplicate download email.
-  const prepAlreadyHandled = loadHandler({
-    constructEvent: (payload) => JSON.parse(payload.toString()),
-    patchEntitlements: async () => ({}),
-    entitlements: { paid10: true, paid47: true, paid27: true, purchasedCategories: ['apartment_prep'] },
-  });
-  await prepAlreadyHandled.handler({
-    httpMethod: 'POST',
-    headers: { 'stripe-signature': 'test_sig' },
-    body: prepJson,
-  });
-  assert.deepEqual(prepAlreadyHandled.downloadEmailCalls, []);
-}
+test('U: duplicate deliveries fulfil once — one grant, one email, one funnel row', async () => {
+  const h = setup({ entitlements: { lead_789: { paid10: true } } });
+  const event = piSucceeded('pi_prep', 'lead_789', 'apartment_prep', 2000);
+  for (let i = 0; i < 3; i += 1) assert.equal((await h.handlers['stripe-webhook'](signed(h, event))).statusCode, 200);
+  assert.equal(h.store.patches.length, 1);
+  assert.deepEqual(h.emails.download, [{ leadId: 'lead_789', product: 'apartment_prep' }]);
+  assert.equal(h.funnel.filter((e) => e.event === 'upsell_paid').length, 1);
+});
 
-run()
-  .then(() => console.log('stripe-webhook flow test passed'))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+test('a $20 PaymentIntent can never fulfil the $97 Credit Kit; failed payments grant nothing', async () => {
+  const h = setup({ entitlements: { lead_1: { paid10: true } } });
+  await h.handlers['stripe-webhook'](signed(h, piSucceeded('pi_cheap', 'lead_1', 'creditkit', 2000)));
+  await h.handlers['stripe-webhook'](signed(h, {
+    id: 'evt_fail',
+    type: 'payment_intent.payment_failed',
+    data: { object: { id: 'pi_f', metadata: { leadId: 'lead_1', product: 'modern' }, last_payment_error: { code: 'card_declined', decline_code: 'insufficient_funds', payment_method: { card: { funding: 'debit' } } } } },
+  }));
+  assert.equal(h.store.patches.length, 0);
+  assert.equal(h.store.ents.get('lead_1').paid97, false);
+});
+
+test('V: transient processing errors return 500 so Stripe retries', async () => {
+  const h = setup();
+  h.store.failPatches = true;
+  const res = await h.handlers['stripe-webhook'](signed(h, piSucceeded('pi_x', 'lead_x', 'modern', 2000)));
+  assert.equal(res.statusCode, 500);
+});
+
+test('Y/AA: trialing → listing access; renewal invoice keeps it and logs subscription_paid; failed renewal removes it', async () => {
+  const h = setup();
+  const sub = listingSub('sub_1', 'lead_s', 'trialing');
+  h.stripe.state.subscriptions.set('sub_1', sub);
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_c', type: 'customer.subscription.created', data: { object: sub } }));
+  assert.equal(h.store.ents.get('lead_s').listingAccessStatus, 'active');
+  assert.equal(h.store.ents.get('lead_s').listingSubscriptionStatus, 'trialing');
+  assert.deepEqual(h.emails.welcome, ['lead_s']);
+
+  // Trial ends, first $19.99 renewal paid.
+  h.stripe.state.subscriptions.set('sub_1', { ...sub, status: 'active' });
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_paid', type: 'invoice.paid', data: { object: { id: 'in_1', subscription: 'sub_1', amount_paid: 1999 } } }));
+  assert.equal(h.store.ents.get('lead_s').listingAccessStatus, 'active');
+  assert.deepEqual(h.funnel.filter((e) => e.event === 'subscription_paid').map((e) => e.amount), [19.99]);
+  assert.deepEqual(h.emails.welcome, ['lead_s'], 'welcome email not resent');
+
+  // Next renewal fails → past_due → no listing access.
+  h.stripe.state.subscriptions.set('sub_1', { ...sub, status: 'past_due' });
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_fail', type: 'invoice.payment_failed', data: { object: { id: 'in_2', subscription: 'sub_1', amount_due: 1999 } } }));
+  assert.equal(h.store.ents.get('lead_s').listingAccessStatus, 'inactive');
+  assert.equal(h.funnel.filter((e) => e.event === 'subscription_payment_failed').length, 1);
+});
+
+test('AB: cancelling the listing subscription removes access; a Support membership event never touches listing access', async () => {
+  const h = setup();
+  const sub = listingSub('sub_l', 'lead_c', 'trialing');
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_1', type: 'customer.subscription.created', data: { object: sub } }));
+  assert.equal(h.store.ents.get('lead_c').listingAccessStatus, 'active');
+
+  const membership = { id: 'sub_m', status: 'canceled', customer: 'cus_1', metadata: { leadId: 'lead_c', plan: 'monthly' } };
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_2', type: 'customer.subscription.deleted', data: { object: membership } }));
+  assert.equal(h.store.ents.get('lead_c').listingAccessStatus, 'active', 'membership cancellation leaves listing access alone');
+  assert.equal(h.store.ents.get('lead_c').membershipStatus, 'inactive');
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_3', type: 'customer.subscription.updated', data: { object: { ...membership, status: 'past_due' } } }));
+  assert.equal(h.store.ents.get('lead_c').listingSubscriptionId, 'sub_l');
+
+  await h.handlers['stripe-webhook'](signed(h, { id: 'evt_4', type: 'customer.subscription.deleted', data: { object: { ...sub, status: 'canceled' } } }));
+  assert.equal(h.store.ents.get('lead_c').listingAccessStatus, 'inactive');
+  assert.equal(h.funnel.filter((e) => e.event === 'subscription_canceled').length, 1);
+});
+
+test('legacy $10 pre-screen events still grant paid10 but never replace a saved card', async () => {
+  const h = setup({ entitlements: { lead_l: { paid10: true, stripeCustomerId: 'cus_keep', defaultPaymentMethodId: 'pm_keep' } } });
+  await h.handlers['stripe-webhook'](signed(h, piSucceeded('pi_old', 'lead_l', 'prescreen', 1000)));
+  assert.equal(h.store.ents.get('lead_l').defaultPaymentMethodId, 'pm_keep');
+  assert.equal(h.store.ents.get('lead_l').stripeCustomerId, 'cus_keep');
+  assert.equal(h.stripe.state.customerUpdates.length, 0);
+  assert.deepEqual(h.emails.welcome, []);
+});

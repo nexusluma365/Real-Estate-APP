@@ -131,11 +131,37 @@ async function run() {
       },
     }),
   });
+  // Without the lead's session cookie, an existing Stripe customer must not
+  // be modified (a leadId alone is not proof of ownership).
   assert.equal(existingCustomer.customersCreated.length, 0);
-  assert.equal(existingCustomer.customersUpdated[0].id, 'cus_existing');
-  assert.equal(existingCustomer.customersUpdated[0].payload.email, 'existing@example.com');
-  assert.equal(existingCustomer.customersUpdated[0].payload.name, 'Existing Renter');
-  assert.equal(existingCustomer.customersUpdated[0].payload.metadata.full_name, 'Existing Renter');
+  assert.equal(existingCustomer.customersUpdated.length, 0);
+
+  // The browser that owns the lead can still update its own customer profile.
+  process.env.EMAIL_LINK_SECRET = process.env.EMAIL_LINK_SECRET || 'test-session-secret';
+  const ownerCookie = require('../netlify/functions/_lib/session').sessionCookie({ leadId: 'lead_existing' }).split(';')[0];
+  const ownedCustomer = loadHandler({
+    existingEntitlements: { stripeCustomerId: 'cus_existing' },
+    existingCustomer: { id: 'cus_existing', email: 'old@example.com', name: null, metadata: { leadId: 'lead_existing' } },
+  });
+  await ownedCustomer.handler({
+    httpMethod: 'POST',
+    headers: { cookie: ownerCookie },
+    body: JSON.stringify({
+      leadId: 'lead_existing',
+      email: 'existing@example.com',
+      answers: {
+        lead_id: 'lead_existing',
+        email: 'existing@example.com',
+        first_name: 'Existing',
+        last_name: 'Renter',
+      },
+    }),
+  });
+  assert.equal(ownedCustomer.customersCreated.length, 0);
+  assert.equal(ownedCustomer.customersUpdated[0].id, 'cus_existing');
+  assert.equal(ownedCustomer.customersUpdated[0].payload.email, 'existing@example.com');
+  assert.equal(ownedCustomer.customersUpdated[0].payload.name, 'Existing Renter');
+  assert.equal(ownedCustomer.customersUpdated[0].payload.metadata.full_name, 'Existing Renter');
 
   const invalid = loadHandler();
   await invalid.handler({

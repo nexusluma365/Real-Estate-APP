@@ -82,10 +82,12 @@ async function loadHandler({ paymentIntent, setupIntent, subscription, price, pr
 
 async function run() {
   process.env.STRIPE_LISTING_PRICE_MONTHLY = 'price_1999_monthly';
+  // A legacy $10 pre-screen PaymentIntent. A PaymentIntent with no product
+  // in its metadata is never accepted as a listing payment.
   const succeededIntent = {
     id: 'pi_test',
     status: 'succeeded',
-    metadata: { leadId: 'lead_123' },
+    metadata: { leadId: 'lead_123', product: 'prescreen' },
     customer: 'cus_test',
     payment_method: 'pm_test',
   };
@@ -356,9 +358,9 @@ async function run() {
 
   // ...and never for a non-prescreen product succeeding.
   const upsell = await loadHandler({
-    paymentIntent: { ...succeededIntent, metadata: { leadId: 'lead_123' } },
+    paymentIntent: { ...succeededIntent, amount: 2000, currency: 'usd', metadata: { leadId: 'lead_123', product: 'gameplan' } },
     entitlements: { paid10: true },
-    patchEntitlements: async () => ({ paid27: true }),
+    patchEntitlements: async () => ({ paidGameplan: true }),
   });
   await upsell.handler({
     httpMethod: 'POST',
@@ -370,7 +372,7 @@ async function run() {
   // A Modern/Luxury payment confirmed after required bank authentication
   // must still send the guide download email from the server-side success path.
   const apartmentUpsell = await loadHandler({
-    paymentIntent: { ...succeededIntent, metadata: { leadId: 'lead_123' } },
+    paymentIntent: { ...succeededIntent, amount: 2000, currency: 'usd', metadata: { leadId: 'lead_123', product: 'luxury' } },
     entitlements: { paid10: true, purchasedCategories: [] },
     patchEntitlements: async () => ({ paid27: true, purchasedCategories: ['luxury'] }),
   });
@@ -385,7 +387,7 @@ async function run() {
   // after required bank authentication, and it must send the kit email too.
   const prepPatchCalls = [];
   const prepUpsell = await loadHandler({
-    paymentIntent: { ...succeededIntent, metadata: { leadId: 'lead_123' } },
+    paymentIntent: { ...succeededIntent, amount: 2000, currency: 'usd', metadata: { leadId: 'lead_123', product: 'apartment_prep' } },
     entitlements: { paid10: true, purchasedCategories: [] },
     patchEntitlements: async (leadId, patch) => {
       prepPatchCalls.push({ leadId, patch });
@@ -398,12 +400,12 @@ async function run() {
   });
   assert.deepEqual(prepPatchCalls, [{
     leadId: 'lead_123',
+    // An upsell never replaces the lead's saved card or Stripe customer.
     patch: {
       paid47: true,
       paid27: true,
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
       addPurchasedCategory: 'apartment_prep',
+      productPaymentIntents: { apartment_prep: 'pi_test' },
     },
   }]);
   assert.deepEqual(prepUpsell.welcomeEmailCalls, []);

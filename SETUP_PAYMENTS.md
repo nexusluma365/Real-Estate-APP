@@ -29,7 +29,8 @@ in `/netlify/functions`.
 | `STRIPE_PUBLISHABLE_KEY` | Stripe Dashboard → Developers → API keys. Public key served to the browser by `/.netlify/functions/config`. |
 | `STRIPE_SECRET_KEY` | Stripe Dashboard → Developers → API keys. **Secret key — server only, never in frontend code.** |
 | `STRIPE_WEBHOOK_SECRET` | Created in step 4 below. |
-| `EMAIL_LINK_SECRET` | Any long random string (e.g. `openssl rand -hex 32`). Signs the time-limited links that go out in emails. |
+| `EMAIL_LINK_SECRET` | Any long random string (e.g. `openssl rand -hex 32`). Signs the time-limited links that go out in emails **and** the HttpOnly `rr_session` cookie that authorizes one-click (saved-card) upsells. Without it, signup and upsells still work but every upsell asks for a card. Changing it signs everyone out of one-click. |
+| `STRIPE_LISTING_PRICE_MONTHLY` | The $19.99/month recurring Price ID (`price_...`) for the 7-day-trial listing membership. Must be in the same Stripe mode (test/live) as `STRIPE_SECRET_KEY`. |
 | `GOOGLE_SCRIPT_URL` | The Apps Script web app URL. It is used server-side by lead capture and email delivery functions, and is no longer hardcoded into public HTML. |
 | `GOOGLE_PLACES_API_KEY` | Google Maps Platform API key with Places API enabled. Required for verified Modern/Luxury apartment recommendations. Without it, the app will not invent apartment communities. |
 | `OPENAI_API_KEY` | Optional. Used server-side only to rank/summarize verified Google Places properties. |
@@ -53,7 +54,10 @@ using the private `GOOGLE_SCRIPT_URL` environment variable.
 1. Deploy the site to Netlify first (the webhook needs a real URL).
 2. Stripe Dashboard → Developers → Webhooks → **Add endpoint**.
 3. Endpoint URL: `https://YOURDOMAIN/.netlify/functions/stripe-webhook`
-4. Event to send: `payment_intent.succeeded`.
+4. Events to send: `payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_succeeded`,
+   `invoice.payment_failed`.
 5. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
 
 This webhook is the backstop source of truth — the functions also write

@@ -11,18 +11,26 @@ function secret() {
   return s;
 }
 
-function sign(payloadObj, ttlMs = DEFAULT_TTL_MS) {
+// `purpose` derives a separate HMAC key, so a token signed for one use
+// (e.g. the browser session cookie) can never be replayed as another (e.g.
+// an emailed link), even though both share EMAIL_LINK_SECRET.
+function macKey(purpose) {
+  if (!purpose) return secret();
+  return crypto.createHmac('sha256', secret()).update(`rentready:${purpose}`).digest();
+}
+
+function sign(payloadObj, ttlMs = DEFAULT_TTL_MS, options = {}) {
   const exp = Date.now() + ttlMs;
   const body = Buffer.from(JSON.stringify({ ...payloadObj, exp })).toString('base64url');
-  const mac = crypto.createHmac('sha256', secret()).update(body).digest('base64url');
+  const mac = crypto.createHmac('sha256', macKey(options.purpose)).update(body).digest('base64url');
   return `${body}.${mac}`;
 }
 
-function verify(token) {
+function verify(token, options = {}) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return null;
   const [body, mac] = token.split('.');
   if (!body || !mac) return null;
-  const expected = crypto.createHmac('sha256', secret()).update(body).digest('base64url');
+  const expected = crypto.createHmac('sha256', macKey(options.purpose)).update(body).digest('base64url');
   const a = Buffer.from(mac);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;

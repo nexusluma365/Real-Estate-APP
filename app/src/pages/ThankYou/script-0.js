@@ -20,7 +20,7 @@ function render(answers, ent) {
     subtitle = 'Your RentReady Support access information is on its way to your email.';
   } else if (ent && ent.paid97) {
     subtitle = 'Your purchased RentReady resources have been sent to your email.';
-  } else if (ent && ent.paid27) {
+  } else if (ent && ent.paidGameplan) {
     subtitle = 'Your RentReady Game Plan has been sent to the email you provided.';
   } else {
     subtitle = 'Your RentReady results are ready whenever you need them.';
@@ -30,7 +30,7 @@ function render(answers, ent) {
   if (ent && ent.paid10) {
     links.push(`<a class="btn-secondary" href="/.netlify/functions/download-result-pdf?leadId=${encodeURIComponent(answers.lead_id)}">Download My Pre-Screen Results</a>`);
   }
-  if (ent && ent.paid27) {
+  if (ent && ent.paidGameplan) {
     links.push(`<a class="btn-secondary" href="/.netlify/functions/download-file?leadId=${encodeURIComponent(answers.lead_id)}&product=gameplan">Download My Game Plan</a>`);
   }
   if (ent && ent.paid97) {

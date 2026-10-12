@@ -8,6 +8,7 @@
 const { getEntitlements, getLead } = require('./_lib/store');
 const { sign } = require('./_lib/sign');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
+const { ownsProduct } = require('./_lib/products');
 
 const FIELD_BY_TYPE = { result: 'paid10', gameplan: 'paid27', creditkit: 'paid97', 'apartment-results': 'paid27' };
 const SUBJECT_BY_TYPE = {
@@ -69,7 +70,8 @@ exports.handler = async (event) => {
 
   try {
     const entitlements = await getEntitlements(leadId);
-    if (!entitlements[field]) {
+    const unlocked = type === 'gameplan' ? ownsProduct(entitlements, 'gameplan') : !!entitlements[field];
+    if (!unlocked) {
       return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Not unlocked yet.' }) };
     }
     if (type === 'apartment-results' && !['modern', 'luxury'].includes(category)) {

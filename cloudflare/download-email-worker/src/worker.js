@@ -128,10 +128,27 @@ async function getEntitlements(env, leadId) {
   return supabaseGet(env, `entitlements?lead_id=eq.${encodeURIComponent(leadId)}&select=*&limit=1`);
 }
 
+// Game Plan has its own flag (paidGameplan, stored in raw_entitlement).
+// Before that existed it was recorded as paid27 with no apartment category;
+// apartment purchases always add a category, so paid27 alone never means
+// Game Plan when a category is present. Mirrors netlify/functions/_lib/products.js.
+function ownsGameplan(entitlements, raw) {
+  if (!entitlements) return false;
+  if (raw.paidGameplan === true) return true;
+  const categories = Array.isArray(raw.purchasedCategories)
+    ? raw.purchasedCategories
+    : entitlements.purchased_category
+    ? [entitlements.purchased_category]
+    : [];
+  const paid27 = !!(entitlements.paid27 || raw.paid27);
+  return paid27 && !categories.some((c) => c === 'modern' || c === 'luxury' || c === 'apartment_prep');
+}
+
 function hasEntitlement(entitlements, product, def) {
   const raw = entitlements && entitlements.raw_entitlement && typeof entitlements.raw_entitlement === 'object'
     ? entitlements.raw_entitlement
     : {};
+  if (product === 'gameplan') return ownsGameplan(entitlements, raw);
   const hasPrimary = !!(entitlements && (entitlements[def.entitlementField] || raw[def.entitlementField]));
   const hasLegacy = !!(def.legacyEntitlementField && entitlements && (entitlements[def.legacyEntitlementField] || raw[def.legacyEntitlementField]));
   if (!entitlements || (!hasPrimary && !hasLegacy)) return false;

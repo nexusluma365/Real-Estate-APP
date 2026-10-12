@@ -5,6 +5,7 @@
 // customer on a new tab all see their real purchase state.
 const { getEntitlements } = require('./_lib/store');
 const { listingAccessStatus } = require('./_lib/listing-access');
+const { ownsProduct } = require('./_lib/products');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
@@ -31,6 +32,8 @@ exports.handler = async (event) => {
         paid27: hasLegacyPaid27Product,
         paid47: hasApartmentPrep,
         paid97: !!e.paid97,
+        // Game Plan ownership, separate from the apartment lists' paid27.
+        paidGameplan: ownsProduct(e, 'gameplan'),
         purchasedCategory: e.purchasedCategory || null,
         purchasedCategories,
         membershipStatus: e.membershipStatus || 'inactive',

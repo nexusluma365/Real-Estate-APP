@@ -1,5 +1,10 @@
 // POST /.netlify/functions/create-subscription
-// Body: { leadId, plan, idempotencyKey }   plan: 'monthly'|'yearly'
+// Body: { leadId, plan }   plan: 'monthly'|'yearly'
+//
+// Uses the saved card, so it requires the verified-payer session cookie
+// (see _lib/payer.js) — a bare leadId can't start a subscription. The
+// idempotency key is derived on the server, so double clicks / two tabs
+// create one subscription, not two.
 //
 // Real Stripe Subscriptions — not repeated manual one-time charges — so
 // recurring billing, retries, and cancellation are handled by Stripe.
@@ -8,6 +13,8 @@
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, getLead, patchEntitlements } = require('./_lib/store');
 const { normalizeManyChatContactId, manychatMetadata } = require('./_lib/manychat');
+const { sessionForLead } = require('./_lib/session');
+const { isVerifiedPayer } = require('./_lib/payer');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -21,10 +28,10 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Invalid JSON body' }) };
   }
 
-  const { leadId, plan, idempotencyKey } = body;
+  const { leadId, plan } = body;
   const priceId = plan === 'yearly' ? process.env.STRIPE_PRICE_ANNUAL : plan === 'monthly' ? process.env.STRIPE_PRICE_MONTHLY : null;
 
-  if (!leadId || !priceId || !idempotencyKey) {
+  if (!leadId || !priceId) {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing or invalid fields' }) };
   }
 
@@ -42,6 +49,12 @@ exports.handler = async (event) => {
     }
 
     const stripe = getStripe();
+    if (!(await isVerifiedPayer(stripe, sessionForLead(event, leadId), entitlements, leadId))) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ ok: false, error: 'Please return to your results on the device you signed up with to join Support.' }),
+      };
+    }
     const lead = await getLead(leadId).catch(() => null);
     const manychatContactId = normalizeManyChatContactId(
       entitlements.manychat_contact_id ||
@@ -58,7 +71,7 @@ exports.handler = async (event) => {
         expand: ['latest_invoice.payment_intent'],
         metadata: { leadId, plan, ...manychatMetadata(manychatContactId) },
       },
-      { idempotencyKey: `${leadId}:membership:${idempotencyKey}` }
+      { idempotencyKey: `rr-membership:v2:${leadId}:${plan}:${entitlements.defaultPaymentMethodId}` }
     );
 
     const pi = subscription.latest_invoice && subscription.latest_invoice.payment_intent;

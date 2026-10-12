@@ -153,7 +153,7 @@ function pollForGamePlanCompletion(btn, originalLabel, errBox) {
   const check = async () => {
     attempts++;
     const ent = await rrnFetchEntitlements(leadId);
-    if (ent && ent.paid27) {
+    if (ent && ent.paidGameplan) {
       if (window.rrnShowPaymentOverlay) {
         rrnShowPaymentOverlay({
           state: 'success',
@@ -352,7 +352,7 @@ function renderUnlocked(answers) {
 
   try { sessionStorage.setItem(PAID10_KEY, '1'); } catch (_e) {}
 
-  if (ent.paid27) {
+  if (ent.paidGameplan) {
     try { sessionStorage.setItem(PAID27_KEY, '1'); } catch (_e) {}
     renderUnlocked(answers);
   } else {

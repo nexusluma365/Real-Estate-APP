@@ -7,8 +7,10 @@
 // events) before it will read anything out of storage.
 const { getEntitlements, getProtectedFile } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
+const { sessionForLead } = require('./_lib/session');
+const { ownsProduct } = require('./_lib/products');
 
-const FIELD_BY_PRODUCT = { gameplan: 'paid27', creditkit: 'paid97' };
+const DOWNLOADABLE = new Set(['gameplan', 'creditkit']);
 const FILENAME_BY_PRODUCT = {
   gameplan: 'RentReady-Game-Plan.pdf',
   creditkit: 'RentReady-Credit-Action-Kit.pdf',
@@ -30,16 +32,19 @@ exports.handler = async (event) => {
     }
     leadId = data.leadId;
     product = data.product;
+  } else if (!sessionForLead(event, leadId)) {
+    // A bare ?leadId= is not a credential: without a signed email link, the
+    // download must come from the browser session that owns this lead.
+    return { statusCode: 403, body: 'Open the download link from your email to get this file.' };
   }
 
-  const field = FIELD_BY_PRODUCT[product];
-  if (!leadId || !field) {
+  if (!leadId || !DOWNLOADABLE.has(product)) {
     return { statusCode: 400, body: 'Missing or invalid product.' };
   }
 
   try {
     const entitlements = await getEntitlements(leadId);
-    if (!entitlements[field]) {
+    if (!ownsProduct(entitlements, product)) {
       return { statusCode: 403, body: 'This file is not unlocked for this account yet.' };
     }
 

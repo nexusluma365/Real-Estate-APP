@@ -1,366 +1,248 @@
+// Customer-initiated upsell payments on the production trial funnel, run
+// against the real Netlify functions with an in-memory Stripe (no network,
+// no real charges). Prices: $20 upsells (2000 cents), $97 Credit Kit.
+const test = require('node:test');
 const assert = require('assert');
+const { setup, post, completeSignup } = require('./helpers/payment-harness');
 
-async function loadHandler({ entitlements, prescreenIntent, upsellIntent, upsellError, patchEntitlements, sendDownloadEmail }) {
-  const stripePath = require.resolve('../netlify/functions/_lib/stripe');
-  const storePath = require.resolve('../netlify/functions/_lib/store');
-  const focusPath = require.resolve('../netlify/functions/_lib/focus');
-  const downloadEmailPath = require.resolve('../netlify/functions/_lib/download-email');
-  const funnelPath = require.resolve('../netlify/functions/_lib/funnel');
-  const fnPath = require.resolve('../netlify/functions/charge-upsell');
-  delete require.cache[fnPath];
+const LEAD = 'lead_a';
 
-  const retrieveCalls = [];
-  const createCalls = [];
-  const createOptions = [];
-  const downloadEmailCalls = [];
-  const funnelEvents = [];
-
-  require.cache[stripePath] = {
-    id: stripePath,
-    filename: stripePath,
-    loaded: true,
-    exports: {
-      getStripe: () => ({
-        paymentIntents: {
-          retrieve: async (id) => {
-            retrieveCalls.push(id);
-            return prescreenIntent;
-          },
-          create: async (payload, options) => {
-            createCalls.push(payload);
-            createOptions.push(options);
-            if (upsellError) throw upsellError;
-            return upsellIntent;
-          },
-        },
-      }),
-    },
-  };
-
-  require.cache[storePath] = {
-    id: storePath,
-    filename: storePath,
-    loaded: true,
-    exports: {
-      getEntitlements: async () => entitlements,
-      getLead: async () => ({ credit_score: '700_739', email: 'buyer@example.com' }),
-      patchEntitlements,
-    },
-  };
-
-  require.cache[focusPath] = {
-    id: focusPath,
-    filename: focusPath,
-    loaded: true,
-    exports: { determineFocus: () => 'income' },
-  };
-  require.cache[downloadEmailPath] = {
-    id: downloadEmailPath,
-    filename: downloadEmailPath,
-    loaded: true,
-    exports: {
-      sendDownloadEmail:
-        sendDownloadEmail ||
-        (async (leadId, product) => {
-          downloadEmailCalls.push({ leadId, product });
-          return true;
-        }),
-    },
-  };
-  require.cache[funnelPath] = {
-    id: funnelPath,
-    filename: funnelPath,
-    loaded: true,
-    exports: {
-      logFunnelEvent: async (event, fields) => {
-        funnelEvents.push({ event, fields });
-        return true;
-      },
-    },
-  };
-
-  const handler = require('../netlify/functions/charge-upsell').handler;
-  return { handler, retrieveCalls, createCalls, createOptions, downloadEmailCalls, funnelEvents };
+async function member(options = {}) {
+  const h = setup(options);
+  const signup = await completeSignup(h, { leadId: LEAD, pm: 'pm_saved' });
+  assert.equal(signup.confirmed.json.status, 'succeeded', 'trial started');
+  return { h, cookie: signup.cookie };
 }
 
-async function run() {
-  const patchCalls = [];
-  const { handler, retrieveCalls, createCalls, downloadEmailCalls } = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: false,
-      paid27: false,
-      paid97: false,
-      stripeCustomerId: null,
-      defaultPaymentMethodId: null,
-      manychat_contact_id: '123456789',
-    },
-    prescreenIntent: {
-      id: 'pi_prescreen',
-      status: 'succeeded',
-      metadata: { leadId: 'lead_123', product: 'prescreen' },
-      customer: 'cus_test',
-      payment_method: 'pm_test',
-    },
-    upsellIntent: { id: 'pi_upsell', status: 'succeeded' },
-    patchEntitlements: async (leadId, patch) => {
-      patchCalls.push({ leadId, patch });
-      return { leadId, paid10: true, ...patch };
-    },
-  });
+function upsellCharges(h) {
+  return h.stripe.state.charges.filter((c) => c.product);
+}
 
-  const res = await handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({
-      leadId: 'lead_123',
-      product: 'modern',
-      idempotencyKey: 'idem_123',
-      prescreenPaymentIntentId: 'pi_prescreen',
-    }),
-  });
-  const body = JSON.parse(res.body);
+test('G/I: one-click $20 upsell charges 2000 cents once, on-session, with production details', async () => {
+  const { h, cookie } = await member();
+  h.store.ents.get(LEAD).manychat_contact_id = '123456789';
+  const res = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie });
 
   assert.equal(res.statusCode, 200);
-  assert.equal(body.ok, true);
-  assert.equal(body.status, 'succeeded');
-  assert.equal(body.paymentIntentId, 'pi_upsell');
-  assert.deepEqual(retrieveCalls, ['pi_prescreen']);
-  assert.equal(createCalls.length, 1);
-  assert.equal(createCalls[0].amount, 2000);
-  assert.equal(createCalls[0].customer, 'cus_test');
-  assert.equal(createCalls[0].payment_method, 'pm_test');
-  assert.equal(createCalls[0].off_session, true);
-  assert.deepEqual(createCalls[0].payment_method_types, ['card']);
-  assert.deepEqual(createCalls[0].payment_method_options, { card: { request_three_d_secure: 'automatic' } });
-  assert.equal(createCalls[0].description, 'RentReady Modern Apartment Matches & RentReady Guide');
-  assert.equal(createCalls[0].receipt_email, 'buyer@example.com');
-  assert.equal(createCalls[0].metadata.manychat_contact_id, '123456789');
-  assert.equal(patchCalls.length, 2);
-  assert.deepEqual(patchCalls[0].patch, {
-    paid10: true,
-    stripeCustomerId: 'cus_test',
-    defaultPaymentMethodId: 'pm_test',
-  });
-  assert.deepEqual(patchCalls[1].patch, {
-    paid27: true,
-    addPurchasedCategory: 'modern',
-    manychat_contact_id: '123456789',
-    manychatContactId: '123456789',
-  });
-  assert.deepEqual(downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
+  assert.equal(res.json.status, 'succeeded');
+  const create = h.stripe.state.createCalls.find((c) => c.params.metadata.product === 'modern');
+  assert.equal(create.params.amount, 2000);
+  assert.equal(create.params.currency, 'usd');
+  assert.equal(create.params.off_session, undefined, 'customer-present purchase must not be off_session');
+  assert.equal(create.params.customer, h.store.ents.get(LEAD).stripeCustomerId);
+  assert.deepEqual(create.params.payment_method_types, ['card']);
+  assert.deepEqual(create.params.payment_method_options, { card: { request_three_d_secure: 'automatic' } });
+  assert.equal(create.params.description, 'RentReady Modern Apartment Matches & RentReady Guide');
+  assert.match(create.opts.idempotencyKey, /^rr-upsell:v2:lead_a:modern:cus_/);
+  const pi = h.stripe.state.intents.get(res.json.paymentIntentId);
+  assert.equal(pi.receipt_email, 'renter@example.com');
+  assert.equal(pi.metadata.manychat_contact_id, '123456789');
+  assert.equal(h.stripe.state.confirmCalls.length, 1);
+  assert.equal(h.stripe.state.confirmCalls[0].params.payment_method, 'pm_saved');
+  assert.equal(h.stripe.state.confirmCalls[0].params.off_session, undefined);
+  assert.deepEqual(upsellCharges(h).map((c) => c.amount), [2000]);
 
-  const mismatch = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: false,
-      paid27: false,
-      paid97: false,
-      stripeCustomerId: null,
-      defaultPaymentMethodId: null,
-    },
-    prescreenIntent: {
-      id: 'pi_other',
-      status: 'succeeded',
-      metadata: { leadId: 'other_lead', product: 'prescreen' },
-      customer: 'cus_test',
-      payment_method: 'pm_test',
-    },
-    upsellIntent: { id: 'pi_upsell', status: 'succeeded' },
-    patchEntitlements: async () => ({}),
-  });
-  const mismatchRes = await mismatch.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({
-      leadId: 'lead_123',
-      product: 'modern',
-      idempotencyKey: 'idem_123',
-      prescreenPaymentIntentId: 'pi_other',
-    }),
-  });
-  assert.equal(mismatchRes.statusCode, 403);
-  assert.equal(mismatch.createCalls.length, 0);
+  const ent = h.store.ents.get(LEAD);
+  assert.equal(ent.paid27, true);
+  assert.deepEqual(ent.purchasedCategories, ['modern']);
+  assert.equal(ent.productPaymentIntents.modern, res.json.paymentIntentId);
+  assert.equal(ent.defaultPaymentMethodId, 'pm_saved', 'upsell never replaces the saved card');
+  assert.equal(ent.listingAccessStatus, 'active', 'listing access untouched');
+  assert.deepEqual(h.emails.download, [{ leadId: LEAD, product: 'modern' }]);
+  assert.equal(h.funnel.filter((e) => e.event === 'upsell_paid').length, 1);
+});
 
-  // Regression: owning one apartment category must not block buying (or
-  // charge twice for) the other one, and must not be treated as already
-  // owning it.
-  const secondCategoryPatchCalls = [];
-  const secondCategory = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: true,
-      paid27: true,
-      paid97: false,
-      purchasedCategories: ['modern'],
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
-    },
-    upsellIntent: { id: 'pi_luxury', status: 'succeeded' },
-    patchEntitlements: async (leadId, patch) => {
-      secondCategoryPatchCalls.push({ leadId, patch });
-      return { leadId, purchasedCategories: ['modern', 'luxury'], ...patch };
-    },
-  });
-  const secondCategoryRes = await secondCategory.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'luxury', idempotencyKey: 'idem_456' }),
-  });
-  const secondCategoryBody = JSON.parse(secondCategoryRes.body);
-  assert.equal(secondCategoryRes.statusCode, 200);
-  assert.equal(secondCategoryBody.status, 'succeeded');
-  assert.equal(secondCategoryBody.alreadyOwned, undefined);
-  assert.equal(secondCategory.createCalls.length, 1);
-  assert.deepEqual(secondCategoryPatchCalls[0].patch, { paid27: true, addPurchasedCategory: 'luxury' });
-  assert.deepEqual(secondCategory.downloadEmailCalls, [{ leadId: 'lead_123', product: 'luxury' }]);
+test('G/H: server prices — every $20 product is 2000 cents, Credit Kit 9700; browser amounts ignored', async () => {
+  const { h, cookie } = await member({ focus: 'credit' });
+  for (const product of ['gameplan', 'luxury', 'apartment_prep']) {
+    await post(h.handlers['charge-upsell'], { leadId: LEAD, product, amount: 1 }, { cookie });
+  }
+  await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'creditkit', price: 1 }, { cookie });
+  const amounts = Object.fromEntries(upsellCharges(h).map((c) => [c.product, c.amount]));
+  assert.deepEqual(amounts, { gameplan: 2000, luxury: 2000, apartment_prep: 2000, creditkit: 9700 });
+  assert.equal((await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'free' }, { cookie })).statusCode, 400);
+});
 
-  // Already owning a category is a no-op success, not a second charge.
-  const alreadyOwned = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: true,
-      paid27: true,
-      paid97: false,
-      purchasedCategories: ['modern', 'luxury'],
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
-    },
-    patchEntitlements: async () => ({}),
-  });
-  const alreadyOwnedRes = await alreadyOwned.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'modern', idempotencyKey: 'idem_789' }),
-  });
-  const alreadyOwnedBody = JSON.parse(alreadyOwnedRes.body);
-  assert.equal(alreadyOwnedRes.statusCode, 200);
-  assert.equal(alreadyOwnedBody.alreadyOwned, true);
-  assert.equal(alreadyOwned.createCalls.length, 0);
-  assert.deepEqual(alreadyOwned.downloadEmailCalls, [{ leadId: 'lead_123', product: 'modern' }]);
+test('Game Plan, Modern and Luxury are no longer charged off_session (Approval Kit already was on-session)', async () => {
+  const { h, cookie } = await member();
+  for (const product of ['gameplan', 'modern', 'luxury', 'apartment_prep']) {
+    await post(h.handlers['charge-upsell'], { leadId: LEAD, product }, { cookie });
+  }
+  assert.ok(h.stripe.state.createCalls.every((c) => c.params.off_session === undefined && !c.params.confirm));
+  assert.ok(h.stripe.state.confirmCalls.every((c) => c.params.off_session === undefined));
+});
 
-  // The Apartment Approval Preparation Kit uses the one-click upsell
-  // infrastructure at $20 and sends the RentReady Kit download email.
-  const prepPatchCalls = [];
-  const apartmentPrep = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: true,
-      paid27: false,
-      paid97: false,
-      purchasedCategories: [],
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
-    },
-    upsellIntent: { id: 'pi_prep', status: 'succeeded' },
-    patchEntitlements: async (leadId, patch) => {
-      prepPatchCalls.push({ leadId, patch });
-      return { leadId, purchasedCategories: ['apartment_prep'], ...patch };
-    },
-  });
-  const prepRes = await apartmentPrep.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_prep', amount: 1 }),
-  });
-  const prepBody = JSON.parse(prepRes.body);
-  assert.equal(prepRes.statusCode, 200);
-  assert.equal(prepBody.status, 'succeeded');
-  assert.equal(apartmentPrep.createCalls.length, 1);
-  assert.equal(apartmentPrep.createCalls[0].amount, 2000);
-  assert.equal(apartmentPrep.createCalls[0].currency, 'usd');
-  assert.equal(apartmentPrep.createCalls[0].off_session, undefined, 'apartment_prep should use customer-present PaymentIntent confirmation');
-  assert.equal(apartmentPrep.createCalls[0].metadata.product, 'apartment_prep');
-  assert.equal(apartmentPrep.createOptions[0].idempotencyKey, 'lead_123:apartment_prep:idem_prep');
-  assert.deepEqual(prepPatchCalls[0].patch, { paid47: true, paid27: true, addPurchasedCategory: 'apartment_prep' });
-  assert.deepEqual(apartmentPrep.downloadEmailCalls, [{ leadId: 'lead_123', product: 'apartment_prep' }]);
-  assert.deepEqual(apartmentPrep.funnelEvents[0], {
-    event: 'upsell_paid',
-    fields: { lead_id: 'lead_123', payment_id: 'pi_prep', amount: 20, detail: { product: 'apartment_prep' } },
-  });
+test('owning one apartment category neither blocks nor double-charges the other', async () => {
+  const { h, cookie } = await member();
+  await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie });
+  const luxury = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'luxury' }, { cookie });
+  assert.equal(luxury.json.status, 'succeeded');
+  assert.equal(luxury.json.alreadyOwned, undefined);
+  assert.deepEqual(h.store.ents.get(LEAD).purchasedCategories, ['modern', 'luxury']);
+  assert.equal(upsellCharges(h).length, 2);
+});
 
-  // Already owning apartment_prep is a no-op success, not a second $20 charge.
-  const alreadyOwnsPrep = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: true,
-      paid27: true,
-      paid47: true,
-      paid97: false,
-      purchasedCategories: ['apartment_prep'],
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
-    },
-    patchEntitlements: async () => ({}),
-  });
-  const alreadyOwnsPrepRes = await alreadyOwnsPrep.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_prep_repeat' }),
-  });
-  const alreadyOwnsPrepBody = JSON.parse(alreadyOwnsPrepRes.body);
-  assert.equal(alreadyOwnsPrepRes.statusCode, 200);
-  assert.equal(alreadyOwnsPrepBody.status, 'succeeded');
-  assert.equal(alreadyOwnsPrepBody.alreadyOwned, true);
-  assert.equal(alreadyOwnsPrep.createCalls.length, 0);
+test('M: double click → one PaymentIntent, one charge', async () => {
+  const { h, cookie } = await member();
+  const [a, b] = await Promise.all([
+    post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie }),
+    post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie }),
+  ]);
+  assert.equal(a.json.status, 'succeeded');
+  assert.equal(b.json.status, 'succeeded');
+  assert.equal(upsellCharges(h).length, 1);
+  const prepIntents = [...h.stripe.state.intents.values()].filter((p) => p.metadata.product === 'apartment_prep');
+  assert.equal(prepIntents.length, 1);
+});
 
-  // If Stripe requires customer authentication, the server returns the
-  // PaymentIntent details for Stripe.js and grants no entitlement yet.
-  const actionRequired = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: true,
-      paid27: false,
-      paid97: false,
-      purchasedCategories: [],
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
-    },
-    upsellIntent: { id: 'pi_requires_action', status: 'requires_action', client_secret: 'pi_requires_action_secret' },
-    patchEntitlements: async () => {
-      throw new Error('should not grant before authentication succeeds');
-    },
-  });
-  const actionRequiredRes = await actionRequired.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_action' }),
-  });
-  const actionRequiredBody = JSON.parse(actionRequiredRes.body);
-  assert.equal(actionRequiredRes.statusCode, 200);
-  assert.equal(actionRequiredBody.status, 'requires_action');
-  assert.equal(actionRequiredBody.clientSecret, 'pi_requires_action_secret');
-  assert.equal(actionRequiredBody.paymentIntentId, 'pi_requires_action');
+test('N/O: second tab, refresh and back button after success never charge again', async () => {
+  const { h, cookie } = await member();
+  await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'gameplan' }, { cookie });
+  const tab2 = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'gameplan' }, { cookie });
+  const refresh = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'gameplan' }, { cookie });
+  assert.equal(tab2.json.alreadyOwned, true);
+  assert.equal(refresh.json.alreadyOwned, true);
+  assert.equal(upsellCharges(h).length, 1);
+});
 
-  // A declined upsell must not send the download email.
-  const declineError = new Error('card declined');
-  declineError.code = 'card_declined';
-  declineError.decline_code = 'insufficient_funds';
-  declineError.raw = { payment_intent: { id: 'pi_declined' } };
-  const declined = await loadHandler({
-    entitlements: {
-      leadId: 'lead_123',
-      paid10: true,
-      paid27: false,
-      paid97: false,
-      purchasedCategories: [],
-      stripeCustomerId: 'cus_test',
-      defaultPaymentMethodId: 'pm_test',
-    },
-    upsellError: declineError,
-    patchEntitlements: async () => ({}),
-  });
-  const declinedRes = await declined.handler({
-    httpMethod: 'POST',
-    body: JSON.stringify({ leadId: 'lead_123', product: 'apartment_prep', idempotencyKey: 'idem_decline' }),
-  });
-  const declinedBody = JSON.parse(declinedRes.body);
-  assert.equal(declinedRes.statusCode, 200);
-  assert.equal(declinedBody.status, 'failed');
-  assert.match(declinedBody.message, /\$20 purchase/);
-  assert.deepEqual(declined.downloadEmailCalls, []);
-  assert.deepEqual(declined.funnelEvents[0], {
-    event: 'upsell_failed',
-    fields: { lead_id: 'lead_123', detail: { product: 'apartment_prep', reason: 'insufficient_funds', amount: 2000 } },
-  });
-}
+test('J: 3-D Secure → requires_action → browser authentication → server-verified grant', async () => {
+  const { h, cookie } = await member();
+  h.stripe.cards.pm_saved = { ...h.stripe.cards.pm_saved, behavior: 'requires_action' };
+  const res = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie });
+  assert.equal(res.json.status, 'requires_action');
+  assert.ok(res.json.clientSecret);
+  assert.equal(res.json.amount, 2000);
+  assert.equal(h.store.ents.get(LEAD).paid47, false, 'nothing granted before authentication');
 
-run()
-  .then(() => console.log('charge-upsell flow test passed'))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  // The browser claims success before the bank finished: server refuses.
+  const early = await post(h.handlers['confirm-intent'], { leadId: LEAD, paymentIntentId: res.json.paymentIntentId, product: 'apartment_prep' });
+  assert.equal(early.json.status, 'requires_action');
+  assert.equal(h.store.ents.get(LEAD).paid47, false);
+
+  h.stripe.completeAction(res.json.paymentIntentId, true);
+  const confirmed = await post(h.handlers['confirm-intent'], { leadId: LEAD, paymentIntentId: res.json.paymentIntentId, product: 'apartment_prep' });
+  assert.equal(confirmed.json.status, 'succeeded');
+  assert.equal(h.store.ents.get(LEAD).paid47, true);
+  assert.deepEqual(h.emails.download, [{ leadId: LEAD, product: 'apartment_prep' }]);
+});
+
+test('K/L: insufficient_funds is reported truthfully, nothing granted, saved card not retried, another card completes the SAME purchase once', async () => {
+  const { h, cookie } = await member();
+  h.stripe.cards.pm_saved = { ...h.stripe.cards.pm_saved, behavior: 'insufficient_funds', funding: 'prepaid' };
+
+  const declined = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie });
+  assert.equal(declined.statusCode, 200);
+  assert.equal(declined.json.status, 'requires_payment_method');
+  assert.equal(declined.json.decline.code, 'insufficient_funds');
+  assert.match(declined.json.decline.message, /insufficient funds/i);
+  assert.equal(declined.json.savedCard, true);
+  assert.equal(declined.json.amount, 2000);
+  assert.equal(JSON.stringify(declined.json).includes('pm_saved'), false, 'no payment method ids reach the browser');
+  assert.equal(h.store.ents.get(LEAD).paid47, false);
+  assert.deepEqual(h.emails.download, []);
+  const failedRow = h.funnel.find((e) => e.event === 'upsell_failed');
+  assert.deepEqual(failedRow.detail, { product: 'apartment_prep', reason: 'insufficient_funds', amount: 2000 });
+
+  // Clicking again does not hammer the declined card, and isn't treated as abuse.
+  const again = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'apartment_prep' }, { cookie });
+  assert.equal(again.json.status, 'requires_payment_method');
+  assert.equal(again.json.paymentIntentId, declined.json.paymentIntentId, 'same PaymentIntent');
+  assert.equal(h.stripe.state.confirmCalls.length, 1);
+
+  // A different card typed into Stripe Elements pays the SAME PaymentIntent.
+  const browser = h.stripe.browserConfirm(declined.json.clientSecret, 'pm_other_card');
+  assert.equal(browser.paymentIntent.status, 'succeeded');
+  const confirmed = await post(h.handlers['confirm-intent'], { leadId: LEAD, paymentIntentId: declined.json.paymentIntentId, product: 'apartment_prep' });
+  assert.equal(confirmed.json.status, 'succeeded');
+  assert.equal(h.store.ents.get(LEAD).paid47, true);
+  assert.equal(upsellCharges(h).length, 1);
+  assert.equal(h.store.ents.get(LEAD).defaultPaymentMethodId, 'pm_saved', 'trial card stays the subscription card');
+
+  // A paid PaymentIntent can't be paid again with yet another card.
+  assert.ok(h.stripe.browserConfirm(declined.json.clientSecret, 'pm_third').error);
+  assert.equal(upsellCharges(h).length, 1);
+});
+
+test('decline categories are kept distinct; API errors are never reported as bank declines', async () => {
+  const cases = [
+    ['card_declined', 'card_declined'],
+    ['generic_decline', 'card_declined'],
+    ['stolen_card', 'card_declined'],
+    ['expired_card', 'expired_card'],
+    ['incorrect_cvc', 'incorrect_cvc'],
+    ['processing_error', 'processing_error'],
+  ];
+  for (const [behavior, code] of cases) {
+    const { h, cookie } = await member();
+    h.stripe.cards.pm_saved = { ...h.stripe.cards.pm_saved, behavior };
+    const res = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'gameplan' }, { cookie });
+    assert.equal(res.json.decline.code, code, behavior);
+    assert.equal(h.store.ents.get(LEAD).paidGameplan, undefined);
+  }
+
+  const { h, cookie } = await member();
+  h.stripe.paymentIntents.create = async () => {
+    const err = new Error('An error occurred with our connection to Stripe.');
+    err.type = 'StripeConnectionError';
+    throw err;
+  };
+  const apiDown = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'gameplan' }, { cookie });
+  assert.equal(apiDown.statusCode, 500);
+  assert.equal(apiDown.json.code, 'stripe_error');
+  assert.doesNotMatch(apiDown.json.error, /declined|funds/i);
+});
+
+test('P: someone holding only the leadId cannot charge the saved card', async () => {
+  const { h } = await member();
+  const confirmsBefore = h.stripe.state.confirmCalls.length;
+
+  const attack = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' });
+  assert.equal(attack.json.status, 'requires_payment_method', 'only a card-entry form is offered');
+  assert.equal(attack.json.savedCard, false);
+  assert.equal(h.stripe.state.confirmCalls.length, confirmsBefore, 'saved card never used');
+  assert.equal(h.stripe.state.intents.get(attack.json.paymentIntentId).customer, null, 'guest PaymentIntent not attached to the customer');
+  assert.ok(h.stripe.browserConfirm(attack.json.clientSecret, 'pm_saved').error, 'saved card unusable on a guest PaymentIntent');
+  assert.equal(upsellCharges(h).length, 0);
+
+  // Forged and cross-lead cookies are ignored.
+  const forged = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie: 'rr_session=eyJsZWFkSWQiOiJsZWFkX2EifQ.fake' });
+  assert.equal(forged.json.savedCard, false);
+  const { sessionCookie } = require('../netlify/functions/_lib/session');
+  const otherSetup = sessionCookie({ leadId: LEAD, si: 'seti_attacker' }).split(';')[0];
+  assert.equal((await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie: otherSetup })).json.savedCard, false);
+  const otherLead = sessionCookie({ leadId: 'lead_attacker', si: h.store.ents.get(LEAD).cardSetupIntentId }).split(';')[0];
+  assert.equal((await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie: otherLead })).json.savedCard, false);
+  assert.equal(h.stripe.state.confirmCalls.length, confirmsBefore);
+});
+
+test('a duplicate payment for an owned product is refunded (rentready_reason: duplicate_purchase); other products are not', async () => {
+  const { h, cookie } = await member();
+  const guest = await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'luxury' });
+  await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'luxury' }, { cookie });
+  await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie });
+  h.stripe.browserConfirm(guest.json.clientSecret, 'pm_other');
+  const res = await post(h.handlers['confirm-intent'], { leadId: LEAD, paymentIntentId: guest.json.paymentIntentId, product: 'luxury' });
+  assert.equal(res.json.status, 'succeeded');
+  assert.deepEqual(h.stripe.state.refunds, [{
+    paymentIntent: guest.json.paymentIntentId,
+    metadata: { leadId: LEAD, product: 'luxury', rentready_reason: 'duplicate_purchase' },
+  }]);
+  assert.equal(h.emails.download.filter((e) => e.product === 'luxury').length, 1);
+  assert.equal(h.funnel.filter((e) => e.event === 'upsell_paid' && e.detail.product === 'luxury').length, 1);
+});
+
+test('upsells require an active listing checkout first', async () => {
+  const h = setup();
+  const res = await post(h.handlers['charge-upsell'], { leadId: 'lead_unpaid', product: 'modern' });
+  assert.equal(res.statusCode, 403);
+  assert.equal(h.stripe.state.createCalls.length, 0);
+});
+
+test('rate limiting brakes automated hammering but never blocks the card form', async () => {
+  const { h, cookie } = await member();
+  const results = [];
+  for (let i = 0; i < 17; i += 1) results.push(await post(h.handlers['charge-upsell'], { leadId: LEAD, product: 'modern' }, { cookie }));
+  assert.equal(results[0].json.status, 'succeeded');
+  assert.equal(results[results.length - 1].statusCode, 429);
+  assert.equal(upsellCharges(h).length, 1);
+});
