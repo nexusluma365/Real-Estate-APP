@@ -220,6 +220,7 @@ function rrnCollectCard(stripe, options) {
       <h4></h4>
       <p class="rrn-card-message"></p>
       <div class="rrn-card-element"></div>
+      <p class="rrn-card-backup"></p>
       <div class="rrn-card-error" role="alert"></div>
       <button type="button" class="rrn-card-pay"></button>
       <button type="button" class="rrn-card-cancel">Cancel</button>
@@ -230,6 +231,14 @@ function rrnCollectCard(stripe, options) {
   modal.querySelector('.rrn-card-message').textContent = opts.decline
     ? opts.decline.message
     : 'Enter a card to complete your purchase. Your card details go directly to Stripe.';
+  // Card-network rules: tell the customer before a card is stored for
+  // future (membership) charges.
+  const backupNote = modal.querySelector('.rrn-card-backup');
+  if (backupNote) {
+    backupNote.textContent = opts.saveAsBackup
+      ? 'This card will also be saved as a backup for your RentReady membership, used only if your main card is declined.'
+      : '';
+  }
   const payBtn = modal.querySelector('.rrn-card-pay');
   const cancelBtn = modal.querySelector('.rrn-card-cancel');
   const errorEl = modal.querySelector('.rrn-card-error');
@@ -313,18 +322,20 @@ async function rrnChargeUpsell(product, _unusedPublishableKey) {
   const leadId = rrnLeadId();
   if (!leadId) return 'failed';
 
-  let data;
-  try {
-    const res = await fetch('/.netlify/functions/charge-upsell', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId, product }),
-    });
-    data = await res.json().catch(() => ({}));
-  } catch (_e) {
-    return 'failed';
-  }
+  const requestUpsell = async () => {
+    try {
+      const res = await fetch('/.netlify/functions/charge-upsell', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, product }),
+      });
+      return await res.json().catch(() => ({}));
+    } catch (_e) {
+      return null;
+    }
+  };
+  let data = await requestUpsell();
   if (!data || !data.ok) return 'failed';
 
   if (data.status === 'succeeded' || data.status === 'processing') {
@@ -344,10 +355,15 @@ async function rrnChargeUpsell(product, _unusedPublishableKey) {
   if (data.status === 'requires_action') {
     const result = await stripe.confirmCardPayment(data.clientSecret);
     if (result.error) {
+      // Ask the server for the card form, so the same PaymentIntent is set
+      // up correctly (e.g. to save the new card as a backup).
+      const retry = await requestUpsell();
+      const form = retry && retry.ok && retry.status === 'requires_payment_method' ? retry : null;
       paymentIntent = await rrnCollectCard(stripe, {
-        clientSecret: data.clientSecret,
-        amount: data.amount,
-        decline: rrnDescribeStripeError(result.error),
+        clientSecret: form ? form.clientSecret : data.clientSecret,
+        amount: (form && form.amount) || data.amount,
+        decline: (form && form.decline) || rrnDescribeStripeError(result.error),
+        saveAsBackup: !!(form && form.saveAsBackup),
       });
     } else {
       paymentIntent = result.paymentIntent;
@@ -357,6 +373,7 @@ async function rrnChargeUpsell(product, _unusedPublishableKey) {
       clientSecret: data.clientSecret,
       amount: data.amount,
       decline: data.decline,
+      saveAsBackup: !!data.saveAsBackup,
     });
   }
   if (!paymentIntent) return 'failed';
@@ -490,6 +507,8 @@ function rrnEnsurePaymentOverlay() {
       #${CARD_MODAL_ID} h4{margin:0 0 10px;font-size:24px;font-weight:800;line-height:1.15}
       #${CARD_MODAL_ID} p{margin:0 0 18px;color:#5f6f65;font-size:15px;line-height:1.55}
       #${CARD_MODAL_ID} .rrn-card-element{padding:14px 12px;border:1px solid #d6ddd8;border-radius:12px;text-align:left}
+      #${CARD_MODAL_ID} .rrn-card-backup{margin:10px 0 0;color:#5f6f65;font-size:13px;line-height:1.45}
+      #${CARD_MODAL_ID} .rrn-card-backup:empty{display:none}
       #${CARD_MODAL_ID} .rrn-card-error{min-height:20px;margin:10px 0 4px;color:#a63b32;font-size:14px}
       #${CARD_MODAL_ID} .rrn-card-pay{width:100%;padding:15px;border:0;border-radius:14px;background:#34483d;color:#fff;font-size:16px;font-weight:700;cursor:pointer}
       #${CARD_MODAL_ID} .rrn-card-pay:disabled{opacity:.6;cursor:default}

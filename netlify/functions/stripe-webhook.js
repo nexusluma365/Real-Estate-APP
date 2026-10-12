@@ -24,6 +24,7 @@ const { logFunnelEvent } = require('./_lib/funnel');
 const { productDef } = require('./_lib/products');
 const { fulfillUpsellPaymentIntent, idOf } = require('./_lib/fulfillment');
 const { paymentErrorLogFields } = require('./_lib/payment-errors');
+const { retryInvoiceWithBackupCards } = require('./_lib/backup-cards');
 
 const MEMBERSHIP_PLANS = new Set(['monthly', 'yearly']);
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
@@ -213,6 +214,14 @@ exports.handler = async (event) => {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           await syncListingSubscription(stripe, sub);
           await logFunnelEvent('subscription_payment_failed', { lead_id: sub.metadata && sub.metadata.leadId, payment_id: invoice.id, amount: (invoice.amount_due || 0) / 100 });
+          // Main card failed: try the customer's saved backup card(s) once each.
+          if (isListingSubscription(sub)) {
+            try {
+              await retryInvoiceWithBackupCards(stripe, invoice, sub);
+            } catch (err) {
+              console.error('stripe-webhook backup card retry error', err && err.message);
+            }
+          }
         }
         break;
       }

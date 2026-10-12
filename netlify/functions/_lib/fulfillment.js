@@ -47,6 +47,21 @@ async function refundDuplicate(stripe, pi, product) {
   }
 }
 
+// A different card that paid an upsell on the lead's own Stripe customer,
+// with setup_future_usage (the customer was told it is saved as a backup),
+// becomes a backup card for membership renewals. The main subscription card
+// is never changed here.
+const MAX_BACKUP_CARDS = 3;
+function backupCardsAfter(pi, current) {
+  const card = idOf(pi.payment_method);
+  if (!card || pi.setup_future_usage !== 'off_session') return null;
+  if (!current.stripeCustomerId || idOf(pi.customer) !== current.stripeCustomerId) return null;
+  if (card === current.defaultPaymentMethodId) return null;
+  const existing = Array.isArray(current.backupPaymentMethodIds) ? current.backupPaymentMethodIds : [];
+  if (existing.includes(card)) return null;
+  return [card, ...existing].slice(0, MAX_BACKUP_CARDS);
+}
+
 // Throws only if the entitlement write itself fails — callers decide whether
 // that's a warning (the charge still succeeded) or a retryable error.
 async function fulfillUpsellPaymentIntent(stripe, pi) {
@@ -79,6 +94,8 @@ async function fulfillUpsellPaymentIntent(stripe, pi) {
     ...manychatMetadata(metadata.manychat_contact_id),
     productPaymentIntents: { ...recordedMap, [product]: pi.id },
   };
+  const backups = backupCardsAfter(pi, current);
+  if (backups) patch.backupPaymentMethodIds = backups;
   const entitlements = await store().patchEntitlements(leadId, patch);
 
   if (DOWNLOAD_EMAIL_PRODUCTS.has(product)) {

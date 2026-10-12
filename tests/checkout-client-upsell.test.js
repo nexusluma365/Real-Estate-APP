@@ -168,3 +168,40 @@ test('no hardcoded fallback key: if /config fails, the payment does not start', 
   assert.equal(await c.window.rrnChargeUpsell('modern', 'pk_live_hardcoded_page_constant'), 'failed');
   assert.equal(c.stripeCalls.length, 0);
 });
+
+test('backup-card notice shows only when the server will save the card', async () => {
+  for (const saveAsBackup of [true, false]) {
+    const c = load({
+      responses: { 'charge-upsell': { ok: true, status: 'requires_payment_method', clientSecret: 's', paymentIntentId: 'pi_b', amount: 2000, decline: { code: 'card_declined', message: 'Your card was declined.' }, savedCard: true, saveAsBackup } },
+    });
+    const pending = c.window.rrnChargeUpsell('modern');
+    const modal = await waitFor(() => c.registry.rrnCardModal);
+    const note = modal.querySelector('.rrn-card-backup').textContent;
+    if (saveAsBackup) assert.match(note, /saved as a backup for your RentReady membership/);
+    else assert.equal(note, '');
+    modal.querySelector('.rrn-card-cancel').listeners.click();
+    assert.equal(await pending, 'failed');
+  }
+});
+
+test('a failed 3-D Secure challenge asks the server for the card form (backup-ready) before showing it', async () => {
+  let calls = 0;
+  const c = load({
+    responses: {
+      'charge-upsell': () => (++calls === 1
+        ? { ok: true, status: 'requires_action', clientSecret: 'pi_3_secret', paymentIntentId: 'pi_3', amount: 2000 }
+        : { ok: true, status: 'requires_payment_method', clientSecret: 'pi_3_secret', paymentIntentId: 'pi_3', amount: 2000, decline: { code: 'authentication_required', message: 'Your bank needs to verify this purchase.' }, savedCard: true, saveAsBackup: true }),
+      'confirm-intent': { ok: true, status: 'succeeded' },
+    },
+    confirmResults: [
+      { error: { type: 'card_error', code: 'payment_intent_authentication_failure' } },
+      { paymentIntent: { id: 'pi_3', status: 'succeeded' } },
+    ],
+  });
+  const pending = c.window.rrnChargeUpsell('apartment_prep');
+  const modal = await waitFor(() => c.registry.rrnCardModal);
+  assert.equal(calls, 2);
+  assert.match(modal.querySelector('.rrn-card-backup').textContent, /backup/);
+  await modal.querySelector('.rrn-card-pay').listeners.click();
+  assert.equal(await pending, 'succeeded');
+});

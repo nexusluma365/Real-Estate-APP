@@ -99,7 +99,22 @@ async function upsellIntent(stripe, { leadId, product, def, customer, manychatCo
   return pi;
 }
 
-function needsCard(pi, def, decline, savedCard) {
+// Collect a card with Stripe Elements. On a verified payer's PaymentIntent
+// (attached to their Stripe customer), the card they enter is also saved as
+// a BACKUP for their membership: setup_future_usage attaches it to the
+// customer once the payment succeeds, and the form tells them so
+// (saveAsBackup). The trial card stays the subscription's main card.
+async function needsCard(stripe, pi, def, decline, savedCard) {
+  let saveAsBackup = !!pi.customer;
+  if (saveAsBackup && pi.setup_future_usage !== 'off_session') {
+    try {
+      pi = await stripe.paymentIntents.update(pi.id, { setup_future_usage: 'off_session' });
+    } catch (err) {
+      // Never block the purchase over the backup card; just don't promise it.
+      saveAsBackup = false;
+      console.warn('charge-upsell could not enable backup-card saving', err && err.code);
+    }
+  }
   return json(200, {
     ok: true,
     status: 'requires_payment_method',
@@ -108,6 +123,7 @@ function needsCard(pi, def, decline, savedCard) {
     amount: def.amount,
     decline: decline || null,
     savedCard: !!savedCard,
+    saveAsBackup,
   });
 }
 
@@ -155,7 +171,7 @@ async function respondForIntent(stripe, pi, ctx) {
           console.warn('charge-upsell saved card declined', { leadId, product, amount: def.amount, paymentIntentId: pi.id, ...paymentErrorLogFields(err) });
           await logFunnelEvent('upsell_failed', { lead_id: leadId, detail: { product, reason: decline.code, amount: def.amount } });
           const declinedPi = err.raw && err.raw.payment_intent && err.raw.payment_intent.client_secret ? err.raw.payment_intent : pi;
-          return needsCard(declinedPi, def, decline, true);
+          return needsCard(stripe, declinedPi, def, decline, true);
         }
         throw err;
       }
@@ -164,7 +180,7 @@ async function respondForIntent(stripe, pi, ctx) {
     if (lastError) {
       console.warn('charge-upsell previous attempt declined', { leadId, product, paymentIntentId: pi.id, ...paymentErrorLogFields(lastError) });
     }
-    return needsCard(pi, def, lastError ? describePaymentError(lastError) : null, !!savedPaymentMethod);
+    return needsCard(stripe, pi, def, lastError ? describePaymentError(lastError) : null, !!savedPaymentMethod);
   }
 
   return json(200, {

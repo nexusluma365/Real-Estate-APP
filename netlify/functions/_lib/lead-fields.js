@@ -13,7 +13,7 @@ const SERVER_OWNED_FIELDS = [
   'stripeSubscriptionId', 'stripe_subscription_id',
   'listingSubscriptionId', 'listingSubscriptionStatus', 'listingAccessStatus', 'listing_access_status',
   'listingSubscriptionStartedAt', 'listingSubscriptionCurrentPeriodEnd', 'listingSubscriptionCancelAtPeriodEnd',
-  'listingSubscriptionWelcomeSentAt', 'listingSetupIntentId', 'cardSetupIntentId',
+  'listingSubscriptionWelcomeSentAt', 'listingSetupIntentId', 'cardSetupIntentId', 'backupPaymentMethodIds',
   'subscription_status', 'subscriptionStatus',
   'entitlements', 'session', 'rr_session',
 ];

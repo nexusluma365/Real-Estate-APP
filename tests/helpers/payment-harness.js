@@ -31,6 +31,8 @@ function createFakeStripe({ cards = {} } = {}) {
     subscriptionsCreated: [],
     customerUpdates: [],
     authorizations: [],
+    invoices: new Map(),
+    invoicePayCalls: [],
   };
   const nextId = (prefix) => `${prefix}_${++state.seq}`;
 
@@ -78,6 +80,8 @@ function createFakeStripe({ cards = {} } = {}) {
       pi.status = 'succeeded';
       pi.last_payment_error = null;
       state.charges.push({ paymentIntentId: pi.id, paymentMethod: pm, amount: pi.amount, product: pi.metadata.product, funding: card.funding || 'credit' });
+      // setup_future_usage saves (attaches) the card to the PI's customer.
+      if (pi.setup_future_usage && pi.customer) cards[pm] = { ...card, customer: pi.customer };
       return null;
     }
     if (card.behavior === 'requires_action') {
@@ -141,6 +145,7 @@ function createFakeStripe({ cards = {} } = {}) {
         if (!pi) throw invalidRequest(`No such payment_intent: '${id}'`);
         if (params.metadata) pi.metadata = { ...pi.metadata, ...params.metadata };
         if (params.receipt_email) pi.receipt_email = params.receipt_email;
+        if (params.setup_future_usage) pi.setup_future_usage = params.setup_future_usage;
         return clone(pi);
       },
       confirm: async (id, params = {}, opts = {}) => {
@@ -222,6 +227,37 @@ function createFakeStripe({ cards = {} } = {}) {
         const sub = state.subscriptions.get(id);
         if (sub) sub.status = 'canceled';
         return clone(sub || {});
+      },
+    },
+    paymentMethods: {
+      retrieve: async (id) => {
+        const card = cards[id];
+        if (!card) throw invalidRequest(`No such PaymentMethod: '${id}'`);
+        return { id, object: 'payment_method', customer: card.customer || null, card: { fingerprint: card.fingerprint || `fp_${id}`, funding: card.funding || 'credit' } };
+      },
+    },
+    invoices: {
+      retrieve: async (id) => clone(state.invoices.get(id)),
+      pay: async (id, params = {}, opts = {}) => {
+        state.invoicePayCalls.push({ id, params: clone(params), opts: clone(opts) });
+        return idempotent(opts.idempotencyKey, JSON.stringify([id, params]), () => {
+          const invoice = state.invoices.get(id);
+          if (!invoice) throw invalidRequest(`No such invoice: '${id}'`);
+          if (invoice.status !== 'open') throw invalidRequest('Invoice is already paid.');
+          const card = cardFor(params.payment_method);
+          if (card.customer !== invoice.customer) throw invalidRequest('The provided PaymentMethod belongs to a different Customer.');
+          if (card.behavior !== 'success') {
+            const err = new Error('Your card was declined.');
+            err.type = 'StripeCardError';
+            err.code = 'card_declined';
+            err.decline_code = card.behavior;
+            err.raw = { type: 'card_error', code: 'card_declined', decline_code: card.behavior, payment_method: { id: params.payment_method, card: { funding: card.funding || 'credit' } } };
+            throw err;
+          }
+          invoice.status = 'paid';
+          state.charges.push({ invoiceId: id, paymentMethod: params.payment_method, amount: invoice.amount_due, offSession: !!params.off_session });
+          return clone(invoice);
+        });
       },
     },
     refunds: {
