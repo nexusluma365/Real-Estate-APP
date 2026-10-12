@@ -13,6 +13,7 @@
 const { getLead, saveLead, getEntitlements, getApartmentResults, saveApartmentResults, saveUserListingMatches } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
 const { getStripe } = require('./_lib/stripe');
+const { fulfillUpsellPaymentIntent, idOf } = require('./_lib/fulfillment');
 const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
 const { attachScreeningVerifications } = require('./_lib/screening-verification');
 const crypto = require('crypto');
@@ -402,8 +403,12 @@ async function recoverPrescreenEntitlement(leadId, paymentIntentId, current) {
   }
 
   const patch = { paid10: true, ...subscriptionStatusPatch(subscription) };
-  if (pi.customer) patch.stripeCustomerId = pi.customer;
-  if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
+  // Recovery may restore access, but never replaces a card or customer that
+  // is already saved on the lead (the payment id comes from the browser).
+  const setsCard = !current.defaultPaymentMethodId &&
+    (!current.stripeCustomerId || current.stripeCustomerId === idOf(pi.customer));
+  if (setsCard && pi.customer) patch.stripeCustomerId = idOf(pi.customer);
+  if (setsCard && pi.payment_method) patch.defaultPaymentMethodId = idOf(pi.payment_method);
 
   try {
     const { patchEntitlements } = require('./_lib/store');
@@ -414,7 +419,10 @@ async function recoverPrescreenEntitlement(leadId, paymentIntentId, current) {
   }
 }
 
-async function recoverApartmentEntitlement(leadId, category, paymentIntentId, current) {
+// Re-reads the upsell PaymentIntent from Stripe and grants it through the
+// shared fulfillment rules (lead/product/price checks, granted once, saved
+// card untouched), so a client-supplied id can't unlock anything unpaid.
+async function recoverApartmentEntitlement(leadId, _category, paymentIntentId, current) {
   let pi;
   try {
     pi = await getStripe().paymentIntents.retrieve(paymentIntentId);
@@ -424,25 +432,15 @@ async function recoverApartmentEntitlement(leadId, category, paymentIntentId, cu
   }
 
   const metadata = pi.metadata || {};
-  if (pi.status !== 'succeeded' || metadata.leadId !== leadId || !LEGACY_CATEGORIES.has(String(metadata.product || metadata.category || '').toLowerCase())) {
+  if (pi.status !== 'succeeded' || metadata.leadId !== leadId || !LEGACY_CATEGORIES.has(String(metadata.product || '').toLowerCase())) {
     return current;
   }
-
-  const recoveredProduct = String(metadata.product || metadata.category || 'apartment_prep').toLowerCase();
-  const patch = {
-    paid27: true,
-    ...(recoveredProduct === 'apartment_prep' ? { paid47: true } : {}),
-    addPurchasedCategory: recoveredProduct,
-  };
-  if (pi.customer) patch.stripeCustomerId = pi.customer;
-  if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
-
   try {
-    const { patchEntitlements } = require('./_lib/store');
-    return await patchEntitlements(leadId, patch);
+    const result = await fulfillUpsellPaymentIntent(getStripe(), pi);
+    return result.entitlements || current;
   } catch (err) {
     console.error('apartment entitlement recovery save failed', err);
-    return { ...current, ...patch, leadId };
+    return current;
   }
 }
 

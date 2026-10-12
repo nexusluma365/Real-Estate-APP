@@ -17,6 +17,7 @@ function loadHandler(options = {}) {
         (async (leadId, answers) => {
           savedLeads.push({ leadId, answers });
         }),
+      getLead: options.getLead || (async () => null),
       getLeadByEmail:
         options.getLeadByEmail ||
         (async (email) => {
@@ -104,11 +105,30 @@ async function run() {
     });
     const registeredEmailBody = JSON.parse(registeredEmailRes.body);
 
+    // An email address alone is not proof of identity: an anonymous lookup
+    // must not reveal the lead (or its lead_id) behind someone's email.
     assert.equal(registeredEmailRes.statusCode, 200);
     assert.equal(registeredEmailBody.ok, true);
-    assert.equal(registeredEmailBody.registered, true);
-    assert.equal(registeredEmailBody.lead.lead_id, 'lead_existing');
+    assert.equal(registeredEmailBody.registered, false);
+    assert.equal(registeredEmailBody.lead, undefined);
     assert.equal(registeredEmail.savedLeads.length, 0);
+
+    // The browser that owns the lead (rr_session cookie) still gets its
+    // returning-renter summary back.
+    const oldSecret = process.env.EMAIL_LINK_SECRET;
+    process.env.EMAIL_LINK_SECRET = 'test-secret';
+    const ownerCookie = require('../netlify/functions/_lib/session').sessionCookie({ leadId: 'lead_existing' }).split(';')[0];
+    const ownerLookupRes = await registeredEmail.handler({
+      httpMethod: 'POST',
+      headers: { cookie: ownerCookie },
+      body: JSON.stringify({ lookupOnly: true, email: 'renter@example.com' }),
+    });
+    const ownerLookupBody = JSON.parse(ownerLookupRes.body);
+    assert.equal(ownerLookupBody.registered, true);
+    assert.equal(ownerLookupBody.lead.lead_id, 'lead_existing');
+    assert.equal(ownerLookupBody.lead.preferred_city, 'Charlotte, NC');
+    if (oldSecret === undefined) delete process.env.EMAIL_LINK_SECRET;
+    else process.env.EMAIL_LINK_SECRET = oldSecret;
 
     const invalidEmail = loadHandler();
     const invalidEmailRes = await invalidEmail.handler({

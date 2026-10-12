@@ -1,13 +1,18 @@
-const { saveLead, getLeadByEmail } = require('./_lib/store');
+const { saveLead, getLead, getLeadByEmail } = require('./_lib/store');
+const { readSession, sessionForLead, sessionCookie } = require('./_lib/session');
+const { sanitizeLeadAnswers } = require('./_lib/lead-fields');
 const { normalizeEmail, isValidEmail } = require('./_lib/email');
 const { normalizeManyChatContactId } = require('./_lib/manychat');
 const { normalizeAgentLead } = require('./_lib/agent-number-one');
 
 const AGENT_HANDOFF_TIMEOUT_MS = 25000;
 
-// The email lookup is unauthenticated (anyone can type any email), so it only
-// returns the fields the returning-renter listing redirect actually uses —
-// never phone, income, credit range, last name, or agent/activity history.
+// The email lookup is unauthenticated (anyone can type any email). An email
+// address is not proof of identity, so the summary below (which includes the
+// lead_id) is only returned to the browser whose rr_session cookie already
+// belongs to that lead; everyone else gets registered:false and continues the
+// questionnaire. Even the owner never gets phone, income, credit range, last
+// name, or agent/activity history.
 const PUBLIC_LOOKUP_FIELDS = [
   'lead_id',
   'email',
@@ -29,10 +34,10 @@ function publicLeadSummary(lead) {
   return summary;
 }
 
-function json(statusCode, body) {
+function json(statusCode, body, cookie) {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { 'Set-Cookie': cookie } : {}) },
     body: JSON.stringify(body),
   };
 }
@@ -109,10 +114,12 @@ exports.handler = async function handler(event) {
       console.error('lead lookup failed', err);
       return json(200, { ok: true, registered: false, error: 'Could not check this email right now.' });
     }
+    const session = readSession(event);
+    const owned = !!(lead && lead.lead_id && session && session.leadId === lead.lead_id);
     return json(200, {
       ok: true,
-      registered: !!(lead && lead.lead_id),
-      lead: lead && lead.lead_id ? publicLeadSummary(lead) : undefined,
+      registered: owned,
+      lead: owned ? publicLeadSummary(lead) : undefined,
     });
   }
 
@@ -120,6 +127,7 @@ exports.handler = async function handler(event) {
   if (!leadId) {
     return json(400, { ok: false, error: 'lead_id is required.' });
   }
+  payload = sanitizeLeadAnswers(payload);
   payload.email = email;
   const manychatContactId = normalizeManyChatContactId(payload.manychat_contact_id || payload.manychatContactId);
   if (manychatContactId) payload.manychat_contact_id = manychatContactId;
@@ -128,6 +136,21 @@ exports.handler = async function handler(event) {
     delete payload.manychatContactId;
   }
   Object.assign(payload, normalizeAgentLead(payload));
+
+  // Only the browser that created a lead may overwrite it. A request that
+  // merely knows someone's lead_id can't change their email or answers.
+  let existingLead = null;
+  try {
+    existingLead = await getLead(leadId);
+  } catch (err) {
+    console.error('lead ownership lookup failed', err && err.message);
+    return json(200, { ok: false, saved: false, sheetsOk: false, error: 'Could not save questionnaire.' });
+  }
+  if (existingLead && !sessionForLead(event, leadId)) {
+    console.warn('submit-lead refused overwrite of existing lead without session', { leadId });
+    return json(200, { ok: true, saved: false, sheetsOk: false, reason: 'lead_exists' });
+  }
+  const cookie = existingLead ? null : sessionCookie({ leadId });
 
   let saved = false;
   try {
@@ -150,7 +173,7 @@ exports.handler = async function handler(event) {
       agentHandoff,
       warning: saved ? 'GOOGLE_SCRIPT_URL is not configured; lead was saved without Google Sheets forwarding.' : undefined,
       error: saved ? undefined : 'Could not save questionnaire.',
-    });
+    }, saved ? cookie : null);
   }
 
   try {
@@ -172,7 +195,7 @@ exports.handler = async function handler(event) {
       sheets: data,
       warning: saved && !sheetsOk ? 'Google Sheets did not accept the lead; lead was still saved.' : undefined,
       error: saved || sheetsOk ? undefined : 'Could not save questionnaire.',
-    });
+    }, saved ? cookie : null);
   } catch (err) {
     return json(200, {
       ok: saved,
@@ -181,6 +204,6 @@ exports.handler = async function handler(event) {
       agentHandoff,
       warning: saved ? String(err && err.message ? err.message : err) : undefined,
       error: saved ? undefined : 'Could not save questionnaire.',
-    });
+    }, saved ? cookie : null);
   }
 };

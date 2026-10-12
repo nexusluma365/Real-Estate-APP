@@ -150,12 +150,12 @@ async function rrnGetConfig() {
   return await rrnConfigPromise;
 }
 
-async function rrnGetStripePublishableKey(fallbackPublishableKey = '') {
+// The publishable key always comes from /config, which serves the key in the
+// same Stripe mode (test/live) as the server's secret key. There is no
+// hardcoded fallback: a test key must never pair with a live secret key.
+async function rrnGetStripePublishableKey(_unusedFallbackKey) {
   const config = await rrnGetConfig();
-  if (config && config.stripePublishableKey) return config.stripePublishableKey;
-  if (fallbackPublishableKey) return fallbackPublishableKey;
-  console.error('Stripe publishable key unavailable from config', config && config.error);
-  return '';
+  return (config && config.ok !== false && config.stripePublishableKey) || '';
 }
 
 async function rrnFetchEntitlements(leadId) {
@@ -165,86 +165,236 @@ async function rrnFetchEntitlements(leadId) {
   return data.ok ? data : null;
 }
 
+// Browser-side copy of the server's decline wording (_lib/payment-errors.js)
+// for errors Stripe.js reports directly from the card form.
+const RRN_DECLINE_MESSAGES = {
+  insufficient_funds: 'Your card was declined for insufficient funds. You can try a different card.',
+  card_declined: 'Your card was declined. You can try a different card.',
+  expired_card: 'Your card has expired. Please use a different card.',
+  incorrect_cvc: 'Your card’s security code is incorrect. Please check it or use a different card.',
+  authentication_required: 'Your bank needs to verify this purchase. Please complete the verification or use a different card.',
+  processing_error: 'There was a problem processing your card. Please try again or use a different card.',
+};
+
+function rrnDescribeStripeError(error) {
+  if (!error) return null;
+  const code = error.decline_code === 'insufficient_funds' ? 'insufficient_funds'
+    : error.code === 'expired_card' ? 'expired_card'
+    : error.code === 'incorrect_cvc' ? 'incorrect_cvc'
+    : error.code === 'payment_intent_authentication_failure' || error.code === 'authentication_required' ? 'authentication_required'
+    : error.code === 'processing_error' ? 'processing_error'
+    : error.type === 'card_error' ? 'card_declined'
+    : '';
+  if (code) return { code, message: RRN_DECLINE_MESSAGES[code] };
+  // Validation errors (incomplete number, etc.) carry Stripe's own
+  // customer-safe message.
+  return { code: error.code || 'card_error', message: error.message || RRN_DECLINE_MESSAGES.card_declined };
+}
+
+function rrnFormatAmount(cents) {
+  const n = Number(cents) || 0;
+  return '$' + (n % 100 ? (n / 100).toFixed(2) : String(n / 100));
+}
+
+const CARD_MODAL_ID = 'rrnCardModal';
+
 /**
- * Runs the full one-click purchase for an optional upsell product, including
- * transparently handling a bank's 3-D Secure challenge if Stripe requires
- * one. Resolves to one of: 'succeeded' | 'failed' | 'processing'.
+ * Collects a different card with Stripe Elements and confirms the SAME
+ * PaymentIntent with it (card details go straight to Stripe — never to our
+ * server). Resolves to the Stripe PaymentIntent on success, or null if the
+ * customer closes the form.
  */
-async function rrnChargeUpsell(product, publishableKey) {
+function rrnCollectCard(stripe, options) {
+  const opts = options || {};
+  rrnEnsurePaymentOverlay();
+  if (window.rrnHidePaymentOverlay) rrnHidePaymentOverlay();
+  const existing = document.getElementById(CARD_MODAL_ID);
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = CARD_MODAL_ID;
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.innerHTML = `
+    <div class="rrn-payment-card rrn-card-form">
+      <h4></h4>
+      <p class="rrn-card-message"></p>
+      <div class="rrn-card-element"></div>
+      <div class="rrn-card-error" role="alert"></div>
+      <button type="button" class="rrn-card-pay"></button>
+      <button type="button" class="rrn-card-cancel">Cancel</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelector('h4').textContent = opts.decline ? 'Use another card' : 'Enter your card';
+  modal.querySelector('.rrn-card-message').textContent = opts.decline
+    ? opts.decline.message
+    : 'Enter a card to complete your purchase. Your card details go directly to Stripe.';
+  const payBtn = modal.querySelector('.rrn-card-pay');
+  const cancelBtn = modal.querySelector('.rrn-card-cancel');
+  const errorEl = modal.querySelector('.rrn-card-error');
+  const payLabel = opts.amount ? 'Pay ' + rrnFormatAmount(opts.amount) : 'Pay now';
+  payBtn.textContent = payLabel;
+
+  const card = stripe.elements().create('card', {
+    hidePostalCode: false,
+    style: { base: { fontSize: '16px', color: '#17231c', '::placeholder': { color: '#97a69d' } } },
+  });
+  card.mount(modal.querySelector('.rrn-card-element'));
+  card.on('change', (event) => { errorEl.textContent = event.error ? event.error.message : ''; });
+
+  return new Promise((resolve) => {
+    let busy = false;
+    const close = (result) => {
+      try { card.destroy(); } catch (_e) {}
+      modal.remove();
+      resolve(result);
+    };
+    cancelBtn.addEventListener('click', () => { if (!busy) close(null); });
+    payBtn.addEventListener('click', async () => {
+      if (busy) return;
+      busy = true;
+      payBtn.disabled = true;
+      cancelBtn.disabled = true;
+      payBtn.textContent = 'Processing…';
+      errorEl.textContent = '';
+      let result;
+      try {
+        result = await stripe.confirmCardPayment(opts.clientSecret, { payment_method: { card } });
+      } catch (_e) {
+        result = { error: { message: RRN_DECLINE_MESSAGES.processing_error } };
+      }
+      const pi = result && result.paymentIntent;
+      if (pi && (pi.status === 'succeeded' || pi.status === 'processing')) {
+        close(pi);
+        return;
+      }
+      const described = rrnDescribeStripeError(result && result.error) || { message: RRN_DECLINE_MESSAGES.card_declined };
+      errorEl.textContent = described.message;
+      busy = false;
+      payBtn.disabled = false;
+      cancelBtn.disabled = false;
+      payBtn.textContent = payLabel;
+    });
+  });
+}
+
+// Server-side verification after Stripe.js finished a payment in the
+// browser. Access is granted by confirm-intent (or the webhook), never by
+// the browser's own say-so.
+async function rrnVerifyPayment(leadId, product, paymentIntent) {
+  const stripeSucceeded = paymentIntent && paymentIntent.status === 'succeeded';
+  if (paymentIntent && (stripeSucceeded || paymentIntent.status === 'processing')) {
+    rrnRememberApartmentPaymentIntent(product, paymentIntent.id);
+  }
+  try {
+    const confirmRes = await fetch('/.netlify/functions/confirm-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId, paymentIntentId: paymentIntent.id, product }),
+    });
+    const confirmData = await confirmRes.json().catch(() => ({}));
+    if (confirmData && confirmData.ok) return confirmData.status;
+  } catch (_e) {}
+  // Unverified by the server: report failure rather than trusting the
+  // browser. If Stripe did take the payment, the webhook grants it.
+  return 'failed';
+}
+
+/**
+ * Runs a customer-initiated purchase for an optional upsell ($20 products, $97 Credit Kit):
+ *   1. the server charges the saved card on-session (one click), or
+ *   2. if the bank asks for 3-D Secure, Stripe.js runs the challenge, or
+ *   3. if the saved card is declined / unavailable, the customer can enter
+ *      another card for the SAME PaymentIntent (so it can't double charge).
+ * Resolves to one of: 'succeeded' | 'failed' | 'processing'.
+ */
+async function rrnChargeUpsell(product, _unusedPublishableKey) {
   const leadId = rrnLeadId();
   if (!leadId) return 'failed';
 
-  const idempotencyKey = rrnNewIdempotencyKey();
-  const res = await fetch('/.netlify/functions/charge-upsell', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadId, product, idempotencyKey, prescreenPaymentIntentId: rrnPrescreenPaymentIntentId() }),
-  });
-  const data = await res.json().catch(() => ({}));
+  let data;
+  try {
+    const res = await fetch('/.netlify/functions/charge-upsell', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId, product }),
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (_e) {
+    return 'failed';
+  }
   if (!data || !data.ok) return 'failed';
 
+  if (data.status === 'succeeded' || data.status === 'processing') {
+    if (data.paymentIntentId) rrnRememberApartmentPaymentIntent(product, data.paymentIntentId);
+    return data.status;
+  }
+
+  if (data.status !== 'requires_action' && data.status !== 'requires_payment_method') return 'failed';
+  if (!data.clientSecret) return 'failed';
+
+  const stripeKey = await rrnGetStripePublishableKey();
+  if (!stripeKey) return 'failed';
+  const Stripe = await rrnLoadStripeJs();
+  const stripe = Stripe(stripeKey);
+
+  let paymentIntent = null;
   if (data.status === 'requires_action') {
-    const stripeKey = await rrnGetStripePublishableKey(publishableKey);
-    return await rrnHandleAction(data.clientSecret, leadId, product, stripeKey);
+    const result = await stripe.confirmCardPayment(data.clientSecret);
+    if (result.error) {
+      paymentIntent = await rrnCollectCard(stripe, {
+        clientSecret: data.clientSecret,
+        amount: data.amount,
+        decline: rrnDescribeStripeError(result.error),
+      });
+    } else {
+      paymentIntent = result.paymentIntent;
+    }
+  } else {
+    paymentIntent = await rrnCollectCard(stripe, {
+      clientSecret: data.clientSecret,
+      amount: data.amount,
+      decline: data.decline,
+    });
   }
-  if ((data.status === 'succeeded' || data.status === 'processing') && data.paymentIntentId) {
-    rrnRememberApartmentPaymentIntent(product, data.paymentIntentId);
-  }
-  return data.status; // 'succeeded' | 'failed' | 'processing'
+  if (!paymentIntent) return 'failed';
+  return await rrnVerifyPayment(leadId, product, paymentIntent);
 }
 
 /**
  * Same idea as rrnChargeUpsell, for the RentReady Support subscription.
  */
-async function rrnCreateSubscription(plan, publishableKey) {
+async function rrnCreateSubscription(plan, _unusedPublishableKey) {
   const leadId = rrnLeadId();
   if (!leadId) return 'failed';
 
-  const idempotencyKey = rrnNewIdempotencyKey();
   const res = await fetch('/.netlify/functions/create-subscription', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leadId, plan, idempotencyKey }),
+    body: JSON.stringify({ leadId, plan }),
   });
   const data = await res.json().catch(() => ({}));
   if (!data || !data.ok) return 'failed';
 
   if (data.status === 'requires_action') {
+    const stripeKey = await rrnGetStripePublishableKey();
+    if (!stripeKey) return 'failed';
     const Stripe = await rrnLoadStripeJs();
-    const stripeKey = await rrnGetStripePublishableKey(publishableKey);
     const stripe = Stripe(stripeKey);
     const result = await stripe.confirmCardPayment(data.clientSecret);
     if (result.error) return 'failed';
     const confirmRes = await fetch('/.netlify/functions/confirm-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId, subscriptionId: data.subscriptionId, plan }),
+      body: JSON.stringify({ leadId, subscriptionId: data.subscriptionId }),
     });
     const confirmData = await confirmRes.json().catch(() => ({}));
     return confirmData && confirmData.ok ? confirmData.status : 'failed';
   }
   return data.status;
-}
-
-async function rrnHandleAction(clientSecret, leadId, product, publishableKey) {
-  const Stripe = await rrnLoadStripeJs();
-  const stripe = Stripe(publishableKey);
-  const result = await stripe.confirmCardPayment(clientSecret);
-  if (result.error) return 'failed';
-
-  const stripeSucceeded = result.paymentIntent && result.paymentIntent.status === 'succeeded';
-  if (stripeSucceeded) rrnRememberApartmentPaymentIntent(product, result.paymentIntent.id);
-  try {
-    const confirmRes = await fetch('/.netlify/functions/confirm-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId, paymentIntentId: result.paymentIntent.id, product }),
-    });
-    const confirmData = await confirmRes.json().catch(() => ({}));
-    return confirmData && confirmData.ok ? confirmData.status : 'failed';
-  } catch (_e) {
-    return 'failed';
-  }
 }
 
 function rrnDownloadUrl(product) {
@@ -315,6 +465,35 @@ function rrnEnsurePaymentOverlay() {
         line-height:1.55;
       }
       @keyframes rrnPaymentSpin{to{transform:rotate(360deg)}}
+      #${CARD_MODAL_ID}{
+        position:fixed;
+        inset:0;
+        z-index:100000;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:24px;
+        background:rgba(20,31,25,.48);
+        backdrop-filter:blur(10px) saturate(115%);
+        -webkit-backdrop-filter:blur(10px) saturate(115%);
+      }
+      #${CARD_MODAL_ID} .rrn-payment-card{
+        width:min(420px,100%);
+        border-radius:26px;
+        background:#fff;
+        padding:32px 28px;
+        text-align:center;
+        box-shadow:0 25px 60px rgba(0,0,0,.25);
+        color:#17231c;
+        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+      }
+      #${CARD_MODAL_ID} h4{margin:0 0 10px;font-size:24px;font-weight:800;line-height:1.15}
+      #${CARD_MODAL_ID} p{margin:0 0 18px;color:#5f6f65;font-size:15px;line-height:1.55}
+      #${CARD_MODAL_ID} .rrn-card-element{padding:14px 12px;border:1px solid #d6ddd8;border-radius:12px;text-align:left}
+      #${CARD_MODAL_ID} .rrn-card-error{min-height:20px;margin:10px 0 4px;color:#a63b32;font-size:14px}
+      #${CARD_MODAL_ID} .rrn-card-pay{width:100%;padding:15px;border:0;border-radius:14px;background:#34483d;color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+      #${CARD_MODAL_ID} .rrn-card-pay:disabled{opacity:.6;cursor:default}
+      #${CARD_MODAL_ID} .rrn-card-cancel{margin-top:10px;border:0;background:none;color:#5f6f65;font-size:14px;text-decoration:underline;cursor:pointer}
     `;
     document.head.appendChild(style);
   }

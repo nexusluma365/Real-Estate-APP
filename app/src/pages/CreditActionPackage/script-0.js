@@ -242,7 +242,7 @@ async function handleEmailCreditKit() {
 
   const ent = await rrnFetchEntitlements(answers.lead_id);
 
-  if (!ent || !ent.paid27) {
+  if (!ent || !ent.paidGameplan) {
     document.getElementById('content').innerHTML = `
       <div class="card center">
         <div class="eyebrow">Game Plan Required</div>

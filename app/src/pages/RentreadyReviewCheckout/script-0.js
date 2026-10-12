@@ -287,7 +287,7 @@
       body: JSON.stringify({ leadId: trackedAnswers.lead_id, email: trackedAnswers.email || '', answers: trackedAnswers }),
     });
     setupIntentId = intent.setupIntentId || intent.paymentIntentId || '';
-    paymentClientSecret = intent.clientSecret;
+    paymentClientSecret = intent.clientSecret || '';
     return intent;
   }
 
@@ -494,7 +494,13 @@
     try {
       if (!setupSucceeded) {
         if (!paymentClientSecret) {
-          await createPrescreenIntent(answers);
+          var intent = await createPrescreenIntent(answers);
+          if (intent && intent.alreadyActive) {
+            // Already a member — never start a second trial checkout.
+            grantResultsAccess();
+            window.location.href = RESULTS_URL;
+            return;
+          }
         }
         btn.textContent = 'Confirming card...';
         if (window.rrnShowPaymentOverlay) {

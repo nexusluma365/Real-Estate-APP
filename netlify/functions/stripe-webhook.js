@@ -10,18 +10,52 @@
 // cancellations. Every write here is idempotent (it just sets fields to
 // their correct value), so it's safe if Stripe retries or a synchronous
 // call already handled the same event.
+//
+// Every request must carry a valid Stripe signature over the RAW body, or it
+// is rejected with 400 before anything is read. One-time upsells are granted
+// through _lib/fulfillment.js (lead/product/price/currency checked, granted
+// and logged exactly once even when Stripe redelivers the event).
 const { getStripe } = require('./_lib/stripe');
 const { getEntitlements, patchEntitlements } = require('./_lib/store');
 const { sendWelcomeEmail } = require('./_lib/welcome-email');
-const { sendDownloadEmail } = require('./_lib/download-email');
 const { manychatMetadata } = require('./_lib/manychat');
 const { hasActiveListingAccess, subscriptionStatusPatch } = require('./_lib/listing-access');
 const { logFunnelEvent } = require('./_lib/funnel');
+const { productDef } = require('./_lib/products');
+const { fulfillUpsellPaymentIntent, idOf } = require('./_lib/fulfillment');
+const { paymentErrorLogFields } = require('./_lib/payment-errors');
 
-const FIELD_BY_PRODUCT = { prescreen: 'paid10', modern: 'paid27', luxury: 'paid27', apartment_prep: 'paid47', gameplan: 'paid27', creditkit: 'paid97' };
+const MEMBERSHIP_PLANS = new Set(['monthly', 'yearly']);
+const ACTIVE_STATUSES = new Set(['active', 'trialing']);
+
+// The listing trial subscription (created by confirm-intent) vs the separate
+// RentReady Support membership (create-subscription.js). Only the listing
+// subscription may drive listing access.
+function isListingSubscription(subscription) {
+  const metadata = (subscription && subscription.metadata) || {};
+  const product = String(metadata.product || '').toLowerCase();
+  if (product) return product === 'listing_membership';
+  return !MEMBERSHIP_PLANS.has(String(metadata.plan || '').toLowerCase());
+}
+
+async function syncMembershipSubscription(subscription, deleted = false) {
+  const metadata = (subscription && subscription.metadata) || {};
+  if (!metadata.leadId) return;
+  const active = !deleted && ACTIVE_STATUSES.has(String(subscription.status || '').toLowerCase());
+  await patchEntitlements(metadata.leadId, {
+    membershipStatus: active ? 'active' : 'inactive',
+    membershipPlan: active ? metadata.plan || null : null,
+    stripeSubscriptionId: subscription.id,
+    ...manychatMetadata(metadata.manychat_contact_id),
+  });
+}
 
 async function syncListingSubscription(stripe, subscription, options = {}) {
   if (!subscription || !subscription.id) return;
+  if (!isListingSubscription(subscription)) {
+    await syncMembershipSubscription(subscription);
+    return;
+  }
   const metadata = subscription.metadata || {};
   const leadId = metadata.leadId;
   if (!leadId) return;
@@ -64,13 +98,18 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  const stripe = getStripe();
   const headers = event.headers || {};
   const sig = headers['stripe-signature'] || headers['Stripe-Signature'];
+  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('Webhook rejected: missing signature or STRIPE_WEBHOOK_SECRET');
+    return { statusCode: 400, body: 'Webhook Error: missing signature' };
+  }
+  let stripe;
   let stripeEvent;
 
   try {
-    const rawBody = event.isBase64Encoded ? Buffer.from(event.body, 'base64') : event.body;
+    stripe = getStripe();
+    const rawBody = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64') : event.body;
     stripeEvent = stripe.webhooks.constructEvent(
       rawBody,
       sig,
@@ -78,7 +117,7 @@ exports.handler = async (event) => {
     );
   } catch (err) {
     console.error('Webhook signature verification failed', err.message);
-    return { statusCode: 400, body: `Webhook Error: ${err.message}` };
+    return { statusCode: 400, body: 'Webhook Error: signature verification failed' };
   }
 
   try {
@@ -87,29 +126,25 @@ exports.handler = async (event) => {
         const pi = stripeEvent.data.object;
         const leadId = pi.metadata && pi.metadata.leadId;
         const product = pi.metadata && pi.metadata.product;
-        const field = FIELD_BY_PRODUCT[product];
-        if (leadId && field) {
+        if (leadId && productDef(product)) {
+          const result = await fulfillUpsellPaymentIntent(stripe, pi);
+          if (result.reason === 'mismatch') console.error('stripe-webhook ignored mismatched upsell PaymentIntent', pi.id);
+        } else if (leadId && product === 'prescreen') {
+          // Legacy $10 pre-screen payments made before the trial checkout.
+          // Grants paid10 only; never replaces a card already on the lead.
           const currentEntitlements = (await getEntitlements(leadId)) || {};
-          const isFirstPrescreenPayment = product === 'prescreen' && !currentEntitlements.paid10;
-          const isFirstDownloadPurchase =
-            (product === 'modern' || product === 'luxury' || product === 'apartment_prep') &&
-            !(currentEntitlements.purchasedCategories || []).includes(product);
-          const patch = { [field]: true };
-          if (product === 'apartment_prep') patch.paid27 = true;
-          if (pi.customer) patch.stripeCustomerId = pi.customer;
-          if (pi.payment_method) patch.defaultPaymentMethodId = pi.payment_method;
-          Object.assign(patch, manychatMetadata(pi.metadata && pi.metadata.manychat_contact_id));
-          if (product === 'modern' || product === 'luxury' || product === 'apartment_prep') patch.addPurchasedCategory = product;
+          const isFirstPrescreenPayment = !currentEntitlements.paid10;
+          const setsCard = !currentEntitlements.defaultPaymentMethodId &&
+            (!currentEntitlements.stripeCustomerId || currentEntitlements.stripeCustomerId === idOf(pi.customer));
+          const patch = { paid10: true, ...manychatMetadata(pi.metadata && pi.metadata.manychat_contact_id) };
+          if (setsCard && pi.customer) patch.stripeCustomerId = idOf(pi.customer);
+          if (setsCard && pi.payment_method) patch.defaultPaymentMethodId = idOf(pi.payment_method);
           await patchEntitlements(leadId, patch);
-          if (pi.customer && pi.payment_method) {
-            await stripe.customers.update(pi.customer, {
-              invoice_settings: { default_payment_method: pi.payment_method },
+          if (setsCard && pi.customer && pi.payment_method) {
+            await stripe.customers.update(idOf(pi.customer), {
+              invoice_settings: { default_payment_method: idOf(pi.payment_method) },
             });
           }
-          // Backstop for the welcome email confirm-intent.js normally sends
-          // synchronously — only fires if this webhook is the first thing to
-          // ever see paid10 go true for this lead (e.g. the customer closed
-          // the tab right after paying).
           if (isFirstPrescreenPayment) {
             try {
               await sendWelcomeEmail(leadId);
@@ -117,17 +152,19 @@ exports.handler = async (event) => {
               console.error('stripe-webhook welcome email error', err);
             }
           }
-          if (product !== 'prescreen') {
-            await logFunnelEvent('upsell_paid', { lead_id: leadId, payment_id: pi.id, amount: (pi.amount_received || pi.amount || 0) / 100, detail: { product } });
-          }
-          if (isFirstDownloadPurchase) {
-            try {
-              await sendDownloadEmail(leadId, product);
-            } catch (err) {
-              console.error('stripe-webhook download email error', err);
-            }
-          }
         }
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        // Never grants anything — diagnostics only (Stripe codes and card
+        // funding type; no card details).
+        const pi = stripeEvent.data.object;
+        console.warn('stripe-webhook payment failed', {
+          paymentIntentId: pi.id,
+          product: (pi.metadata || {}).product || null,
+          ...paymentErrorLogFields(pi.last_payment_error || {}),
+        });
         break;
       }
 
@@ -141,7 +178,9 @@ exports.handler = async (event) => {
       case 'customer.subscription.deleted': {
         const sub = stripeEvent.data.object;
         const leadId = sub.metadata && sub.metadata.leadId;
-        if (leadId) {
+        if (leadId && !isListingSubscription(sub)) {
+          await syncMembershipSubscription(sub, true);
+        } else if (leadId) {
           await patchEntitlements(leadId, {
             ...subscriptionStatusPatch(sub),
             listingSubscriptionStatus: sub.status || 'canceled',
@@ -184,7 +223,7 @@ exports.handler = async (event) => {
 
     return { statusCode: 200, body: JSON.stringify({ received: true }) };
   } catch (err) {
-    console.error('stripe-webhook processing error', err);
+    console.error('stripe-webhook processing error', err && err.message);
     // Non-2xx tells Stripe to retry delivery, so a temporary storage outage
     // can't silently lose a paid entitlement. Entitlement patches are
     // idempotent and welcome/download emails are guarded by "first purchase"

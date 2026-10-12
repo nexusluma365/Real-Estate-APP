@@ -20,8 +20,8 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Invalid JSON body' }) };
   }
 
-  const { leadId, subscriptionId, plan } = body;
-  if (!leadId || !subscriptionId || !plan) {
+  const { leadId, subscriptionId } = body;
+  if (!leadId || !subscriptionId) {
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'Missing fields' }) };
   }
 
@@ -31,13 +31,15 @@ exports.handler = async (event) => {
       expand: ['latest_invoice.payment_intent'],
     });
 
-    if (subscription.metadata.leadId !== leadId) {
+    if (!subscription.metadata || subscription.metadata.leadId !== leadId) {
       return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Lead mismatch' }) };
     }
 
+    // The plan comes from the subscription itself, never from the browser.
+    const plan = (subscription.metadata && subscription.metadata.plan) || null;
     const pi = subscription.latest_invoice && subscription.latest_invoice.payment_intent;
 
-    if (subscription.status === 'active' || (pi && pi.status === 'succeeded')) {
+    if (subscription.status === 'active' || subscription.status === 'trialing' || (pi && pi.status === 'succeeded')) {
       await patchEntitlements(leadId, {
         membershipStatus: 'active',
         membershipPlan: plan,

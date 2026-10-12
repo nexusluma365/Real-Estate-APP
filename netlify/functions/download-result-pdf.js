@@ -8,6 +8,7 @@
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const { getEntitlements, getLead } = require('./_lib/store');
 const { verify } = require('./_lib/sign');
+const { sessionForLead } = require('./_lib/session');
 const { creditTier, incomeMeetsBenchmark } = require('./_lib/focus');
 
 const TIMELINE_LABELS = {
@@ -41,6 +42,10 @@ exports.handler = async (event) => {
       return { statusCode: 403, body: 'This link has expired. Request a new one from the site.' };
     }
     leadId = data.leadId;
+  } else if (leadId && !sessionForLead(event, leadId)) {
+    // The PDF contains the customer's personal answers; a bare ?leadId= must
+    // come from the browser session that owns the lead (or use an email link).
+    return { statusCode: 403, body: 'Open the download link from your email to get this file.' };
   }
 
   if (!leadId) {
