@@ -1,96 +1,47 @@
-# RentReady Network
+# RentReady — werentreadygo.com
 
-Static RentReady funnel pages hosted on Netlify, with Netlify Functions for lead capture, Stripe saved-card payments, entitlement checks, secure downloads, email delivery, and apartment-list generation.
+Rental-application readiness funnel. Products: **Before They Say No™** (physical book, $47.99) and the
+**RentReady Digital Bundle** ($79.99 — book + 20 Word dispute letters + step-by-step video guide), with a $32 upgrade
+for book owners and the optional **Property Manager Playbook** ($100, one click after the Bundle).
 
-## Local Setup
+Stack: React + Vite front end · Netlify Functions API (`/api/*`) · Turso (libSQL/SQLite) · Netlify Blobs · Stripe.
 
-1. Install dependencies:
+## Run it
 
 ```bash
 npm install
+npm run dev        # http://localhost:5173 — mock mode, no keys needed
+npm run build      # type-check + production build to dist/
+npm run preview    # serve the build
+npm test           # unit tests + end-to-end API test on a real SQLite database
+npm run check      # typecheck (app + API) + tests + build — run before every push
 ```
 
-2. Create a local env file from `.env.example` if you want to test functions locally:
+Mock mode simulates leads, payments, entitlements and file delivery so the whole funnel can be clicked
+through. Checkout and upsell show a **development simulator** to test approve / decline / network error /
+bank-confirmation states. Reset demo data from **/access → Development tools**.
 
-```bash
-cp .env.example .env
-```
+## Docs
+* `CHANGELOG.md` — the 2026-10 conversion-system upgrade: what changed and why
+* `LAUNCH_CHECKLIST.md` — integration status, deployment, Stripe / email / Ads / Meta checklists, QA results, risks
+* `EMAIL_SEQUENCES.md` — copy + timing + exit rules for every lifecycle email
+* `FUNNEL_MAP.md` — every step, route, CTA, event, entry/exit condition
+* `INTEGRATION_GUIDE.md` — Netlify deployment, API contracts, Stripe, email, files, analytics, Ads
+* `.env.example` — every variable, public vs secret
+* `schema.sql` — database tables (apply once to Turso)
+* `design/` — source artwork (not used by the build)
 
-3. Run the visual frontend preview:
+## Where things live
+* Copy & configuration: `src/config/` (headlines, intents, products, FAQ, assessment, resources, testimonials)
+* Pages: `src/pages/` · Components: `src/components/` · Services: `src/lib/` · Styles: `src/styles/global.css`
+* Server: `netlify/functions/` (entry points) and `netlify/lib/` (handlers, Stripe, sessions, database/blob bindings)
+* Security headers / SPA routing: `public/_headers`, `public/_redirects`
 
-```bash
-npm run dev:preview
-```
+## Adding a Google Ads intent page
+Add an entry to `src/config/intents.ts`. It is routed automatically at `/<slug>`, appears in the footer,
+and feeds the same funnel. Add it to `public/sitemap.xml`.
 
-Open:
-
-```text
-http://127.0.0.1:5177/apartment-approval-preparation-kit
-```
-
-4. Run the full Netlify Functions stack:
-
-```bash
-npm run dev
-```
-
-If the Netlify Dev URL shows a blank white screen during local development,
-open the Vite preview URL above. The Netlify wrapper can rewrite Vite module
-requests like `/src/main.jsx` to `/index.html` locally, which prevents React
-from mounting even though the route itself returns `200`.
-
-## Netlify Deploy
-
-1. Push this folder to GitHub.
-2. In Netlify, create a new site from that GitHub repo.
-3. Netlify should read `netlify.toml` automatically. If you enter the build
-   settings manually, use:
-
-```text
-Build command: cd app && npm install && npm run build
-Publish directory: app/dist
-Functions directory: netlify/functions
-```
-
-4. Add the environment variables below in Netlify:
-
-```text
-STRIPE_PUBLISHABLE_KEY
-STRIPE_SECRET_KEY
-STRIPE_LISTING_PRICE_MONTHLY
-STRIPE_WEBHOOK_SECRET
-EMAIL_LINK_SECRET
-GOOGLE_SCRIPT_URL
-GOOGLE_PLACES_API_KEY
-SUPABASE_URL
-SUPABASE_SECRET_KEY
-OPENAI_API_KEY
-OPENAI_MODEL
-RENTREADY_RESEARCH_PROVIDER_URL
-RENTREADY_RESEARCH_PROVIDER_KEY
-RENTREADY_VERIFICATION_TTL_DAYS
-RENTREADY_RESEARCH_TIMEOUT_MS
-```
-
-`OPENAI_MODEL` is optional. If it is not set, the apartment-results function uses its default model.
-`STRIPE_LISTING_PRICE_MONTHLY` must be the Stripe recurring monthly Price ID for the $19.99/month RentReady Listing Membership. Use the `price_...` ID from the product's pricing row, not the `prod_...` Product ID.
-`SUPABASE_URL` and `SUPABASE_SECRET_KEY` are optional locally, but should be set in Netlify production so leads, entitlements, apartment results, listing matches, property verification records, and waiting-list entries persist in Supabase. Keep `SUPABASE_SECRET_KEY` server-only.
-`RENTREADY_RESEARCH_PROVIDER_URL` and `RENTREADY_RESEARCH_PROVIDER_KEY` are optional server-only settings for a first-party screening-policy research provider. Without a provider, listing verification only attempts the property's official website and safely returns `unverified` when there is no official evidence. `RENTREADY_VERIFICATION_TTL_DAYS` defaults to 90, and `RENTREADY_RESEARCH_TIMEOUT_MS` defaults to 5000.
-
-After the first deploy, add the Stripe webhook endpoint:
-
-```text
-https://YOUR_NETLIFY_DOMAIN/.netlify/functions/stripe-webhook
-```
-
-Send this Stripe event: `payment_intent.succeeded`.
-
-## Production Flow
-
-The public lead form submits through `/.netlify/functions/submit-lead`, so the Google Apps Script URL stays in Netlify env instead of the HTML.
-
-After the questionnaire, `/results-processing` runs the analysis loader and sends the user to `/rentready-review-checkout` for the one-time $10 RentReady review checkout. A confirmed Stripe PaymentIntent unlocks `/after-payment-results`.
-
-Paid pages call Netlify Functions before unlocking protected steps. Direct URL access to payment-confirmed pages is guarded by server-side entitlement checks plus short-lived same-session handoff markers for the active checkout flow.
-
-The luxury and modern apartment upsells both charge through the saved Stripe customer payment method. If the upsell succeeds, the packet email is sent and the user continues to `/real-estate-list`. If the card is declined, the user still continues to the listings page but no packet email is sent.
+## Compliance guardrails built in
+No fake reviews, counts, logos, timers or scarcity. Testimonials ship disabled and empty
+(`src/config/testimonials.ts`). No approval, deletion or score guarantees. "No thanks" is always visible.
+The $100 upsell is charged only after an explicit click. Card data never touches this app.

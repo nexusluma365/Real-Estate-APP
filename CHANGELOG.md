@@ -1,0 +1,73 @@
+# Changelog
+
+## 2026-10-28 (rev. 3) — backend moved to Netlify
+- One Netlify Function (`netlify/functions/api.mts`) serves every `/api/*` route with the same contracts — no frontend changes.
+  It applies the origin check and security headers (formerly the Cloudflare middleware) and turns crashes into clean 500s.
+- Database: Cloudflare D1 → **Turso** (libSQL, SQLite-compatible), so `schema.sql` and every query are unchanged.
+- Product files: Cloudflare R2 → **Netlify Blobs** (`product-files` store).
+- Abandoned-checkout cron Worker → **Netlify Scheduled Function** (`abandoned-checkouts.mts`); the public cron endpoint and `CRON_SECRET` are gone.
+- New end-to-end API test on a real SQLite database (`tests/api.test.ts`); `npm run check` runs everything.
+- Cleanup: removed `functions/`, `workers/`, `migrations/` (D1-only) and two stale docs; source art moved to `design/`; unused images archived.
+
+## 2026-10-28 (rev. 2) — new product lineup
+- **Before They Say No™ — $47.99** is now the **physical book only** (ships; checkout collects an address). The digital edition is retired.
+- **RentReady Digital Bundle — $79.99** replaces the $179.99 Complete Kit: physical book + 20 Essential Credit Dispute Letter
+  templates (Microsoft Word) + step-by-step video guide. It keeps the `creditready` id, so entitlements, upsell and game plan are unchanged.
+- **Upgrade book → Bundle: $32** ($79.99 − $47.99). Nothing ships twice; the letters and videos unlock immediately.
+- **Playbook $100 upsell** now follows a Bundle purchase (full or upgrade).
+- New artwork: `Rent Ready Digital Bundle.png` → `src/assets/rentready-digital-bundle{,-768}.webp` (2.2 MB → 187 KB / 66 KB) with the PNG as fallback.
+- Video guide is delivered through `/api/files?key=creditready/video-guide` → entitlement check → redirect to the private `VIDEO_GUIDE_URL`.
+- Copy updated everywhere (landing, quiz, options, FAQ, checkout, `/creditready`, upsell, welcome, access, server descriptions, emails, tests).
+
+## 2026-10-28 — conversion-system upgrade
+
+Original kept untouched at `../rentready-baseline-2026-10-28/`. Status of every integration: `LAUNCH_CHECKLIST.md`.
+
+## Landing page (`/` and all 7 intent pages): the page now does the selling
+- **Trust bar** under the hero: Stripe checkout, one-time payment, money-back window (from config), instant access, no credit pull. Every claim is enforced in code.
+- **Hero:** shows the price next to the CTA, plus a "Not sure which option fits you? Answer 3 quick questions" path.
+- **30-second finder** (`QualifyQuiz`): 3 skippable questions → a recommended option with a personalized, honest reason (e.g. with 7 days left, disputes won't finish in time, so focus on knowing and explaining). Never gates content.
+- **Options section** (`#options`): Digital Edition $47.99 vs Complete Kit $179.99 side by side with real mockups, "best if", contents, delivery, and "your $47.99 counts if you upgrade" to remove fear of picking wrong.
+- **Objection handling** (`#faq`): 11 answers built from live config (bad credit, already denied, applying soon, which one, physical vs digital, delivery, guarantee, subscription, credit pull, refund) plus a three-card "our promise". Intent pages lead with their own questions (`faqFirst`) and their searchers' words (`recognition`). Both existed in config but were never rendered before.
+- **Exit offer:** desktop exit intent or mobile idle after reading most of the page. At most once a week; never shown to leads or customers. Offers the free checklist.
+- **Free Before-You-Apply Checklist** (`/checklist`): fully readable without email, printable, optional explicit opt-in, then a soft book CTA.
+
+## Checkout
+- No more bounce to `/start`: name + email is **step 1 inside checkout**, with the order summary visible.
+- **"What happens after you order"**, assurance row, quick-answer FAQ, decline reassurance ("you have not been charged"), terms/privacy links.
+- **Digital → Complete Kit upgrade at $132** (`product=upgrade`). The server enforces it: guide owners can only buy the upgrade, and nobody can re-buy what they own.
+- Abandonment starts (`checkout_started`) once the lead reaches the payment form.
+
+## Post-purchase
+- **Upsell:** "what's already in your Kit vs only in the Playbook" table so nothing is sold twice. Accept/decline copy no longer says "CreditReady". Value comes from the product config, not a hardcoded 100.
+- **Welcome** now serves Digital Edition buyers too ("start reading now" plus one quiet credited-upgrade offer).
+- **Access:** guide owners see the $132 credited upgrade (previously linked to the full $179.99). Fixed file delivery (client and server disagreed). Magic-link sign-in implemented.
+- `/creditready` page: real bundle image, guarantee, digital alternative, merged FAQ. Renamed leftover "CreditReady" labels.
+
+## Fixed (pre-existing)
+- White-on-white buttons on light surfaces, including the **$100 upsell accept button**, "Start my assessment" and the price-card CTA.
+- Purchase analytics could double count on reload. Now de-duplicated per transaction, with the verified amount.
+- `/api/events` dropped everything. It now stores allow-listed, non-personal fields for the dashboard.
+- Magic link was a stub; file delivery returned a stream to code expecting JSON.
+- "20+" vs "20" templates inconsistency.
+
+## Tracking
+- GA4 recommended events: `view_item`, `begin_checkout`, `add_payment_info`, `generate_lead`, `purchase` (value, currency, transaction_id, items).
+- Optional Meta Pixel (no advanced matching; Purchase `eventID` = PaymentIntent id for CAPI de-dup).
+- Optional consent banner + Google Consent Mode v2 (`VITE_REQUIRE_TRACKING_CONSENT`).
+- New funnel events: `product_view`, `options_view`, `qualification_*`, `faq_open`, `exit_offer_*`, `free_resource_*`, `upgrade_*`.
+- Pixels never receive names, emails, quiz answers or anything credit-related (tested).
+
+## Server / data
+- `PRICES.upgrade = 13200`, `purchaseAllowed()`, `entitlementFor()`. Refunds: full refunds revoke access, partial refunds don't; both are recorded.
+- Lifecycle facts are stored once (unique lead+event+ref) and forwarded to `ESP_WEBHOOK_URL` with an HMAC signature and `marketing_allowed`.
+- Server-only events: `purchase_completed`, `payment_failed`, `refund_processed` (webhook), `checkout_abandoned` (`/api/cron/abandoned` + `workers/cron`).
+- Leads store consent basis/text/time, source, product interest, quiz answers, intent tier and recommendation (progressive profiling; nothing gets wiped).
+- `/api/admin/metrics` + `/admin` dashboard (bearer token): funnel, revenue, AOV, upsell take rate, high-intent %, refunds, recovery, revenue by source, and CPL/CAC/ROAS/contribution margin from spend you enter.
+- `/api/esp/unsubscribe` keeps opt-outs in sync. Middleware exempts bearer-authed server-to-server routes from the Origin check.
+- Schema: `schema.sql` (fresh) and `migrations/0002_funnel.sql` (existing DBs).
+
+## New files
+`src/components/{Funnel,LeadForm,ConsentBanner}.tsx`, `src/pages/{Checklist,Admin}.tsx`, `src/config/qualification.ts`,
+`src/lib/qualification.ts`, `functions/api/{cron/abandoned,admin/metrics,esp/unsubscribe,access/verify}.ts`,
+`migrations/0002_funnel.sql`, `workers/cron/*`, `tests/*`, `EMAIL_SEQUENCES.md`, `LAUNCH_CHECKLIST.md`, `CHANGELOG.md`.

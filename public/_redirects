@@ -1,0 +1,3 @@
+# SPA fallback: every client route (/start, /checkout, /welcome, intent pages…) serves the app.
+# /api/* is served by the Netlify Function netlify/functions/api.mts (its `path` config takes precedence).
+/*    /index.html   200

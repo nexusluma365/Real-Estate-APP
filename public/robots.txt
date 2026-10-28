@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /checkout
+Disallow: /complete-your-system
+Disallow: /welcome
+Disallow: /assessment
+Disallow: /gameplan
+Disallow: /access
+Disallow: /api/
+Sitemap: https://werentreadygo.com/sitemap.xml
