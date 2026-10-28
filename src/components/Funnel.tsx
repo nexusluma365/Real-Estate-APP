@@ -236,10 +236,11 @@ export function BuyFaqList({ items }: { items: FaqItem[] }) {
 
 const EXIT_KEY = 'exit_offer_at';
 const EXIT_COOLDOWN = 1000 * 60 * 60 * 24 * 7;
+const EXIT_DELAY = 1000 * 30;
 
 /**
- * One gentle offer when a desktop visitor heads for the tab bar, or a mobile visitor who has read most of
- * the page goes idle. Shown at most once a week; never to leads or customers; Esc / backdrop / button closes.
+ * Show the offer 30 seconds after an eligible visitor lands. Shown at most once a week; never to leads or
+ * customers; Esc / backdrop / button closes.
  */
 export function ExitOffer() {
   const { lead, entitlements } = useFunnel();
@@ -252,31 +253,12 @@ export function ExitOffer() {
     if (!eligible) return;
     const last = read<number>(EXIT_KEY, 0);
     if (Date.now() - last < EXIT_COOLDOWN) return;
-    const armedAt = Date.now() + 12000;
-    let idle = 0;
-    const show = (how: string) => {
-      if (Date.now() < armedAt) return;
+    const timer = window.setTimeout(() => {
       write(EXIT_KEY, Date.now());
       setOpen(true);
-      track('exit_offer_shown', { method: how });
-      cleanup();
-    };
-    const onOut = (e: MouseEvent) => {
-      if (!e.relatedTarget && e.clientY <= 4) show('mouse_exit');
-    };
-    const onScroll = () => {
-      window.clearTimeout(idle);
-      const depth = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
-      if (window.innerWidth < 900 && depth > 0.55) idle = window.setTimeout(() => show('mobile_idle'), 20000);
-    };
-    const cleanup = () => {
-      document.removeEventListener('mouseout', onOut);
-      window.removeEventListener('scroll', onScroll);
-      window.clearTimeout(idle);
-    };
-    document.addEventListener('mouseout', onOut);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return cleanup;
+      track('exit_offer_shown', { method: 'timer_30s' });
+    }, EXIT_DELAY);
+    return () => window.clearTimeout(timer);
   }, [eligible]);
 
   useEffect(() => {
@@ -292,8 +274,8 @@ export function ExitOffer() {
     <div className="bk-exit" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
       <div className="bk-exit-card" role="dialog" aria-modal="true" aria-labelledby="exit-h">
         <button ref={closeRef} type="button" className="bk-exit-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
-        <span className="bk-quiz-kicker">Your physical book is included with the Digital Bundle</span>
-        <h2 id="exit-h">Want the book included at no extra cost?</h2>
+        <span className="bk-quiz-kicker">Included free with the paid Digital Bundle</span>
+        <h2 id="exit-h">Get This Book for Free with the Digital Bundle</h2>
         <p>Enter your email to continue to the Digital Bundle offer. It includes the physical book plus a digital toolkit and guidance for reviewing and disputing negative items you believe are inaccurate. The bundle price will be shown before you decide; no outcome or removal is guaranteed.</p>
         <h3 style={{ marginTop: 22 }}>Enter your email here</h3>
         <LeadForm
