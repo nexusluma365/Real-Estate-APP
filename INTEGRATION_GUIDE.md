@@ -47,6 +47,9 @@ tests/                   npm test — unit tests + end-to-end API test on a real
 | analytics beacon | `POST /api/events` | allow-listed event payload | 202 |
 | ESP → us | `POST /api/esp/unsubscribe` (Bearer `ESP_WEBHOOK_SECRET`) | `{email}` | `{ok}` |
 | /admin | `GET /api/admin/metrics?days=` (Bearer `ADMIN_TOKEN`) | — | aggregate counts only |
+| /admin | `GET` / `POST /api/admin/orders` (Bearer `ADMIN_TOKEN`) | `{payment_intent_id,carrier?,tracking?,tracking_url?}` | books to ship (with Stripe address) / mark shipped + email once |
+| /admin | `GET /api/admin/health` (Bearer `ADMIN_TOKEN`) | — | which settings exist, DB check, each R2 file uploaded or MISSING (no values) |
+| (receipt email) | `GET /api/files?t=` | signed 30-day link | 302 to the file, entitlement re-checked (refunds revoke) |
 
 ## 2. Deploy on Netlify
 
@@ -90,9 +93,14 @@ The R2 bucket name is `creditrepairbusiness`; the toolkit object is at the bucke
 * `GET /api/entitlements` decides access; `src/components/Guards.tsx` only reflects it. Client state never grants access, and `/api/files` re-checks ownership on every request.
 * Returning customers: `/api/access/link` stores a hashed single-use 30-minute token and emits `access_link_requested`; the ESP emails `data.link`; `/api/access/verify` sets the session.
 
-## 8. Email (ESP)
-* Every lifecycle fact is stored once (`lifecycle_events`, unique per lead+event+ref) and POSTed to `ESP_WEBHOOK_URL` with `X-RentReady-Signature` (HMAC-SHA256 of the raw body, hex) and `marketing_allowed`.
-* Flows, timing, exit rules and copy: `EMAIL_SEQUENCES.md` and `EMAIL_FLOWS` in `src/lib/lifecycle.ts`.
+## 8. Email
+* **Transactional (Resend, built in):** `netlify/lib/email.ts`, sent once per stored lifecycle fact. Needs `RESEND_API_KEY` + `FROM_EMAIL` (verified sender domain).
+  * `purchase_completed` (Stripe webhook) → receipt: product, amount, order id; for the Bundle/upgrade/Playbook, signed 30-day download links (`/api/files?t=`); for the book and Bundle, "your book is on its way — we'll email you when it ships".
+  * `order_shipped` (/admin → Books to ship → *Mark shipped*) → "your book has shipped" with optional carrier, tracking number and link.
+  * `access_link_requested` → sign-in link.
+* **Marketing / recovery (optional ESP):**
+  * Every lifecycle fact is stored once (`lifecycle_events`, unique per lead+event+ref) and POSTed to `ESP_WEBHOOK_URL` with `X-RentReady-Signature` (HMAC-SHA256 of the raw body, hex) and `marketing_allowed`.
+  * Flows, timing, exit rules and copy: `EMAIL_SEQUENCES.md` and `EMAIL_FLOWS` in `src/lib/lifecycle.ts`.
 
 ## 9. Assessment & game plan
 * Questions: `src/config/assessment.ts`. Rules: `src/lib/gameplan.ts → buildGamePlan()`. Language: STRONG / REVIEW / NEEDS ATTENTION only; never approved/denied/guaranteed.

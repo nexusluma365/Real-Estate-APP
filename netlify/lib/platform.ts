@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import postgres, { type Sql } from 'postgres';
 import type { Env } from './_lib';
@@ -61,6 +61,15 @@ export function r2FileStore(accountId: string, accessKeyId: string, secretAccess
         ResponseCacheControl: 'private, no-store',
       }), { expiresIn: 300 });
     },
+    async exists(key: string) {
+      try {
+        await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return true;
+      } catch (e) {
+        if ((e as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return false;
+        throw e;
+      }
+    },
   };
 }
 
@@ -80,6 +89,9 @@ export function netlifyEnv(): Env {
     ESP_WEBHOOK_SECRET: e.ESP_WEBHOOK_SECRET,
     ADMIN_TOKEN: e.ADMIN_TOKEN,
     VIDEO_GUIDE_URL: e.VIDEO_GUIDE_URL,
+    RESEND_API_KEY: e.RESEND_API_KEY,
+    FROM_EMAIL: e.FROM_EMAIL,
+    SUPPORT_EMAIL: e.SUPPORT_EMAIL,
     DB: e.SUPABASE_DB_URL ? postgresDatabase(postgres(e.SUPABASE_DB_URL, {
       max: 1,
       idle_timeout: 20,

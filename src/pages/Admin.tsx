@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Layout } from '../components/Layout';
 import { Seo } from '../components/Seo';
 import { Alert, Spinner } from '../components/ui';
@@ -71,6 +71,7 @@ export default function Admin() {
   const [data, setData] = useState<Metrics | null>(null);
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [err, setErr] = useState('');
+  const [checked, setChecked] = useState(0);
   const [costs, setCosts] = useState(() => read('admin_costs', { spend: '', kitCost: '', feePct: '2.9', feeFixed: '0.30' }));
 
   async function load(e?: FormEvent) {
@@ -81,11 +82,12 @@ export default function Admin() {
     }
     setState('loading');
     setErr('');
+    setChecked((n) => n + 1);
     try {
       const r = await fetch(`${env.apiBase}/admin/metrics?days=${days}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit' });
       if (!r.ok) throw new Error(r.status === 401 ? 'That token wasn’t accepted.' : r.status === 501 ? 'Metrics aren’t configured (ADMIN_TOKEN / DB).' : `Error ${r.status}`);
       write('admin_token', token, 'session');
-      setData((await r.json()) as Metrics);
+      setData({ ...((await r.json()) as Metrics), source: 'live' });
       setState('idle');
     } catch (x) {
       setErr(x instanceof Error ? x.message : 'Couldn’t load metrics.');
@@ -136,6 +138,7 @@ export default function Admin() {
             <button className="btn btn-sm" type="submit" disabled={state === 'loading'}>{state === 'loading' ? <><Spinner /> Loading</> : 'Load metrics'}</button>
           </form>
           {err && <Alert kind="error">{err}</Alert>}
+          {!isMock && checked > 0 && <HealthPanel token={token} key={checked} />}
           {!d && !err && (
             <p className="muted">{isMock ? 'Mock mode: shows only what this browser simulated.' : 'No data loaded. Requires ADMIN_TOKEN and the Supabase database (see LAUNCH_CHECKLIST.md).'}</p>
           )}
@@ -213,6 +216,8 @@ export default function Admin() {
                 </table>
               </section>
 
+              {d.source === 'live' && <ShippingPanel token={token} />}
+
               <section className="panel">
                 <h2>Unit economics</h2>
                 <p className="muted" style={{ marginBottom: 16 }}>No ad platform is connected, so enter spend for this period. Values stay in this browser.</p>
@@ -254,5 +259,130 @@ function Num({ label, v, on }: { label: string; v: string; on: (v: string) => vo
       <label htmlFor={id}>{label}</label>
       <input id={id} className="input" inputMode="decimal" value={v} onChange={(e) => on(e.target.value.replace(/[^\d.]/g, ''))} />
     </div>
+  );
+}
+
+interface ShipOrder {
+  payment_intent_id: string;
+  product: ProductId;
+  amount_cents: number;
+  created_at: string;
+  refunded_at: string | null;
+  email: string | null;
+  first_name: string | null;
+  shipped: { carrier?: string; tracking?: string; at: string } | null;
+  shipping: { name?: string; address?: Record<string, string | undefined> } | null;
+}
+
+/** Books to ship: address from Stripe, then "Mark shipped" emails the customer once (with tracking, if given). */
+function ShippingPanel({ token }: { token: string }) {
+  const [orders, setOrders] = useState<ShipOrder[] | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const [form, setForm] = useState<Record<string, { carrier: string; tracking: string; tracking_url: string }>>({});
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`${env.apiBase}/admin/orders`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit' });
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      setOrders(((await r.json()) as { orders: ShipOrder[] }).orders);
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Couldn’t load orders.');
+    }
+  }, [token]);
+  useEffect(() => void load(), [load]);
+
+  async function ship(id: string) {
+    setBusy(id);
+    setErr('');
+    try {
+      const r = await fetch(`${env.apiBase}/admin/orders`, { method: 'POST', headers, credentials: 'omit', body: JSON.stringify({ payment_intent_id: id, ...form[id] }) });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error || `Error ${r.status}`);
+      await load();
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Couldn’t mark shipped.');
+    }
+    setBusy('');
+  }
+  const field = (id: string, k: 'carrier' | 'tracking' | 'tracking_url', v: string) =>
+    setForm((f) => ({ ...f, [id]: { ...(f[id] || { carrier: '', tracking: '', tracking_url: '' }), [k]: v } }));
+  const todo = orders?.filter((o) => !o.shipped && !o.refunded_at) ?? [];
+  const done = orders?.filter((o) => o.shipped) ?? [];
+
+  return (
+    <section className="panel">
+      <h2>Books to ship {orders && <span className="muted">({todo.length})</span>}</h2>
+      {err && <Alert kind="error">{err}</Alert>}
+      {!orders && !err && <p className="muted"><Spinner /> Loading orders…</p>}
+      {orders && todo.length === 0 && <p className="muted" style={{ marginTop: 10 }}>Nothing waiting to ship.</p>}
+      <div className="adm-ship">
+        {todo.map((o) => {
+          const a = o.shipping?.address || {};
+          return (
+            <div key={o.payment_intent_id} className="adm-ship-row">
+              <div>
+                <strong>{o.shipping?.name || o.first_name || '—'}</strong> · {PRODUCTS[o.product]?.shortName || o.product} · {new Date(o.created_at).toLocaleDateString()}
+                <div className="muted">{o.email}</div>
+                <div>{o.shipping ? [a.line1, a.line2, `${a.city || ''}, ${a.state || ''} ${a.postal_code || ''}`, a.country].filter(Boolean).join(' · ') : <span className="muted">Address: see Stripe payment {o.payment_intent_id}</span>}</div>
+              </div>
+              <div className="adm-ship-form">
+                <input className="input" placeholder="Carrier (USPS)" value={form[o.payment_intent_id]?.carrier || ''} onChange={(e) => field(o.payment_intent_id, 'carrier', e.target.value)} />
+                <input className="input" placeholder="Tracking number" value={form[o.payment_intent_id]?.tracking || ''} onChange={(e) => field(o.payment_intent_id, 'tracking', e.target.value)} />
+                <input className="input" placeholder="Tracking link (https://…)" value={form[o.payment_intent_id]?.tracking_url || ''} onChange={(e) => field(o.payment_intent_id, 'tracking_url', e.target.value)} />
+                <button className="btn btn-sm" type="button" disabled={busy === o.payment_intent_id} onClick={() => ship(o.payment_intent_id)}>
+                  {busy === o.payment_intent_id ? <><Spinner /> Sending</> : 'Mark shipped + email customer'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {done.length > 0 && (
+        <details style={{ marginTop: 16 }}>
+          <summary>Shipped ({done.length})</summary>
+          <table className="adm-table">
+            <tbody>
+              {done.map((o) => (
+                <tr key={o.payment_intent_id}><td>{o.email}</td><td>{o.shipped?.carrier} {o.shipped?.tracking}</td><td>{o.shipped && new Date(o.shipped.at).toLocaleDateString()}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+    </section>
+  );
+}
+
+interface Health { settings: Record<string, boolean | string | null>; database: string; files: Record<string, string> }
+
+/** Launch readiness from GET /api/admin/health — booleans and statuses only, never secret values. */
+function HealthPanel({ token }: { token: string }) {
+  const [h, setH] = useState<Health | null>(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    fetch(`${env.apiBase}/admin/health`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit' })
+      .then(async (r) => (r.ok ? setH((await r.json()) as Health) : setErr(r.status === 401 ? 'Token not accepted.' : `Error ${r.status}`)))
+      .catch(() => setErr('Couldn’t reach the API.'));
+  }, [token]);
+  const ok = (v: unknown) => v === true || (typeof v === 'string' && /^(ok|uploaded|https?:)/.test(v));
+  const rows: [string, unknown][] = h
+    ? [...Object.entries(h.settings), ['database connection', h.database], ...Object.entries(h.files).map(([k, v]) => [`R2 file: ${k}`, v] as [string, unknown])]
+    : [];
+  return (
+    <section className="panel">
+      <h2>Setup health</h2>
+      {err && <Alert kind="error">{err}</Alert>}
+      {!h && !err && <p className="muted"><Spinner /> Checking…</p>}
+      {h && (
+        <table className="adm-table">
+          <tbody>
+            {rows.map(([k, v]) => (
+              <tr key={k}><td>{k.replace(/_/g, ' ')}</td><td style={{ color: ok(v) ? 'var(--ok, #1d7a46)' : 'var(--attention)' }}>{v === true ? 'Set' : v === false ? 'Missing' : String(v)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }

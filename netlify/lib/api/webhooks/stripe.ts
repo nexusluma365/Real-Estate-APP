@@ -34,8 +34,8 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
     const product = o.metadata.product;
     if (isProduct(product) && o.amount === PRICES[product] && o.currency === 'usd') {
       await grantEntitlement(env, o.customer, product, o.id, o.amount, leadId);
-      // One confirmation per PaymentIntent (ref = pi id) → ESP sends receipt + access link and stops recovery flows.
-      if (leadId) await recordLifecycle(env, leadId, 'purchase_completed', { product, amount_cents: o.amount, order_id: o.id }, o.id);
+      // One confirmation per PaymentIntent (ref = pi id) → receipt with download links (Resend) + ESP and stops recovery flows.
+      if (leadId) await recordLifecycle(env, leadId, 'purchase_completed', { product, amount_cents: o.amount, order_id: o.id, customer_id: o.customer }, o.id);
       // INTEGRATE: server-side Google Ads conversion upload / Meta Conversions API (event_id = o.id) here.
     }
   }

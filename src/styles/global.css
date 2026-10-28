@@ -1170,3 +1170,8 @@ a:hover > .bk-arrow { transform: translateX(3px); }
 .footer-legal, .book-footer-copy { text-align: center; margin-inline: auto; }
 
 .cr-free-badge { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 8px 14px; border-radius: 999px; background: rgba(212,175,106,.16); border: 1px solid rgba(212,175,106,.5); color: #efd69e; font-size: .9rem; font-weight: 600; }
+.adm-ship { display: grid; gap: 14px; margin-top: 14px; }
+.adm-ship-row { display: grid; gap: 14px; grid-template-columns: 1fr minmax(260px, 340px); padding: 16px; border: 1px solid var(--rule); border-radius: 14px; font-size: .94rem; line-height: 1.5; }
+.adm-ship-form { display: grid; gap: 8px; }
+.adm-ship-form .input { min-height: 42px; font-size: .92rem; }
+@media (max-width: 760px) { .adm-ship-row { grid-template-columns: 1fr; } }

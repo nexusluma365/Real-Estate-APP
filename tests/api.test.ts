@@ -19,6 +19,7 @@ const client = createClient({ url: 'file::memory:' });
 const toolkitKey = DIGITAL_KIT_FILE_KEY;
 const files = new Map<string, string>([[toolkitKey, 'PK-letters']]);
 const espCalls: { event: string; marketing_allowed: boolean }[] = [];
+const emails: { to: string; subject: string; html: string; text: string }[] = [];
 const env: Env = {
   STRIPE_SECRET_KEY: 'sk_test_x',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_x',
@@ -28,6 +29,9 @@ const env: Env = {
   ESP_WEBHOOK_SECRET: 'esp_secret_value_123',
   ADMIN_TOKEN: 'admin_token_value_1234567890',
   VIDEO_GUIDE_URL: 'https://video.test/private',
+  RESEND_API_KEY: 're_test_x',
+  FROM_EMAIL: 'RentReady <support@send.rentready.test>',
+  SUPPORT_EMAIL: 'support@rentready.test',
   DB: sqlDatabase(client),
   PRODUCT_FILES: {
     async createDownloadUrl(key) {
@@ -45,6 +49,10 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.host === 'esp.test') {
     espCalls.push(JSON.parse(String(init?.body)));
     return new Response('{}');
+  }
+  if (url.host === 'api.resend.com') {
+    emails.push(JSON.parse(String(init?.body)));
+    return new Response('{"id":"em_1"}');
   }
   if (url.host !== 'api.stripe.com') return realFetch(input, init);
   const form = new URLSearchParams(String(init?.body || ''));
@@ -187,6 +195,22 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.deepEqual((await call('GET', '/api/entitlements')).data.products.sort(), ['creditready', 'guide']);
   assert.equal(espCalls.filter((c) => c.event === 'purchase_completed').length, 1, 'one purchase email trigger');
 
+  // receipt: sent once to the buyer, with a working download link that needs no browser session
+  const receipts = emails.filter((e) => e.subject.includes('receipt'));
+  assert.equal(receipts.length, 1, 'one receipt email');
+  assert.equal(receipts[0].to, 'jordan@example.com');
+  assert.match(receipts[0].text, /\$32\.00/);
+  const link = /(https:\/\/rentready\.test\/api\/files\?t=[\w.-]+)/.exec(receipts[0].text)?.[1];
+  assert.ok(link, 'receipt has a download link');
+  const saved = cookie;
+  cookie = '';
+  const fromEmail = await call('GET', link!.slice(ORIGIN.length));
+  assert.equal(fromEmail.status, 302);
+  assert.match(fromEmail.res.headers.get('Location') || '', /^https:\/\/downloads\.test\//, 'emailed link downloads without signing in');
+  const forged = await call('GET', link!.slice(ORIGIN.length).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')));
+  assert.match(forged.res.headers.get('Location') || '', /\/access\?link=expired$/, 'tampered link refused');
+  cookie = saved;
+
   // files: authorized downloads redirect to a short-lived URL; video redirects to its private URL
   const letters = await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`);
   assert.equal(letters.status, 302);
@@ -210,6 +234,8 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   const after = (await call('GET', '/api/entitlements')).data.products;
   assert.ok(!after.includes('creditready') && after.includes('guide'));
   assert.equal(espCalls.filter((c) => c.event === 'refund_processed').length, 1);
+  const deadLink = /(\/api\/files\?t=[\w.-]+)/.exec(receipts[0].text)![1];
+  assert.equal((await call('GET', deadLink)).status, 403, 'refund revokes the emailed link too');
 });
 
 test('webhook rejects a bad signature', async () => {
@@ -243,4 +269,30 @@ test('unsubscribe sync + admin metrics are token-protected and add up', async ()
   const gross = m.data.products.reduce((s: number, p: any) => s + p.gross, 0);
   assert.equal(gross, 4799 + 3200 + 10000);
   assert.equal(m.data.abandoned, 1);
+});
+
+test('book fulfilment: admin sees the order to ship, marks it shipped, customer emailed once', async () => {
+  const auth = { Authorization: `Bearer ${env.ADMIN_TOKEN}` };
+  assert.equal((await call('GET', '/api/admin/orders')).status, 401);
+  // Jordan's book (guide) order ships; it was granted via verify, so record it on the lead for this check
+  const list = await call('GET', '/api/admin/orders', undefined, auth);
+  assert.equal(list.status, 200);
+  const book = list.data.orders.find((o: any) => o.product === 'guide');
+  assert.ok(book && !book.shipped, 'unshipped book order listed');
+  const ship = { payment_intent_id: book.payment_intent_id, carrier: 'USPS', tracking: '9400 1000 0000', tracking_url: 'https://tools.usps.com/x' };
+  assert.equal((await call('POST', '/api/admin/orders', ship, auth)).data.already_shipped, false);
+  assert.equal((await call('POST', '/api/admin/orders', ship, auth)).data.already_shipped, true);
+  const shipped = emails.filter((e) => e.subject.includes('shipped'));
+  assert.equal(shipped.length, 1, 'one shipping email');
+  assert.match(shipped[0].text, /9400 1000 0000/);
+  assert.ok((await call('GET', '/api/admin/orders', undefined, auth)).data.orders.find((o: any) => o.payment_intent_id === book.payment_intent_id).shipped);
+});
+
+test('admin health reports configuration and missing files without exposing values', async () => {
+  assert.equal((await call('GET', '/api/admin/health')).status, 401);
+  const h = await call('GET', '/api/admin/health', undefined, { Authorization: `Bearer ${env.ADMIN_TOKEN}` });
+  assert.equal(h.status, 200);
+  assert.equal(h.data.settings.database, true);
+  assert.match(h.data.database, /^ok/);
+  assert.ok(!JSON.stringify(h.data).includes(env.STRIPE_SECRET_KEY!), 'no secret values');
 });

@@ -1,3 +1,5 @@
+import { sendTransactional } from './email';
+
 /**
  * Shared helpers for the RentReady API (Netlify Functions — see netlify/functions/api.mts).
  * Handlers are platform-neutral: they receive `{ request, env }` and return a Response.
@@ -20,6 +22,12 @@ export interface Env {
   ADMIN_TOKEN?: string;
   /** Private URL of the hosted step-by-step video guide. Only entitled Bundle owners are redirected to it. */
   VIDEO_GUIDE_URL?: string;
+  /** Transactional email (receipts, download links, shipping updates, sign-in links) via Resend. */
+  RESEND_API_KEY?: string;
+  /** Verified Resend sender, e.g. "RentReady <support@send.werentreadygo.com>". */
+  FROM_EMAIL?: string;
+  /** Reply-to / support address shown in emails. */
+  SUPPORT_EMAIL?: string;
 }
 
 /** The small database surface the handlers use (prepare → bind → first | all | run). */
@@ -29,6 +37,8 @@ declare global {
   }
   interface FileStore {
     createDownloadUrl(key: string): Promise<string | null>;
+    /** Optional: whether the object is uploaded (used by /api/admin/health). */
+    exists?(key: string): Promise<boolean>;
   }
 }
 
@@ -163,15 +173,22 @@ export async function recordLifecycle(env: Env, leadId: string, event: string, d
   const r = (await env.DB.prepare('INSERT INTO rr_lifecycle_events (lead_id, event, ref, data, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
     .bind(leadId, event, ref, JSON.stringify(data).slice(0, 2000), at).run()) as { meta?: { changes?: number } };
   if (r?.meta?.changes === 0) return false;
-  await forwardToEsp(env, leadId, event, data, at);
+  const lead = await env.DB.prepare('SELECT email, first_name, email_consent, intent_tier, recommended_product, product_interest, unsubscribed_at FROM rr_leads WHERE lead_id = ?')
+    .bind(leadId).first<Lead>();
+  if (!lead) return true;
+  try {
+    await sendTransactional(env, lead, event, data);
+  } catch (e) {
+    console.error('transactional email failed', event, leadId, e);
+  }
+  await forwardToEsp(env, leadId, lead, event, data, at);
   return true;
 }
 
-async function forwardToEsp(env: Env, leadId: string, event: string, data: Record<string, unknown>, at: string) {
-  if (!env.ESP_WEBHOOK_URL || !env.DB) return;
-  const lead = await env.DB.prepare('SELECT email, first_name, email_consent, intent_tier, recommended_product, product_interest, unsubscribed_at FROM rr_leads WHERE lead_id = ?')
-    .bind(leadId).first<{ email: string; first_name: string; email_consent: number; intent_tier: string | null; recommended_product: string | null; product_interest: string | null; unsubscribed_at: string | null }>();
-  if (!lead) return;
+type Lead = { email: string; first_name: string; email_consent: number; intent_tier: string | null; recommended_product: string | null; product_interest: string | null; unsubscribed_at: string | null };
+
+async function forwardToEsp(env: Env, leadId: string, lead: Lead, event: string, data: Record<string, unknown>, at: string) {
+  if (!env.ESP_WEBHOOK_URL) return;
   const payload = JSON.stringify({
     event,
     at,

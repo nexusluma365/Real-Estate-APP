@@ -235,13 +235,12 @@ export function BuyFaqList({ items }: { items: FaqItem[] }) {
 /* ------------------------------------------------------------------ free-book offer */
 
 const EXIT_KEY = 'exit_offer_at';
-const EXIT_COOLDOWN = 1000 * 60 * 60 * 24;
 const EXIT_DELAY = 1000 * 30;
 /** The offer's destination, checkout and everything after purchase never show it. */
 const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin'];
 
 /**
- * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, at most once a day, never
+ * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, once per visit (browser session), never
  * for customers. Esc / backdrop / buttons close it. The email goes on to the Digital Bundle page, where the
  * free physical book and the Bundle's full price are both shown before anyone buys.
  */
@@ -257,9 +256,9 @@ export function ExitOffer() {
 
   useEffect(() => {
     if (!eligible) return;
-    if (Date.now() - read<number>(EXIT_KEY, 0) < EXIT_COOLDOWN) return;
+    if (read<number>(EXIT_KEY, 0, 'session')) return;
     const timer = window.setTimeout(() => {
-      write(EXIT_KEY, Date.now());
+      write(EXIT_KEY, Date.now(), 'session');
       setOpen(true);
       track('exit_offer_shown', { method: 'timer_30s' });
     }, EXIT_DELAY);

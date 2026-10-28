@@ -18,6 +18,8 @@ import * as accessLink from '../lib/api/access/link';
 import * as accessVerify from '../lib/api/access/verify';
 import * as unsubscribe from '../lib/api/esp/unsubscribe';
 import * as metrics from '../lib/api/admin/metrics';
+import * as adminOrders from '../lib/api/admin/orders';
+import * as adminHealth from '../lib/api/admin/health';
 
 type Handler = (ctx: Ctx) => Promise<Response> | Response;
 type Module = { onRequestGet?: Handler; onRequestPost?: Handler; onRequestPut?: Handler };
@@ -41,6 +43,8 @@ const ROUTES: Record<string, Module> = {
   '/api/access/verify': accessVerify,
   '/api/esp/unsubscribe': unsubscribe,
   '/api/admin/metrics': metrics,
+  '/api/admin/orders': adminOrders,
+  '/api/admin/health': adminHealth,
 };
 
 /** Server-to-server routes authenticate with a signature or bearer token instead of an Origin header. */

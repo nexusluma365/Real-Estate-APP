@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-28 (rev. 5) — receipts, downloads, shipping updates, setup health
+- Purchase receipts are emailed through Resend straight from the Stripe webhook (once per order): order summary, private
+  30-day download links for the Bundle files that work without signing in (entitlement re-checked; refunds revoke them),
+  and "your book is on its way — we'll email you as soon as it ships". Sign-in links are emailed the same way.
+- /admin → **Books to ship**: shipping address from Stripe, carrier/tracking fields, *Mark shipped* emails the customer once.
+- /admin → **Setup health** (`/api/admin/health`): which settings are present, database check, and whether each product
+  file is uploaded to R2. Shows statuses only, never values.
+- The free-book popup now shows once per visit (browser session) instead of once a day.
+
 ## 2026-10-28 (rev. 4) — "Get this book for free" popup
 - The 30-second offer now runs site-wide (mounted in `App.tsx`) on every pre-purchase page, desktop and mobile; it stays off
   `/creditready`, checkout and all customer pages, never shows to buyers, and shows at most once a day.
