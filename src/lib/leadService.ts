@@ -45,6 +45,8 @@ export async function captureLead(input: LeadInput): Promise<Lead> {
 
   // Progressive profiling: the same email returns the same lead (server upserts by email).
   const existing = getLead();
+  // An email-only form (the free-book popup) keeps the name we already have for that email.
+  if (!base.first_name && existing?.email === base.email) base.first_name = existing.first_name;
   let lead: Lead;
   if (isMock) {
     await wait(650);

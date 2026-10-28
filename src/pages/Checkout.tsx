@@ -297,8 +297,7 @@ export default function Checkout() {
 
               <div className="who-box">
                 <span>
-                  <strong>{lead.first_name}</strong>
-                  <br />
+                  {lead.first_name && <><strong>{lead.first_name}</strong><br /></>}
                   <span className="muted">{lead.email}</span>
                 </span>
                 <Link to={`/start?next=${encodeURIComponent(`/checkout?product=${choice}`)}`} className="text-link" style={{ fontSize: '0.9rem' }}>Change</Link>

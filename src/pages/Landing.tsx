@@ -9,7 +9,7 @@ import type { Intent } from '../config/intents';
 import { env } from '../lib/env';
 import { captureAttribution } from '../lib/attribution';
 import { track } from '../lib/analytics';
-import { BuyFaqList, ExitOffer, Options, QualifyQuiz, TrustBar } from '../components/Funnel';
+import { BuyFaqList, Options, QualifyQuiz, TrustBar } from '../components/Funnel';
 import { buyFaq, LANDING_FAQ } from '../config/faq';
 import { PRODUCTS } from '../config/products';
 import { SITE } from '../config/site';
@@ -543,7 +543,6 @@ export default function Landing({ intent }: { intent?: Intent }) {
             </div>
           </div>
         </section>
-        <ExitOffer />
       </div>
 
       <StickyCta to={BOOK_TO} sentinelId="hero-end" label="Get the Book →" meta="Physical book · ships to you" props={{ product: 'guide', variant }} />

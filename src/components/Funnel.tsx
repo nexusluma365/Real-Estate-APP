@@ -3,7 +3,7 @@ import { Icon, type IconName } from './Icon';
 import { BookVisual } from './BookVisual';
 import { CtaLink } from './ui';
 import { LeadForm } from './LeadForm';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import bundleWebp from '../assets/rentready-digital-bundle.webp';
 import bundleWebpSm from '../assets/rentready-digital-bundle-768.webp';
 import bundlePng from '../assets/rentready-digital-bundle.png';
@@ -232,27 +232,32 @@ export function BuyFaqList({ items }: { items: FaqItem[] }) {
   );
 }
 
-/* ------------------------------------------------------------------ exit offer */
+/* ------------------------------------------------------------------ free-book offer */
 
 const EXIT_KEY = 'exit_offer_at';
-const EXIT_COOLDOWN = 1000 * 60 * 60 * 24 * 7;
+const EXIT_COOLDOWN = 1000 * 60 * 60 * 24;
 const EXIT_DELAY = 1000 * 30;
+/** The offer's destination, checkout and everything after purchase never show it. */
+const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin'];
 
 /**
- * Show the offer 30 seconds after an eligible visitor lands. Shown at most once a week; never to leads or
- * customers; Esc / backdrop / button closes.
+ * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, at most once a day, never
+ * for customers. Esc / backdrop / buttons close it. The email goes on to the Digital Bundle page, where the
+ * free physical book and the Bundle's full price are both shown before anyone buys.
  */
 export function ExitOffer() {
-  const { lead, entitlements } = useFunnel();
+  const { entitlements } = useFunnel();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const eligible = !lead && entitlements.status === 'loaded' && entitlements.products.length === 0;
+  const allowed = !EXIT_HIDDEN.some((p) => pathname.startsWith(p));
+  // An unreachable API ('error') still means "no known purchase", so the offer can show.
+  const eligible = allowed && entitlements.status !== 'loading' && entitlements.products.length === 0;
 
   useEffect(() => {
     if (!eligible) return;
-    const last = read<number>(EXIT_KEY, 0);
-    if (Date.now() - last < EXIT_COOLDOWN) return;
+    if (Date.now() - read<number>(EXIT_KEY, 0) < EXIT_COOLDOWN) return;
     const timer = window.setTimeout(() => {
       write(EXIT_KEY, Date.now());
       setOpen(true);
@@ -266,35 +271,42 @@ export function ExitOffer() {
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+    };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !allowed) return null;
   return (
     <div className="bk-exit" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
-      <div className="bk-exit-card" role="dialog" aria-modal="true" aria-labelledby="exit-h">
+      <div className="bk-exit-card" role="dialog" aria-modal="true" aria-labelledby="exit-h" aria-describedby="exit-d">
         <button ref={closeRef} type="button" className="bk-exit-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
-        <span className="bk-quiz-kicker">Included free with the paid Digital Bundle</span>
-        <h2 id="exit-h">Get This Book for Free with the Digital Bundle</h2>
-        <p>Enter your email to continue to the Digital Bundle offer. It includes the physical book plus a digital toolkit and guidance for reviewing and disputing negative items you believe are inaccurate. The bundle price will be shown before you decide; no outcome or removal is guaranteed.</p>
-        <h3 style={{ marginTop: 22 }}>Enter your email here</h3>
+        <BookVisual size="thumb" eager className="bk-exit-book" />
+        <h2 id="exit-h" className="bk-exit-h">GET THIS BOOK FOR FREE</h2>
+        <p id="exit-d" className="bk-exit-sub">
+          Your physical copy of <strong>Before They Say No™</strong> is included free with the RentReady Digital Bundle,
+          along with 20 editable dispute letters and the step-by-step video guide.
+        </p>
         <LeadForm
           source="exit"
-          submitLabel="See the Digital Bundle offer"
+          submitLabel="Claim My Free Book →"
           productInterest="creditready"
           optIn={false}
           requireFirstName={false}
           emailConsentValue={false}
           consentText="Email entered to continue to the RentReady Digital Bundle offer. No promotional email consent was given."
-          helpText="We’ll use this to save your offer and associate your checkout."
-          finePrint="You’ll go to the Bundle offer page, where you can review the full price before buying. We won’t send promotional emails without your permission."
+          helpText="Enter your email to see the Bundle with your free book."
+          finePrint="The book is free with the paid Digital Bundle; you'll see the full Bundle price before you buy. No credit pull, and we never sell your email."
           onDone={() => {
             track('exit_offer_click', { cta_location: 'exit', product: 'creditready' });
             setOpen(false);
             navigate('/creditready?source=exit_offer');
           }}
         />
-        <button type="button" className="bk-quiz-restart" style={{ marginTop: 16 }} onClick={() => setOpen(false)}>No thanks, keep reading</button>
+        <button type="button" className="bk-quiz-restart bk-exit-skip" onClick={() => setOpen(false)}>No thanks, keep reading</button>
       </div>
     </div>
   );

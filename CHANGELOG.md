@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-28 (rev. 4) — "Get this book for free" popup
+- The 30-second offer now runs site-wide (mounted in `App.tsx`) on every pre-purchase page, desktop and mobile; it stays off
+  `/creditready`, checkout and all customer pages, never shows to buyers, and shows at most once a day.
+- Headline "GET THIS BOOK FOR FREE", book image, email field → `/creditready?source=exit_offer`, which confirms the free book.
+  The popup states the book is free with the paid Digital Bundle and that the price is shown before buying.
+- Fixed: the popup never appeared when the API was unreachable, or for visitors who were already leads.
+- Fixed: an email-only sign-up no longer erases a first name already saved for that email; checkout hides the empty name line.
+
 ## 2026-10-28 (rev. 3) — backend moved to Netlify
 - One Netlify Function (`netlify/functions/api.mts`) serves every `/api/*` route with the same contracts — no frontend changes.
   It applies the origin check and security headers (formerly the Cloudflare middleware) and turns crashes into clean 500s.

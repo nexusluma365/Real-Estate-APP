@@ -625,7 +625,7 @@ h1,h2,h3,h4 { font-weight:700; letter-spacing:-.045em; }
    Typography follows Apple conventions: SF Pro via the system stack (Inter elsewhere), sentence case,
    tight negative tracking on display sizes, semibold weights, no all-caps or italics.
    ========================================================================== */
-.bk {
+.bk, .bk-exit {
   --bk-navy: #0a1730; --bk-navy-deep: #060f22; --bk-line: rgba(255,255,255,.1);
   --bk-gold: #d4af6a; --bk-gold-hi: #efd69e; --bk-gold-ink: #7a5a24;
   --bk-ivory: #f6f0e4; --bk-rule: #e7dfcf;
@@ -1004,8 +1004,28 @@ a:hover > .bk-arrow { transform: translateX(3px); }
 .bk-exit-card h2 { margin-top: 10px; font-size: clamp(1.6rem, 1.3rem + 1.2vw, 2.2rem); font-weight: 700; line-height: 1.12; letter-spacing: -.03em; }
 .bk-exit-card p { margin-top: 14px; font-size: 1.04rem; line-height: 1.55; color: var(--bk-muted); }
 .bk-exit-x { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--bk-ivory); color: var(--bk-ink); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+/* free-book popup */
+.bk-exit { overflow-y: auto; }
+.bk-exit-card { text-align: center; padding-top: 30px; animation: bk-pop .35s var(--ease) both; }
+.bk-exit-book { width: 132px; margin: 0 auto -4px; }
+.bk-exit-card .bk-exit-h { margin-top: 6px; font-size: clamp(1.75rem, 1.35rem + 1.6vw, 2.5rem); font-weight: 800; letter-spacing: -.035em; line-height: 1.05; color: var(--bk-ink); }
+.bk-exit-card .bk-exit-sub { margin: 12px auto 22px; max-width: 42ch; font-size: 1rem; }
+.bk-exit-sub strong { color: var(--bk-ink); }
+.bk-exit-card .form { gap: 14px; text-align: left; }
+.bk-exit-card .field label { font-size: .92rem; }
+.bk-exit-card .input { min-height: 54px; font-size: 1rem; }
+.bk-exit-card .btn { background: var(--bk-gold); border-color: var(--bk-gold); color: var(--bk-ink); font-weight: 700; min-height: 56px; }
+.bk-exit-card .btn:hover { background: var(--bk-gold-hi); border-color: var(--bk-gold-hi); }
+.bk-exit-card .fine { margin-top: 0; font-size: .82rem; text-align: center; color: var(--bk-muted); }
+.bk-exit-skip { margin-top: 10px; }
+@media (max-width: 520px) {
+  .bk-exit { place-items: end center; padding: 10px; }
+  .bk-exit-card { padding: 26px 20px 20px; border-radius: 24px; }
+  .bk-exit-book { width: 104px; }
+}
+@keyframes bk-pop { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes bk-fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .bk-exit, .bk-quiz-bar span { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bk-exit, .bk-exit-card, .bk-quiz-bar span { animation: none; transition: none; } }
 
 /* checkout reassurance */
 .co-step { display: inline-block; margin-bottom: 8px; font-size: .82rem; font-weight: 700; letter-spacing: .02em; color: var(--brass-deep); }
@@ -1148,3 +1168,5 @@ a:hover > .bk-arrow { transform: translateX(3px); }
 .co-title-sub { max-width: 30em; margin-inline: auto; }
 /* footer disclaimer: centred on every page */
 .footer-legal, .book-footer-copy { text-align: center; margin-inline: auto; }
+
+.cr-free-badge { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 8px 14px; border-radius: 999px; background: rgba(212,175,106,.16); border: 1px solid rgba(212,175,106,.5); color: #efd69e; font-size: .9rem; font-weight: 600; }

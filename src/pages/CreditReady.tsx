@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Seo } from '../components/Seo';
 import { Checklist, CtaLink, Faq, Journey, StickyCta, useOnce } from '../components/ui';
@@ -21,6 +22,7 @@ const FAQ = [
 const cta = (loc: string) => ({ event: 'credit_offer_cta' as const, props: { cta_location: loc, product: 'creditready' as const } });
 
 export default function CreditReady() {
+  const fromFreeBook = useSearchParams()[0].get('source') === 'exit_offer';
   useOnce(() => {
     track('credit_offer_view', { product: 'creditready' });
     track('product_view', { product: 'creditready', order_value: dollars(P.priceCents) });
@@ -33,6 +35,11 @@ export default function CreditReady() {
         <div className="wrap">
           <div>
             <Journey at={2} />
+            {fromFreeBook && (
+              <p className="cr-free-badge" role="status">
+                <Icon name="check" width={16} height={16} /> Your free copy of Before They Say No™ is included with this Bundle
+              </p>
+            )}
             <span className="wordmark-eyebrow">THE RENTREADY DIGITAL BUNDLE</span>
             <h1 id="cr-h">Start with the part you can work on.</h1>
             <p className="lede">

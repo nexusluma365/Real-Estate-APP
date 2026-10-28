@@ -8,6 +8,7 @@ import { Loader } from './components/ui';
 import { INTENTS } from './config/intents';
 import Landing from './pages/Landing';
 import { ConsentBanner } from './components/ConsentBanner';
+import { ExitOffer } from './components/Funnel';
 
 // Funnel entry is eager (fast first paint for ad traffic); everything after is code-split.
 const Start = lazy(() => import('./pages/Start'));
@@ -60,6 +61,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </ErrorBoundary>
+        <ExitOffer />
       </FunnelProvider>
     </BrowserRouter>
   );
