@@ -4,7 +4,7 @@ Rental-application readiness funnel. Products: **Before They Say No™** (physic
 **RentReady Digital Bundle** ($79.99 — book + 20 Word dispute letters + step-by-step video guide), with a $32 upgrade
 for book owners and the optional **Property Manager Playbook** ($100, one click after the Bundle).
 
-Stack: React + Vite front end · Netlify Functions API (`/api/*`) · Turso (libSQL/SQLite) · Netlify Blobs · Stripe.
+Stack: React + Vite front end · Netlify Functions API (`/api/*`) · Supabase PostgreSQL · private Cloudflare R2 downloads · Stripe.
 
 ## Run it
 
@@ -28,7 +28,7 @@ bank-confirmation states. Reset demo data from **/access → Development tools**
 * `FUNNEL_MAP.md` — every step, route, CTA, event, entry/exit condition
 * `INTEGRATION_GUIDE.md` — Netlify deployment, API contracts, Stripe, email, files, analytics, Ads
 * `.env.example` — every variable, public vs secret
-* `schema.sql` — database tables (apply once to Turso)
+* `schema.sql` — database tables (apply once to Supabase using the SQL Editor)
 * `design/` — source artwork (not used by the build)
 
 ## Where things live

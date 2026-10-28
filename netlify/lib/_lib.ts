@@ -10,8 +10,8 @@ export interface Env {
   SESSION_SECRET?: string;
   TURNSTILE_SECRET_KEY?: string;
   ALLOWED_ORIGIN?: string;
-  DB?: SqlDatabase; // Turso / libSQL (SQLite) via netlify/lib/platform.ts — schema.sql
-  PRODUCT_FILES?: FileStore; // Netlify Blobs store "product-files" via netlify/lib/platform.ts
+  DB?: SqlDatabase; // Supabase PostgreSQL via netlify/lib/platform.ts — schema.sql
+  PRODUCT_FILES?: FileStore; // Private Cloudflare R2 bucket via netlify/lib/platform.ts
   /** ESP / automation webhook (Klaviyo, Customer.io, Zapier, Make…) that receives lifecycle events. */
   ESP_WEBHOOK_URL?: string;
   /** HMAC secret for the X-RentReady-Signature header on ESP webhook calls. */
@@ -28,7 +28,7 @@ declare global {
     prepare(q: string): { bind(...v: unknown[]): { first<T = unknown>(): Promise<T | null>; run(): Promise<unknown>; all<T = unknown>(): Promise<{ results: T[] }> } };
   }
   interface FileStore {
-    get(key: string): Promise<{ body: ReadableStream; httpMetadata?: { contentType?: string } } | null>;
+    createDownloadUrl(key: string): Promise<string | null>;
   }
 }
 
@@ -140,11 +140,11 @@ export async function verifyStripeSignature(payload: string, header: string | nu
 export async function grantEntitlement(env: Env, customerId: string, product: ProductId, paymentIntentId: string, amount: number, leadId?: string) {
   if (!env.DB) throw new Error('DB binding missing');
   await env.DB.prepare(
-    'INSERT OR IGNORE INTO orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO rr_orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
   ).bind(paymentIntentId, customerId, product, amount, leadId || null, new Date().toISOString()).run();
   // A refunded-then-repurchased product is re-activated.
   await env.DB.prepare(
-    'INSERT INTO entitlements (customer_id, product, granted_at) VALUES (?, ?, ?) ON CONFLICT(customer_id, product) DO UPDATE SET revoked_at = NULL',
+    'INSERT INTO rr_entitlements (customer_id, product, granted_at) VALUES (?, ?, ?) ON CONFLICT(customer_id, product) DO UPDATE SET revoked_at = NULL',
   ).bind(customerId, entitlementFor(product), new Date().toISOString()).run();
 }
 
@@ -160,7 +160,7 @@ export async function hmacHex(secret: string, data: string) {
 export async function recordLifecycle(env: Env, leadId: string, event: string, data: Record<string, unknown> = {}, ref = '') {
   if (!env.DB) return false;
   const at = new Date().toISOString();
-  const r = (await env.DB.prepare('INSERT OR IGNORE INTO lifecycle_events (lead_id, event, ref, data, at) VALUES (?, ?, ?, ?, ?)')
+  const r = (await env.DB.prepare('INSERT INTO rr_lifecycle_events (lead_id, event, ref, data, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
     .bind(leadId, event, ref, JSON.stringify(data).slice(0, 2000), at).run()) as { meta?: { changes?: number } };
   if (r?.meta?.changes === 0) return false;
   await forwardToEsp(env, leadId, event, data, at);
@@ -169,7 +169,7 @@ export async function recordLifecycle(env: Env, leadId: string, event: string, d
 
 async function forwardToEsp(env: Env, leadId: string, event: string, data: Record<string, unknown>, at: string) {
   if (!env.ESP_WEBHOOK_URL || !env.DB) return;
-  const lead = await env.DB.prepare('SELECT email, first_name, email_consent, intent_tier, recommended_product, product_interest, unsubscribed_at FROM leads WHERE lead_id = ?')
+  const lead = await env.DB.prepare('SELECT email, first_name, email_consent, intent_tier, recommended_product, product_interest, unsubscribed_at FROM rr_leads WHERE lead_id = ?')
     .bind(leadId).first<{ email: string; first_name: string; email_consent: number; intent_tier: string | null; recommended_product: string | null; product_interest: string | null; unsubscribed_at: string | null }>();
   if (!lead) return;
   const payload = JSON.stringify({
@@ -203,6 +203,6 @@ export function bearerOk(req: Request, secret?: string) {
 
 export async function ownedProducts(env: Env, customerId: string): Promise<ProductId[]> {
   if (!env.DB) return [];
-  const r = await env.DB.prepare('SELECT product FROM entitlements WHERE customer_id = ? AND revoked_at IS NULL').bind(customerId).all<{ product: ProductId }>();
+  const r = await env.DB.prepare('SELECT product FROM rr_entitlements WHERE customer_id = ? AND revoked_at IS NULL').bind(customerId).all<{ product: ProductId }>();
   return r.results.map((x) => x.product);
 }

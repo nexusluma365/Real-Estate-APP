@@ -19,14 +19,14 @@ import type { Recommendation } from '../config/qualification';
  * Home page — "Before They Say No™" for high-intent Google Search traffic (worried about being denied).
  * Story: hero → who it's for → the core problem → what the book does → short story → before/after →
  * what's inside → the big transformation → real urgency → final CTA.
- * Conversion layer: trust bar → 3-question finder (skippable) → side-by-side options with real prices →
+ * Conversion layer: trust bar → 3-question finder (skippable) → side-by-side options →
  * objection FAQ → honest promise → free checklist for visitors who aren't ready (exit offer + final band).
  * Every section answers one question; every CTA leads to a purchase or a genuinely useful next step.
  *
  * Purchase paths (both already supported by checkout; buyers can switch there):
- *   - Before They Say No™, the physical book ($47.99) → /checkout?product=guide   ← the primary action
- *   - RentReady Digital Bundle ($79.99: book + 20 dispute letters + video guide) → /checkout?product=creditready
- * Prices are shown openly in the options section. Hope through preparation; never promises approval.
+ *   - Before They Say No™, the physical book → /checkout?product=guide   ← the primary action
+ *   - RentReady Digital Bundle (book + digital toolkit + video guide) → /checkout?product=creditready
+ * Pricing is shown at checkout before payment. Hope through preparation; never promises approval.
  */
 const BOOK_TO = '/checkout?product=guide';
 const BUNDLE_TO = '/checkout?product=creditready';
@@ -64,7 +64,7 @@ const delay = (ms: number) => ({ ['--d' as string]: `${ms}ms` }) as CSSPropertie
 const Arrow = () => <span className="bk-arrow" aria-hidden="true">→</span>;
 
 /** Primary buy action (the book) + a visible but secondary Digital Bundle option. */
-function BuyBlock({ location, label = 'Get the Book', note = `Physical book · ${PRODUCTS.guide.priceLabel} · ships to you`, center = false }: { location: string; label?: ReactNode; note?: string; center?: boolean }) {
+function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · ships to you', center = false }: { location: string; label?: ReactNode; note?: string; center?: boolean }) {
   return (
     <div className={`bk-buy${center ? ' bk-buy-center' : ''}`}>
       <CtaLink to={BOOK_TO} className="btn bk-btn" props={{ cta_location: location, product: 'guide', variant: VARIANT }}>
@@ -76,7 +76,7 @@ function BuyBlock({ location, label = 'Get the Book', note = `Physical book · $
         <CtaLink to={BUNDLE_TO} className="bk-link" props={{ cta_location: `${location}_bundle`, product: 'creditready', variant: VARIANT }}>
           Get the Digital Bundle.
         </CtaLink>{' '}
-        The book + 20 dispute letters + video guide ({PRODUCTS.creditready.priceLabel}).
+        The physical book is included with the Digital Bundle, along with 20 dispute letters and a video guide.
       </p>
     </div>
   );
@@ -193,7 +193,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
     // Intent pages lead with the answers their searchers came for.
     const first = (intent?.faqFirst || []).map((id) => LANDING_FAQ.find((f) => f.id === id)).filter((f): f is (typeof LANDING_FAQ)[number] => !!f);
     const seen = new Set<string>();
-    return [...first, ...base].filter((f) => (seen.has(f.id) ? false : (seen.add(f.id), true)));
+    return [...first, ...base.filter((f) => f.id !== 'which-one')].filter((f) => (seen.has(f.id) ? false : (seen.add(f.id), true)));
   }, [intent]);
 
   const headerCta: ReactNode = (
@@ -546,7 +546,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
         <ExitOffer />
       </div>
 
-      <StickyCta to={BOOK_TO} sentinelId="hero-end" label="Get the Book →" meta={`Physical book · ${PRODUCTS.guide.priceLabel}`} props={{ product: 'guide', variant }} />
+      <StickyCta to={BOOK_TO} sentinelId="hero-end" label="Get the Book →" meta="Physical book · ships to you" props={{ product: 'guide', variant }} />
     </Layout>
   );
 }

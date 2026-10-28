@@ -12,6 +12,6 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   const b = await body<{ payment_intent_id?: string }>(request);
   const pi = await stripe<{ customer: string; payment_method: string; status: string }>(env, 'GET', `payment_intents/${b.payment_intent_id}`);
   if (pi.customer !== s.customer_id || pi.status !== 'succeeded') return fail(400, 'Payment not eligible.');
-  await env.DB.prepare('UPDATE leads SET upsell_payment_method = ?, upsell_consent_at = ? WHERE lead_id = ?').bind(pi.payment_method, new Date().toISOString(), s.lead_id).run();
+  await env.DB.prepare('UPDATE rr_leads SET upsell_payment_method = ?, upsell_consent_at = ? WHERE lead_id = ?').bind(pi.payment_method, new Date().toISOString(), s.lead_id).run();
   return json({ saved: true });
 };

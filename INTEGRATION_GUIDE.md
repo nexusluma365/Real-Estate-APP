@@ -1,7 +1,7 @@
 # RentReady Integration Guide (Netlify)
 
 The front end runs end-to-end in **mock mode**. In production it calls one Netlify Function that serves every
-`/api/*` route, backed by a Turso (libSQL/SQLite) database and a private Netlify Blobs store for product files.
+`/api/*` route, backed by Supabase PostgreSQL and a private Cloudflare R2 bucket for product files.
 
 ## 0. Modes
 
@@ -22,10 +22,10 @@ netlify/
   functions/api.mts      ONE function at /api/*: routing, origin check, security headers, error handling
   functions/abandoned-checkouts.mts   Scheduled Function, every 15 min
   lib/_lib.ts            Stripe REST, signed session cookie, webhook signature, entitlements, lifecycle → ESP
-  lib/platform.ts        Netlify bindings: env vars, Turso database, Netlify Blobs file store
+  lib/platform.ts        Netlify bindings: env vars, Supabase PostgreSQL, Cloudflare R2 signed downloads
   lib/api/**             one handler per route ({ request, env } → Response)
   lib/jobs/abandoned.ts  abandoned-checkout detection
-schema.sql               database tables (apply once to Turso)
+schema.sql               database tables (apply once in the Supabase SQL Editor)
 netlify.toml             build + functions config;  public/_headers, public/_redirects
 tests/                   npm test — unit tests + end-to-end API test on a real SQLite database
 ```
@@ -41,7 +41,7 @@ tests/                   npm test — unit tests + end-to-end API test on a real
 | `fetchEntitlements` | `GET /api/entitlements` | — | `{customer_id?,first_name?,products[]}` |
 | `requestAccessLink` | `POST /api/access/link` | `{email}` | `{sent:true}` (always) |
 | (email link) | `GET /api/access/verify?token=` | — | 302 → `/access` + session cookie |
-| `getDownloadUrl` | `GET /api/files?key=` | — | file stream, or 302 to the private video URL |
+| `getDownloadUrl` | `GET /api/files?key=` | — | 302 to a five-minute signed R2 download URL, or the private video URL |
 | `emitLifecycle` | `POST /api/lifecycle` | `{event,at,data?}` | `{ok}` |
 | `saveAssessment` | `PUT /api/assessment` | `{answers,index,completedAt?}` | `{ok}` |
 | analytics beacon | `POST /api/events` | allow-listed event payload | 202 |
@@ -50,13 +50,24 @@ tests/                   npm test — unit tests + end-to-end API test on a real
 
 ## 2. Deploy on Netlify
 
-1. **Database (Turso):** create a database, then `turso db shell <db> < schema.sql`. Copy the URL and an auth token.
-2. **Netlify site:** connect the GitHub repo. Build settings come from `netlify.toml` (`npm run build` → `dist`, functions in `netlify/functions`, Node 20).
-3. **Environment variables:** everything in `.env.example`. Mark secrets as *Secret*. `VITE_*` values are public and baked into the build, so set `VITE_FUNNEL_MODE=production` and **redeploy** after changing any of them.
-4. **Product files:** `netlify blobs:set product-files creditready/dispute-letter-templates.zip --input ./dispute-letter-templates.zip`
-   (keys in `src/config/resources.ts`). The video guide is not a file: set `VIDEO_GUIDE_URL` to its private hosted URL.
+1. **Database (Supabase):** the migration `20261028143000` is already applied to the existing `Real-Estate-APP` project. RentReady tables use the `rr_` prefix and RLS blocks browser API access. For another project, apply `supabase/migrations/20261028143000_rentready_backend.sql`. In Supabase **Project Settings → Database → Connection string**, choose the **Transaction pooler** and set its connection string as the Netlify secret `SUPABASE_DB_URL`. Use port 6543; the function disables prepared statements for pooler compatibility.
+2. **Netlify site:** the site is linked to GitHub `nexusluma365/Real-Estate-APP` (`main`). This workspace has no Git metadata, so transfer the local changes to that repository before deploying. Build settings come from `netlify.toml` (`npm run build` → `dist`, functions in `netlify/functions`, Node 22).
+3. **Environment variables:** everything in `.env.example`. Mark server credentials as *Secret*. Production builds set `VITE_FUNNEL_MODE=production` from `netlify.toml`; other `VITE_*` values are public, baked into the build, and require a redeploy after changes.
+4. **Cloudflare R2 product files:** create a **private** bucket and an R2 API token scoped to that bucket with **Object Read** permission. Set the four `CLOUDFLARE_R2_*` variables in Netlify (never `VITE_*`). Upload files to the exact keys listed below. The API checks the signed-in buyer's entitlement and redirects to a five-minute presigned download URL; the bucket must not be public. The video guide is hosted separately: set `VIDEO_GUIDE_URL` to its private hosted URL.
 5. **Stripe webhook:** `https://<site>/api/webhooks/stripe` — `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`.
 6. **Scheduled function:** deploys automatically; check *Logs → Functions → abandoned-checkouts*.
+
+### R2 object keys
+
+| Key | Required for |
+|---|---|
+| `CREDIT REPAIR TOOLKIT™.zip` | Digital Bundle credit repair kit (ZIP), at the root of bucket `creditrepairbusiness` |
+| `playbook/playbook.pdf` | Property Manager Playbook |
+| `playbook/questions.pdf` | Property Manager Playbook |
+| `playbook/documents.pdf` | Property Manager Playbook |
+| `playbook/worksheet.pdf` | Property Manager Playbook |
+
+The R2 bucket name is `creditrepairbusiness`; the toolkit object is at the bucket root, not in a `creditrepairbusiness/` folder. Object names are allow-listed by `src/config/resources.ts`; unknown keys cannot be signed. The Digital Bundle download button appears immediately after payment is confirmed, before the optional Playbook offer, and is also available on the welcome and customer access pages. The book remains a separate physical shipment to the checkout address. Missing objects return a 404 from R2 after redirect, so upload and verify every file before launch.
 
 ## 3. Lead capture
 * Client: `src/components/LeadForm.tsx` (used by `/start`, inline checkout, `/checklist`) → `captureLead()`.
@@ -98,7 +109,7 @@ tests/                   npm test — unit tests + end-to-end API test on a real
 
 ## 12. Security checklist before launch
 - [ ] `VITE_FUNNEL_MODE=production` and no mock banner visible
-- [ ] Only the `pk_` key in any `VITE_` var; `sk_`, `whsec_`, `SESSION_SECRET`, `TURSO_AUTH_TOKEN`, `ADMIN_TOKEN` marked Secret
+- [ ] Only the `pk_` key in any `VITE_` var; `sk_`, `whsec_`, `SESSION_SECRET`, `SUPABASE_DB_URL`, `ADMIN_TOKEN` marked Secret
 - [ ] Webhook live and verified (`stripe trigger payment_intent.succeeded`)
 - [ ] Fresh browser: `/welcome`, `/gameplan`, `/access` show locked/sign-in
 - [ ] `/api/files` refuses non-owners; video URL never appears in page source

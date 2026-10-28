@@ -6,6 +6,7 @@ import { Alert, Checklist, Spinner, useOnce } from '../components/ui';
 import { ProductStage } from '../components/Visuals';
 import { ScenarioCard } from '../components/Content';
 import { Icon } from '../components/Icon';
+import { DigitalKitDownload } from '../components/DigitalKitDownload';
 import { dollars, PLAYBOOK_CHAPTERS, PRODUCTS } from '../config/products';
 import { env, isMock } from '../lib/env';
 import { track, trackPurchase } from '../lib/analytics';
@@ -147,7 +148,8 @@ export default function Upsell() {
       <section className="upsell-hero">
         <div className="wrap">
           <div className="stack" style={{ ['--s' as string]: '22px' }}>
-            <span className="receipt-note"><Icon name="check" width={16} height={16} /> {firstName ? `${firstName}, your` : 'Your'} Digital Bundle order is confirmed. Your letters and videos are ready.</span>
+            <span className="receipt-note"><Icon name="check" width={16} height={16} /> {firstName ? `${firstName}, your` : 'Your'} Digital Bundle order is confirmed. Your kit is ready to download; the physical book will be shipped.</span>
+            <DigitalKitDownload ctaLocation="purchase_confirmation" />
             <span className="wait">WAIT</span>
             <h1 style={{ fontSize: 'var(--step-5)' }}>You’re only seeing half the application.</h1>
             <p className="lede" style={{ color: '#e3dccf' }}>

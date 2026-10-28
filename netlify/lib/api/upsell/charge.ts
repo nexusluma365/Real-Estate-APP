@@ -12,7 +12,7 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   const owned = await ownedProducts(env, s.customer_id);
   if (!owned.includes('creditready')) return fail(403, 'Not eligible for this offer.');
   if (owned.includes('playbook')) return json({ status: 'succeeded', payment_intent_id: 'already_owned' });
-  const row = await env.DB.prepare('SELECT upsell_payment_method FROM leads WHERE lead_id = ?').bind(s.lead_id).first<{ upsell_payment_method: string | null }>();
+  const row = await env.DB.prepare('SELECT upsell_payment_method FROM rr_leads WHERE lead_id = ?').bind(s.lead_id).first<{ upsell_payment_method: string | null }>();
   if (!row?.upsell_payment_method) return json({ status: 'error', message: 'No saved payment method is available. You have not been charged.' });
   try {
     const pi = await stripe<{ id: string; status: string; client_secret: string }>(

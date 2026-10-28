@@ -24,6 +24,10 @@ export function LeadForm({
   optInLabel = 'Email me my RentReady access and helpful reminders. Unsubscribe anytime.',
   helpText = 'We’ll send your access here.',
   footnote,
+  requireFirstName = true,
+  emailConsentValue,
+  consentText,
+  finePrint,
   onDone,
 }: {
   source: 'start' | 'checkout' | 'checklist' | 'exit';
@@ -33,6 +37,10 @@ export function LeadForm({
   optInLabel?: string;
   helpText?: string;
   footnote?: ReactNode;
+  requireFirstName?: boolean;
+  emailConsentValue?: boolean;
+  consentText?: string;
+  finePrint?: string;
   onDone: (lead: Lead) => void;
 }) {
   const { lead, setLead } = useFunnel();
@@ -57,7 +65,7 @@ export function LeadForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    const errs = { firstName: validateFirstName(firstName) || undefined, email: validateEmail(email) || undefined };
+    const errs = { firstName: requireFirstName ? validateFirstName(firstName) || undefined : undefined, email: validateEmail(email) || undefined };
     setErrors(errs);
     setFormError('');
     if (errs.firstName) return nameRef.current?.focus();
@@ -67,9 +75,9 @@ export function LeadForm({
       const l = await captureLead({
         firstName,
         email,
-        emailConsent: optIn ? consent : true,
+        emailConsent: emailConsentValue ?? (optIn ? consent : true),
         consentBasis: optIn ? 'checkbox' : 'notice',
-        consentText: optIn ? optInLabel : 'Disclosed at sign-up: access email plus occasional RentReady updates, unsubscribe anytime.',
+        consentText: optIn ? optInLabel : consentText || 'Disclosed at sign-up: access email plus occasional RentReady updates, unsubscribe anytime.',
         source,
         productInterest,
       });
@@ -89,22 +97,24 @@ export function LeadForm({
   return (
     <form className="form" onSubmit={onSubmit} noValidate>
       {formError && <Alert kind="error">{formError}</Alert>}
-      <div className="field">
-        <label htmlFor={`${id}-fn`}>First name</label>
-        <input
-          ref={nameRef}
-          id={`${id}-fn`}
-          className="input"
-          autoComplete="given-name"
-          value={firstName}
-          maxLength={40}
-          onFocus={onStart}
-          onChange={(e) => setFirstName(e.target.value)}
-          aria-invalid={!!errors.firstName}
-          aria-describedby={errors.firstName ? `${id}-fn-err` : undefined}
-        />
-        {errors.firstName && <span id={`${id}-fn-err`} className="field-error"><Icon name="alert" width={16} height={16} />{errors.firstName}</span>}
-      </div>
+      {requireFirstName && (
+        <div className="field">
+          <label htmlFor={`${id}-fn`}>First name</label>
+          <input
+            ref={nameRef}
+            id={`${id}-fn`}
+            className="input"
+            autoComplete="given-name"
+            value={firstName}
+            maxLength={40}
+            onFocus={onStart}
+            onChange={(e) => setFirstName(e.target.value)}
+            aria-invalid={!!errors.firstName}
+            aria-describedby={errors.firstName ? `${id}-fn-err` : undefined}
+          />
+          {errors.firstName && <span id={`${id}-fn-err`} className="field-error"><Icon name="alert" width={16} height={16} />{errors.firstName}</span>}
+        </div>
+      )}
       <div className="field">
         <label htmlFor={`${id}-em`}>Email</label>
         <input
@@ -141,7 +151,7 @@ export function LeadForm({
         {busy ? <><Spinner /> Saving</> : submitLabel}
       </button>
       <p className="fine">
-        No credit pull. {optIn ? 'We never sell your email.' : 'We’ll email your access and occasional RentReady updates — unsubscribe anytime. We never sell your email.'}
+        {finePrint || `No credit pull. ${optIn ? 'We never sell your email.' : 'We’ll email your access and occasional RentReady updates — unsubscribe anytime. We never sell your email.'}`}
         {footnote && <> {footnote}</>}
       </p>
     </form>

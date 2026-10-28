@@ -1,5 +1,6 @@
-import { createClient, type Client, type InValue } from '@libsql/client/web';
-import { getStore } from '@netlify/blobs';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import postgres, { type Sql } from 'postgres';
 import type { Env } from './_lib';
 
 /**
@@ -7,27 +8,33 @@ import type { Env } from './_lib';
  * Everything Netlify-specific lives here; the handlers in ./api only see the `Env` interface.
  */
 
-/** Wraps a libSQL (Turso) client in the prepare → bind → first | all | run surface the handlers use. */
-export function sqlDatabase(client: Pick<Client, 'execute'>): SqlDatabase {
-  const toArgs = (v: unknown[]): InValue[] => v.map((x) => (x === undefined ? null : typeof x === 'boolean' ? (x ? 1 : 0) : (x as InValue)));
-  const toRows = (rs: { columns: string[]; rows: ArrayLike<unknown>[] }) =>
-    rs.rows.map((r) => Object.fromEntries(rs.columns.map((c, i) => [c, (r as unknown as unknown[])[i]])));
+/** Wraps Supabase PostgreSQL in the prepare → bind → first | all | run surface the handlers use. */
+export function postgresDatabase(client: Sql): SqlDatabase {
+  const toParams = (values: unknown[]): postgres.ParameterOrJSON<never>[] => values.map((value) => {
+    if (value === undefined || value === null) return null;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+    if (value instanceof Date || value instanceof Uint8Array) return value;
+    throw new TypeError(`Unsupported PostgreSQL parameter type: ${typeof value}`);
+  });
   return {
-    prepare(sql: string) {
+    prepare(statement: string) {
       return {
-        bind(...v: unknown[]) {
-          const exec = () => client.execute({ sql, args: toArgs(v) });
+        bind(...values: unknown[]) {
+          let index = 0;
+          const query = statement.replace(/\?/g, () => `$${++index}`);
+          if (index !== values.length) throw new Error(`SQL placeholder count (${index}) does not match value count (${values.length}).`);
+          const execute = () => client.unsafe(query, toParams(values));
           return {
             async first<T>() {
-              const rs = await exec();
-              return (toRows(rs)[0] as T) ?? null;
+              const rows = await execute();
+              return (rows[0] as T) ?? null;
             },
             async all<T>() {
-              return { results: toRows(await exec()) as T[] };
+              return { results: (await execute()).map((row) => ({ ...row })) as T[] };
             },
             async run() {
-              const rs = await exec();
-              return { meta: { changes: rs.rowsAffected } };
+              const rows = await execute();
+              return { meta: { changes: rows.count } };
             },
           };
         },
@@ -36,18 +43,23 @@ export function sqlDatabase(client: Pick<Client, 'execute'>): SqlDatabase {
   };
 }
 
-const TYPES: Record<string, string> = { pdf: 'application/pdf', zip: 'application/zip', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
-
-/** Netlify Blobs store "product-files" (private). Upload with: netlify blobs:set product-files <key> --input <file> */
-export function blobFileStore(): FileStore {
+/** Creates short-lived, attachment-only URLs for objects in a private Cloudflare R2 bucket. */
+export function r2FileStore(accountId: string, accessKeyId: string, secretAccessKey: string, bucket: string): FileStore {
+  const client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
+    credentials: { accessKeyId, secretAccessKey },
+  });
   return {
-    async get(key: string) {
-      const store = getStore({ name: 'product-files', consistency: 'strong' }); // lazy: needs the Netlify runtime
-      const hit = await store.getWithMetadata(key, { type: 'stream' });
-      if (!hit) return null;
-      const ext = key.split('.').pop()?.toLowerCase() || '';
-      const contentType = (hit.metadata?.contentType as string | undefined) || TYPES[ext] || 'application/octet-stream';
-      return { body: hit.data as ReadableStream, httpMetadata: { contentType } };
+    async createDownloadUrl(key: string) {
+      const filename = key.slice(key.lastIndexOf('/') + 1).replace(/["\\\r\n]/g, '_');
+      return getSignedUrl(client, new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ResponseContentDisposition: `attachment; filename="${filename}"`,
+        ResponseCacheControl: 'private, no-store',
+      }), { expiresIn: 300 });
     },
   };
 }
@@ -68,8 +80,16 @@ export function netlifyEnv(): Env {
     ESP_WEBHOOK_SECRET: e.ESP_WEBHOOK_SECRET,
     ADMIN_TOKEN: e.ADMIN_TOKEN,
     VIDEO_GUIDE_URL: e.VIDEO_GUIDE_URL,
-    DB: e.TURSO_DATABASE_URL ? sqlDatabase(createClient({ url: e.TURSO_DATABASE_URL, authToken: e.TURSO_AUTH_TOKEN })) : undefined,
-    PRODUCT_FILES: e.PRODUCT_FILES_DISABLED === 'true' ? undefined : blobFileStore(),
+    DB: e.SUPABASE_DB_URL ? postgresDatabase(postgres(e.SUPABASE_DB_URL, {
+      max: 1,
+      idle_timeout: 20,
+      connect_timeout: 10,
+      prepare: false,
+    })) : undefined,
+    PRODUCT_FILES: e.CLOUDFLARE_R2_ACCOUNT_ID && e.CLOUDFLARE_R2_ACCESS_KEY_ID
+      && e.CLOUDFLARE_R2_SECRET_ACCESS_KEY && e.CLOUDFLARE_R2_BUCKET
+      ? r2FileStore(e.CLOUDFLARE_R2_ACCOUNT_ID, e.CLOUDFLARE_R2_ACCESS_KEY_ID, e.CLOUDFLARE_R2_SECRET_ACCESS_KEY, e.CLOUDFLARE_R2_BUCKET)
+      : undefined,
   };
   return cached;
 }

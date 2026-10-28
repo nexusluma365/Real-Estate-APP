@@ -19,7 +19,8 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   if (!b) return fail(400, 'Invalid request.');
   const first = String(b.first_name || '').replace(/[<>]/g, '').trim().slice(0, 40);
   const email = String(b.email || '').trim().toLowerCase().slice(0, 254);
-  if (first.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail(422, 'Check your name and email.', 'validation');
+  const emailOnlyExit = b.lead_source === 'exit' && first.length === 0;
+  if ((!emailOnlyExit && first.length < 2) || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail(422, 'Check your name and email.', 'validation');
 
   if (env.TURNSTILE_SECRET_KEY) {
     const form = new FormData();
@@ -30,29 +31,29 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
     if (!v.success) return fail(403, 'Please complete the verification and try again.', 'bot_check');
   }
 
-  const existing = await env.DB.prepare('SELECT lead_id FROM leads WHERE email = ?').bind(email).first<{ lead_id: string }>();
+  const existing = await env.DB.prepare('SELECT lead_id FROM rr_leads WHERE email = ?').bind(email).first<{ lead_id: string }>();
   const lead_id = existing?.lead_id || `lead_${crypto.randomUUID().replace(/-/g, '')}`;
   const a = b.attribution || {};
   const q = b.qualification || {};
   const now = new Date().toISOString();
   await env.DB.prepare(
-    `INSERT INTO leads (lead_id, email, first_name, email_consent, consent_basis, consent_text, consent_at, session_id,
+    `INSERT INTO rr_leads (lead_id, email, first_name, email_consent, consent_basis, consent_text, consent_at, session_id,
        utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, landing_intent, landing_path,
        lead_source, product_interest, qual_stage, qual_concern, qual_help, intent_tier, recommended_product, created_at, updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(email) DO UPDATE SET
-       first_name = excluded.first_name,
-       gclid = COALESCE(excluded.gclid, leads.gclid),
-       email_consent = MAX(leads.email_consent, excluded.email_consent),
-       consent_basis = CASE WHEN excluded.email_consent = 1 THEN excluded.consent_basis ELSE leads.consent_basis END,
-       consent_text = CASE WHEN excluded.email_consent = 1 THEN excluded.consent_text ELSE leads.consent_text END,
-       consent_at = CASE WHEN excluded.email_consent = 1 AND leads.email_consent = 0 THEN excluded.consent_at ELSE leads.consent_at END,
-       product_interest = COALESCE(excluded.product_interest, leads.product_interest),
-       qual_stage = COALESCE(excluded.qual_stage, leads.qual_stage),
-       qual_concern = COALESCE(excluded.qual_concern, leads.qual_concern),
-       qual_help = COALESCE(excluded.qual_help, leads.qual_help),
-       intent_tier = COALESCE(excluded.intent_tier, leads.intent_tier),
-       recommended_product = COALESCE(excluded.recommended_product, leads.recommended_product),
+       first_name = CASE WHEN excluded.first_name <> '' THEN excluded.first_name ELSE rr_leads.first_name END,
+       gclid = COALESCE(excluded.gclid, rr_leads.gclid),
+       email_consent = CASE WHEN rr_leads.email_consent > excluded.email_consent THEN rr_leads.email_consent ELSE excluded.email_consent END,
+       consent_basis = CASE WHEN excluded.email_consent = 1 THEN excluded.consent_basis ELSE rr_leads.consent_basis END,
+       consent_text = CASE WHEN excluded.email_consent = 1 THEN excluded.consent_text ELSE rr_leads.consent_text END,
+       consent_at = CASE WHEN excluded.email_consent = 1 AND rr_leads.email_consent = 0 THEN excluded.consent_at ELSE rr_leads.consent_at END,
+       product_interest = COALESCE(excluded.product_interest, rr_leads.product_interest),
+       qual_stage = COALESCE(excluded.qual_stage, rr_leads.qual_stage),
+       qual_concern = COALESCE(excluded.qual_concern, rr_leads.qual_concern),
+       qual_help = COALESCE(excluded.qual_help, rr_leads.qual_help),
+       intent_tier = COALESCE(excluded.intent_tier, rr_leads.intent_tier),
+       recommended_product = COALESCE(excluded.recommended_product, rr_leads.recommended_product),
        updated_at = excluded.updated_at`,
   ).bind(
     lead_id, email, first, b.email_consent ? 1 : 0, clip(b.consent_basis, 20), clip(b.consent_text, 300), b.email_consent ? now : null, clip(b.session_id, 80),

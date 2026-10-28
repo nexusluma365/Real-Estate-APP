@@ -11,6 +11,6 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   const b = await body<{ email?: string }>(request).catch(() => ({}) as { email?: string });
   const email = String(b.email || '').trim().toLowerCase();
   if (!email) return fail(400, 'email required');
-  await env.DB.prepare('UPDATE leads SET email_consent = 0, unsubscribed_at = ? WHERE email = ?').bind(new Date().toISOString(), email).run();
+  await env.DB.prepare('UPDATE rr_leads SET email_consent = 0, unsubscribed_at = ? WHERE email = ?').bind(new Date().toISOString(), email).run();
   return json({ ok: true });
 };

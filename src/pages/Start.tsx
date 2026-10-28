@@ -6,7 +6,11 @@ import { WindowScene } from '../components/Visuals';
 import { LeadForm } from '../components/LeadForm';
 import { captureAttribution } from '../lib/attribution';
 
-const safeNext = (v: string | null) => (v && v.startsWith('/') && !v.startsWith('//') ? v : '/learn');
+const safeNext = (v: string | null) => {
+  if (!v || !v.startsWith('/') || v.startsWith('//') || v.includes('\\')) return '/learn';
+  const url = new URL(v, window.location.origin);
+  return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : '/learn';
+};
 
 export default function Start() {
   const { search, pathname } = useLocation();

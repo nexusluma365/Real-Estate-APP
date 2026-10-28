@@ -6,7 +6,7 @@ import { netlifyEnv } from '../lib/platform';
 export default async () => {
   const env = netlifyEnv();
   if (!env.DB) {
-    console.warn('abandoned-checkouts: TURSO_DATABASE_URL not set — skipped');
+    console.warn('abandoned-checkouts: SUPABASE_DB_URL not set — skipped');
     return new Response('skipped', { status: 200 });
   }
   const r = await detectAbandonedCheckouts(env);

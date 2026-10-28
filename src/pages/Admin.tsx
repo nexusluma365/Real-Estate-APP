@@ -137,7 +137,7 @@ export default function Admin() {
           </form>
           {err && <Alert kind="error">{err}</Alert>}
           {!d && !err && (
-            <p className="muted">{isMock ? 'Mock mode: shows only what this browser simulated.' : 'No data loaded. Requires ADMIN_TOKEN and the Turso database (see LAUNCH_CHECKLIST.md).'}</p>
+            <p className="muted">{isMock ? 'Mock mode: shows only what this browser simulated.' : 'No data loaded. Requires ADMIN_TOKEN and the Supabase database (see LAUNCH_CHECKLIST.md).'}</p>
           )}
 
           {d && (

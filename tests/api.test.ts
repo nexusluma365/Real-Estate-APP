@@ -1,6 +1,6 @@
 /**
  * End-to-end API test through the real Netlify router (netlify/functions/api.mts) against a real SQLite
- * database (libSQL, the same engine as Turso) with schema.sql applied. Stripe and the ESP are simulated at
+ * database (libSQL as a local SQLite test harness) with schema.sql applied. Stripe and the ESP are simulated at
  * the fetch level — no network, no charges.
  */
 import { test, before } from 'node:test';
@@ -8,13 +8,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createClient } from '@libsql/client';
 import { route } from '../netlify/functions/api.mts';
-import { sqlDatabase } from '../netlify/lib/platform';
+import { sqlDatabase } from './sqliteDatabase';
 import { detectAbandonedCheckouts } from '../netlify/lib/jobs/abandoned';
 import { hmacHex, type Env } from '../netlify/lib/_lib';
+import { r2FileStore } from '../netlify/lib/platform';
+import { DIGITAL_KIT_FILE_KEY } from '../src/config/resources';
 
 const ORIGIN = 'https://rentready.test';
 const client = createClient({ url: 'file::memory:' });
-const files = new Map<string, string>([['creditready/dispute-letter-templates.zip', 'PK-letters']]);
+const toolkitKey = DIGITAL_KIT_FILE_KEY;
+const files = new Map<string, string>([[toolkitKey, 'PK-letters']]);
 const espCalls: { event: string; marketing_allowed: boolean }[] = [];
 const env: Env = {
   STRIPE_SECRET_KEY: 'sk_test_x',
@@ -27,9 +30,8 @@ const env: Env = {
   VIDEO_GUIDE_URL: 'https://video.test/private',
   DB: sqlDatabase(client),
   PRODUCT_FILES: {
-    async get(key) {
-      const v = files.get(key);
-      return v ? { body: new Response(v).body as ReadableStream, httpMetadata: { contentType: 'application/zip' } } : null;
+    async createDownloadUrl(key) {
+      return files.has(key) ? `https://downloads.test/${encodeURIComponent(key)}?signature=test` : null;
     },
   },
 };
@@ -89,7 +91,23 @@ async function webhook(event: object) {
 
 before(async () => {
   const sql = readFileSync('schema.sql', 'utf8').replace(/--.*$/gm, '');
-  for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await client.execute(stmt);
+  for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) {
+    if (/^(ALTER TABLE .* ENABLE ROW LEVEL SECURITY|REVOKE ALL ON TABLE)/i.test(stmt)) continue;
+    await client.execute(stmt);
+  }
+});
+
+test('R2 file store signs private, attachment-only URLs that expire after five minutes', async () => {
+  const accountId = 'a'.repeat(32);
+  const store = r2FileStore(accountId, 'test-access-key', 'test-secret-key', 'rentready-private');
+  const signedUrl = await store.createDownloadUrl(toolkitKey);
+  assert.ok(signedUrl);
+  const url = new URL(signedUrl);
+  assert.equal(url.hostname, `${accountId}.r2.cloudflarestorage.com`);
+  assert.equal(decodeURIComponent(url.pathname), `/rentready-private/${toolkitKey}`);
+  assert.equal(url.searchParams.get('X-Amz-Expires'), '300');
+  assert.ok(url.searchParams.has('X-Amz-Signature'));
+  assert.equal(url.searchParams.get('response-content-disposition'), 'attachment; filename="CREDIT REPAIR TOOLKIT™.zip"');
 });
 
 test('routing: unknown path 404, wrong method 405, cross-origin POST 403, security headers set', async () => {
@@ -99,6 +117,26 @@ test('routing: unknown path 404, wrong method 405, cross-origin POST 403, securi
   assert.equal(bad.status, 403);
   assert.equal(bad.headers.get('Cache-Control'), 'no-store');
   assert.equal(bad.headers.get('X-Content-Type-Options'), 'nosniff');
+});
+
+test('exit offer captures email without a name or marketing consent', async () => {
+  cookie = '';
+  const result = await call('POST', '/api/leads', {
+    first_name: '',
+    email: 'bundle-offer@example.com',
+    email_consent: false,
+    consent_basis: 'notice',
+    consent_text: 'Email entered to continue to the offer.',
+    lead_source: 'exit',
+    product_interest: 'creditready',
+  });
+  assert.equal(result.status, 200);
+  const row = (await client.execute("SELECT first_name, email_consent, product_interest FROM rr_leads WHERE email = 'bundle-offer@example.com'")).rows[0];
+  assert.equal(row.first_name, '');
+  assert.equal(Number(row.email_consent), 0);
+  assert.equal(row.product_interest, 'creditready');
+  await client.execute("DELETE FROM rr_leads WHERE email = 'bundle-offer@example.com'");
+  cookie = '';
 });
 
 test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle access → files → upsell → refund', async () => {
@@ -112,9 +150,14 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.ok(cookie.startsWith('rr_sid='), 'session cookie set');
   const again = await call('POST', '/api/leads', { first_name: 'Jordan', email: 'jordan@example.com' });
   assert.equal(again.data.lead_id, lead.data.lead_id, 'same email → same lead');
-  const row = (await client.execute('SELECT intent_tier, qual_stage, utm_source, email_consent FROM leads')).rows[0];
+  await call('POST', '/api/leads', {
+    first_name: '', email: 'jordan@example.com', email_consent: false, lead_source: 'exit', product_interest: 'creditready',
+  });
+  const row = (await client.execute("SELECT first_name, intent_tier, qual_stage, utm_source, email_consent FROM rr_leads WHERE email='jordan@example.com'")).rows[0];
+  assert.equal(row.first_name, 'Jordan', 'email-only lead capture does not erase an existing name');
   assert.equal(row.intent_tier, 'medium', 'quiz answers kept on re-submit');
   assert.equal(row.utm_source, 'google');
+  assert.equal(Number(row.email_consent), 1, 'email-only capture does not revoke prior marketing consent');
 
   // customer + book PaymentIntent: server decides the price
   assert.equal((await call('POST', '/api/payments/customer', { lead_id: lead.data.lead_id })).data.customer_id, 'cus_test_1');
@@ -134,7 +177,7 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   const up = await call('POST', '/api/payments/intent', { product: 'upgrade' });
   assert.equal(up.data.amount_cents, 3200);
   assert.equal(pis.get(up.data.payment_intent_id)!.metadata && (pis.get(up.data.payment_intent_id) as any).metadata.product, 'upgrade');
-  assert.equal((await call('GET', '/api/files?key=creditready/dispute-letter-templates.zip')).status, 403, 'no Bundle files before paying');
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403, 'no Bundle files before paying');
 
   // webhook is the source of truth: grants Bundle, records purchase once, forwards to ESP
   pay(up.data.payment_intent_id);
@@ -144,10 +187,12 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.deepEqual((await call('GET', '/api/entitlements')).data.products.sort(), ['creditready', 'guide']);
   assert.equal(espCalls.filter((c) => c.event === 'purchase_completed').length, 1, 'one purchase email trigger');
 
-  // files: letters stream, video redirects to the private URL
-  const letters = await call('GET', '/api/files?key=creditready/dispute-letter-templates.zip');
-  assert.equal(letters.status, 200);
-  assert.equal(letters.data, 'PK-letters');
+  // files: authorized downloads redirect to a short-lived URL; video redirects to its private URL
+  const letters = await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`);
+  assert.equal(letters.status, 302);
+  assert.match(letters.res.headers.get('Location') || '', /^https:\/\/downloads\.test\//);
+  assert.equal(letters.res.headers.get('Referrer-Policy'), 'no-referrer');
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent('not-an-offered-file.zip')}`)).status, 404);
   const video = await call('GET', '/api/files?key=creditready/video-guide');
   assert.equal(video.status, 302);
   assert.equal(video.res.headers.get('Location'), env.VIDEO_GUIDE_URL);
@@ -176,12 +221,12 @@ test('abandoned checkout: flagged once after 60 min, never after purchase', asyn
   cookie = '';
   const l = await call('POST', '/api/leads', { first_name: 'Sam', email: 'sam@example.com', email_consent: true });
   await call('POST', '/api/lifecycle', { event: 'checkout_started', data: { product: 'creditready' } });
-  await client.execute({ sql: "UPDATE lifecycle_events SET at = ? WHERE lead_id = ? AND event = 'checkout_started'", args: [new Date(Date.now() - 2 * 3600e3).toISOString(), l.data.lead_id] });
+  await client.execute({ sql: "UPDATE rr_lifecycle_events SET at = ? WHERE lead_id = ? AND event = 'checkout_started'", args: [new Date(Date.now() - 2 * 3600e3).toISOString(), l.data.lead_id] });
   assert.equal((await detectAbandonedCheckouts(env)).flagged, 1);
   assert.equal((await detectAbandonedCheckouts(env)).flagged, 0, 'not flagged twice');
   assert.equal((await call('POST', '/api/lifecycle', { event: 'purchase_completed' })).status, 400, 'browser cannot fake a purchase');
   // Jordan bought after checkout → never flagged
-  const jordanFlags = (await client.execute("SELECT COUNT(*) AS n FROM lifecycle_events e JOIN leads l ON l.lead_id = e.lead_id WHERE l.email = 'jordan@example.com' AND e.event = 'checkout_abandoned'")).rows[0].n;
+  const jordanFlags = (await client.execute("SELECT COUNT(*) AS n FROM rr_lifecycle_events e JOIN rr_leads l ON l.lead_id = e.lead_id WHERE l.email = 'jordan@example.com' AND e.event = 'checkout_abandoned'")).rows[0].n;
   assert.equal(Number(jordanFlags), 0);
 });
 
@@ -189,7 +234,7 @@ test('unsubscribe sync + admin metrics are token-protected and add up', async ()
   assert.equal((await route(new Request(ORIGIN + '/api/esp/unsubscribe', { method: 'POST', body: '{"email":"sam@example.com"}' }), env)).status, 401);
   const ok = await route(new Request(ORIGIN + '/api/esp/unsubscribe', { method: 'POST', body: '{"email":"sam@example.com"}', headers: { Authorization: `Bearer ${env.ESP_WEBHOOK_SECRET}` } }), env);
   assert.equal(ok.status, 200);
-  assert.equal(Number((await client.execute("SELECT email_consent FROM leads WHERE email='sam@example.com'")).rows[0].email_consent), 0);
+  assert.equal(Number((await client.execute("SELECT email_consent FROM rr_leads WHERE email='sam@example.com'")).rows[0].email_consent), 0);
 
   assert.equal((await call('GET', '/api/admin/metrics')).status, 401);
   const m = await call('GET', '/api/admin/metrics?days=30', undefined, { Authorization: `Bearer ${env.ADMIN_TOKEN}` });

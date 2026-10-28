@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
 import { BookVisual } from './BookVisual';
 import { CtaLink } from './ui';
+import { LeadForm } from './LeadForm';
+import { useNavigate } from 'react-router-dom';
 import bundleWebp from '../assets/rentready-digital-bundle.webp';
 import bundleWebpSm from '../assets/rentready-digital-bundle-768.webp';
 import bundlePng from '../assets/rentready-digital-bundle.png';
@@ -130,14 +131,14 @@ export function QualifyQuiz({ onResult }: { onResult: (r: Recommendation) => voi
               <p>Start with the free checklist — the questions to ask before you pay an application fee and the documents to gather. When you want the full picture, the book is there.</p>
             ) : (
               <p className="bk-quiz-price">
-                {PRODUCTS[primary].priceLabel} <span>one time · {primary === 'guide' ? 'physical book, shipped to you' : 'book ships · letters and videos unlock right away'}</span>
+                {primary === 'guide' ? 'Physical book, shipped to you.' : 'Physical book ships; digital tools unlock after checkout.'}
               </p>
             )}
           </div>
         </div>
         <div className="bk-quiz-actions">
           <CtaLink to={CHECKOUT_TO[primary]} className="btn bk-btn" props={{ cta_location: 'quiz_result', product: primary === 'checklist' ? undefined : primary, recommended: primary }}>
-            {primary === 'checklist' ? 'Get the free checklist' : primary === 'guide' ? `Get the Book — ${PRODUCTS.guide.priceLabel}` : `Get the Digital Bundle — ${PRODUCTS.creditready.priceLabel}`} <span className="bk-arrow" aria-hidden="true">→</span>
+            {primary === 'checklist' ? 'Get the free checklist' : primary === 'guide' ? 'Get the Book' : 'Get the Digital Bundle'} <span className="bk-arrow" aria-hidden="true">→</span>
           </CtaLink>
           <a className="bk-link" href="#options" onClick={() => track('primary_cta_click', { cta_location: 'quiz_compare' })}>See the special offer</a>
         </div>
@@ -242,6 +243,7 @@ const EXIT_COOLDOWN = 1000 * 60 * 60 * 24 * 7;
  */
 export function ExitOffer() {
   const { lead, entitlements } = useFunnel();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const eligible = !lead && entitlements.status === 'loaded' && entitlements.products.length === 0;
@@ -290,13 +292,27 @@ export function ExitOffer() {
     <div className="bk-exit" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
       <div className="bk-exit-card" role="dialog" aria-modal="true" aria-labelledby="exit-h">
         <button ref={closeRef} type="button" className="bk-exit-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
-        <span className="bk-quiz-kicker">Not ready to buy? That’s fine.</span>
-        <h2 id="exit-h">Take the free Before-You-Apply Checklist.</h2>
-        <p>The questions to ask before you pay an application fee, what to check on your own reports, and the documents to have ready. Free, no email required to read it.</p>
-        <div className="bk-quiz-actions">
-          <Link className="btn bk-btn" to="/checklist" onClick={() => track('exit_offer_click', { cta_location: 'exit' })}>Show me the checklist <span className="bk-arrow" aria-hidden="true">→</span></Link>
-          <button type="button" className="bk-quiz-restart" onClick={() => setOpen(false)}>No thanks, keep reading</button>
-        </div>
+        <span className="bk-quiz-kicker">Your physical book is included with the Digital Bundle</span>
+        <h2 id="exit-h">Want the book included at no extra cost?</h2>
+        <p>Enter your email to continue to the Digital Bundle offer. It includes the physical book plus a digital toolkit and guidance for reviewing and disputing negative items you believe are inaccurate. The bundle price will be shown before you decide; no outcome or removal is guaranteed.</p>
+        <h3 style={{ marginTop: 22 }}>Enter your email here</h3>
+        <LeadForm
+          source="exit"
+          submitLabel="See the Digital Bundle offer"
+          productInterest="creditready"
+          optIn={false}
+          requireFirstName={false}
+          emailConsentValue={false}
+          consentText="Email entered to continue to the RentReady Digital Bundle offer. No promotional email consent was given."
+          helpText="We’ll use this to save your offer and associate your checkout."
+          finePrint="You’ll go to the Bundle offer page, where you can review the full price before buying. We won’t send promotional emails without your permission."
+          onDone={() => {
+            track('exit_offer_click', { cta_location: 'exit', product: 'creditready' });
+            setOpen(false);
+            navigate('/creditready?source=exit_offer');
+          }}
+        />
+        <button type="button" className="bk-quiz-restart" style={{ marginTop: 16 }} onClick={() => setOpen(false)}>No thanks, keep reading</button>
       </div>
     </div>
   );

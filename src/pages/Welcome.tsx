@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout';
 import { Seo } from '../components/Seo';
 import { CtaLink, useOnce } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { DigitalKitDownload } from '../components/DigitalKitDownload';
 import { BundleImage } from '../components/Funnel';
 import { BUNDLE_TOTAL_CENTS, dollars, PRODUCTS } from '../config/products';
 import { track } from '../lib/analytics';
@@ -75,8 +76,9 @@ function KitWelcome({ full, firstName, email }: { full: boolean; firstName: stri
               Your letters are Microsoft Word files — fill in your details, print, and send them yourself. Your book ships to
               the address you entered.
             </p>
+            <DigitalKitDownload ctaLocation="welcome" />
             <div className="cta-row">
-              <CtaLink to="/access" props={{ cta_location: 'welcome' }}>Open my letters and videos</CtaLink>
+              <CtaLink to="/access" props={{ cta_location: 'welcome_resources' }}>Open my videos and other resources</CtaLink>
             </div>
             <p className="muted" style={{ marginTop: 8 }}>
               <strong>Bonus:</strong> a five-minute private assessment that turns your rent, income, credit and timing into a

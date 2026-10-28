@@ -21,7 +21,7 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   if (typeof p.event !== 'string' || !EVENT_RE.test(p.event)) return json({ ok: false }, 400);
   const value = typeof p.revenue === 'number' ? p.revenue : typeof p.order_value === 'number' ? p.order_value : null;
   await env.DB.prepare(
-    'INSERT INTO events (event, session_id, lead_id, product, value, cta_location, intent_tier, utm_source, utm_campaign, landing_intent, page_path, at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO rr_events (event, session_id, lead_id, product, value, cta_location, intent_tier, utm_source, utm_campaign, landing_intent, page_path, at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
   ).bind(p.event, s(p.session_id, 80), s(p.lead_id, 80), s(p.product, 20), value, s(p.cta_location, 40), s(p.intent_tier, 10), s(p.utm_source, 100), s(p.utm_campaign, 100), s(p.landing_intent, 80), s(p.page_path, 200), new Date().toISOString()).run();
   return json({ ok: true }, 202);
 };

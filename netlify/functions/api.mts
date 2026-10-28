@@ -74,7 +74,7 @@ export async function route(request: Request, env: Env): Promise<Response> {
   const out = new Response(res.body, res);
   out.headers.set('Cache-Control', 'no-store');
   out.headers.set('X-Content-Type-Options', 'nosniff');
-  out.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (!out.headers.has('Referrer-Policy')) out.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   return out;
 }
 

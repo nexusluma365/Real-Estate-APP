@@ -54,27 +54,27 @@ function fakeDb() {
       return {
         bind(...v: unknown[]) {
           const run = async () => {
-            if (q.startsWith('INSERT INTO webhook_events')) t.webhook_events.push({ id: v[0] });
-            else if (q.startsWith('INSERT OR IGNORE INTO orders')) {
+            if (q.startsWith('INSERT INTO rr_webhook_events')) t.webhook_events.push({ id: v[0] });
+            else if (q.startsWith('INSERT INTO rr_orders') && q.endsWith('ON CONFLICT DO NOTHING')) {
               if (!t.orders.some((o) => o.payment_intent_id === v[0])) t.orders.push({ payment_intent_id: v[0], customer_id: v[1], product: v[2], amount_cents: v[3], lead_id: v[4] });
-            } else if (q.startsWith('INSERT INTO entitlements')) {
+            } else if (q.startsWith('INSERT INTO rr_entitlements')) {
               const e = t.entitlements.find((x) => x.customer_id === v[0] && x.product === v[1]);
               if (e) e.revoked_at = null;
               else t.entitlements.push({ customer_id: v[0], product: v[1], revoked_at: null });
-            } else if (q.startsWith('INSERT OR IGNORE INTO lifecycle_events')) {
+            } else if (q.startsWith('INSERT INTO rr_lifecycle_events') && q.endsWith('ON CONFLICT DO NOTHING')) {
               if (t.lifecycle_events.some((x) => x.lead_id === v[0] && x.event === v[1] && x.ref === v[2])) return { meta: { changes: 0 } };
               t.lifecycle_events.push({ lead_id: v[0], event: v[1], ref: v[2], data: v[3] });
-            } else if (q.startsWith('UPDATE orders SET refunded_cents')) {
+            } else if (q.startsWith('UPDATE rr_orders SET refunded_cents')) {
               const o = t.orders.find((x) => x.payment_intent_id === v[2]);
               if (o) Object.assign(o, { refunded_cents: v[0], refunded_at: v[1] });
-            } else if (q.startsWith('UPDATE entitlements SET revoked_at')) {
+            } else if (q.startsWith('UPDATE rr_entitlements SET revoked_at')) {
               t.entitlements.filter((x) => x.customer_id === v[1] && x.product === v[2]).forEach((x) => (x.revoked_at = v[0]));
             } else throw new Error(`fake DB: unhandled run ${q}`);
             return { meta: { changes: 1 } };
           };
           const first = async () => {
-            if (q.startsWith('SELECT id FROM webhook_events')) return t.webhook_events.find((x) => x.id === v[0]) || null;
-            if (q.startsWith('SELECT product, lead_id, amount_cents FROM orders')) return t.orders.find((x) => x.payment_intent_id === v[0]) || null;
+            if (q.startsWith('SELECT id FROM rr_webhook_events')) return t.webhook_events.find((x) => x.id === v[0]) || null;
+            if (q.startsWith('SELECT product, lead_id, amount_cents FROM rr_orders')) return t.orders.find((x) => x.payment_intent_id === v[0]) || null;
             if (q.startsWith('SELECT email')) return null;
             throw new Error(`fake DB: unhandled first ${q}`);
           };

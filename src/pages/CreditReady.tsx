@@ -39,6 +39,11 @@ export default function CreditReady() {
               Before They Say No™ shows you what a property may see. 20 ready-to-edit dispute letters and a step-by-step
               video guide help you act on it — before your next rental application.
             </p>
+            <p className="muted" style={{ color: 'var(--muted-on-ink)' }}>
+              The physical book is included at no additional charge with your Digital Bundle purchase. The Bundle is a paid
+              offer, and its full price is shown before checkout. The toolkit helps you review and dispute information you
+              believe is inaccurate; removals are not guaranteed.
+            </p>
             <div className="cta-row">
               <CtaLink to={TO} {...cta('hero')}>{CTA}</CtaLink>
               <span className="muted" style={{ color: 'var(--muted-on-ink)' }}>
