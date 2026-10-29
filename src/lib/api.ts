@@ -1,5 +1,7 @@
 import { env } from './env';
 
+const contact = () => (env.supportEmail ? ` or email ${env.supportEmail}` : '');
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -38,7 +40,12 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   }
   if (!res.ok) {
     const d = (data || {}) as { error?: string; code?: string };
-    throw new ApiError(d.error || `Something went wrong on our side (${res.status}). Try again in a moment.`, res.status, d.code || 'api_error');
+    // Server-side setup problems and crashes are logged for us, never shown to visitors in technical terms.
+    if (d.code === 'not_configured' || res.status >= 500) {
+      console.error(`RentReady API ${path} → ${res.status}`, d.error || '');
+      throw new ApiError(`We’re having trouble on our side right now. Please try again in a few minutes${contact()}.`, res.status, d.code || 'server_error');
+    }
+    throw new ApiError(d.error || `Something went wrong (${res.status}). Please try again.`, res.status, d.code || 'api_error');
   }
   return data as T;
 }

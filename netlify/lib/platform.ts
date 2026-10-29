@@ -23,7 +23,17 @@ export function postgresDatabase(client: Sql): SqlDatabase {
           let index = 0;
           const query = statement.replace(/\?/g, () => `$${++index}`);
           if (index !== values.length) throw new Error(`SQL placeholder count (${index}) does not match value count (${values.length}).`);
-          const execute = () => client.unsafe(query, toParams(values));
+          // postgres.js returns int8 (COUNT) and numeric (SUM) as strings; every such value here fits a JS number.
+          const execute = async () => {
+            const rows = await client.unsafe(query, toParams(values));
+            const numeric = (rows.columns || []).filter((c) => c.type === 20 || c.type === 1700).map((c) => c.name);
+            if (numeric.length) {
+              for (const row of rows as Record<string, unknown>[]) {
+                for (const name of numeric) if (row[name] != null) row[name] = Number(row[name]);
+              }
+            }
+            return rows;
+          };
           return {
             async first<T>() {
               const rows = await execute();

@@ -296,3 +296,9 @@ test('admin health reports configuration and missing files without exposing valu
   assert.match(h.data.database, /^ok/);
   assert.ok(!JSON.stringify(h.data).includes(env.STRIPE_SECRET_KEY!), 'no secret values');
 });
+
+test('a browser download without access lands on the access page with a plain-English reason', async () => {
+  const res = await route(new Request(`${ORIGIN}/api/files?key=${encodeURIComponent(toolkitKey)}`, { headers: { Accept: 'text/html' } }), env);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('Location'), `${ORIGIN}/access?download=signin`);
+});

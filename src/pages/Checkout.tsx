@@ -136,7 +136,7 @@ export default function Checkout() {
         }
       } catch (e) {
         if (cancelled) return;
-        const cfg = e instanceof Error && /not configured/i.test(e.message);
+        const cfg = e instanceof ApiError && e.code === 'not_configured';
         setStatus(cfg ? 'config_error' : 'network_error');
         setMessage(e instanceof ApiError || e instanceof Error ? e.message : 'We couldn’t start checkout.');
       }
@@ -341,7 +341,7 @@ export default function Checkout() {
                   )}
                   {status === 'config_error' && (
                     <Alert kind="error">
-                      Payments aren’t set up on this environment yet. {message} See INTEGRATION_GUIDE.md → Stripe.
+                      Checkout is temporarily unavailable. {message}
                     </Alert>
                   )}
                   {/* Production: Stripe Payment Element mounts here. Card data never enters this app. */}

@@ -1,3 +1,8 @@
 # SPA fallback: every client route (/start, /checkout, /welcome, intent pages…) serves the app.
 # /api/* is served by the Netlify Function netlify/functions/api.mts (its `path` config takes precedence).
+# RentReady Finder: a separate app built into dist/finder/ (npm run build:finder) with its own API function.
+/finder/api/*  /.netlify/functions/finder-api/:splat  200!
+/finder        /finder/index.html  200
+/finder/*      /finder/index.html  200
+
 /*    /index.html   200

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:finder": "cd rentready-finder && npm ci --no-audit --no-fund && npm run build && rm -rf ../dist/finder && cp -R dist ../dist/finder",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc -p netlify/tsconfig.json",
     "test": "node tests/run.mjs",

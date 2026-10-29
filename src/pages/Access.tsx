@@ -33,6 +33,17 @@ export default function Access() {
   return <SignIn />;
 }
 
+/** Shown when /api/files sends a customer back here instead of downloading (see netlify/lib/api/files.ts). */
+function DownloadNotice() {
+  const reason = new URLSearchParams(window.location.search).get('download');
+  const text = {
+    signin: 'Sign in with the email you used at checkout to download your files.',
+    not_owned: 'That file isn’t included in the purchase on this account. Sign in with the email you used at checkout.',
+    unavailable: `That download isn’t available right now. Please try again in a few minutes${SITE.supportEmail ? ` or email ${SITE.supportEmail}` : ''}.`,
+  }[reason || ''];
+  return text ? <div style={{ marginTop: 16 }}><Alert kind="info">{text}</Alert></div> : null;
+}
+
 /** Opens an entitlement-checked product file (signed URL in production, a notice in mock mode). */
 function useResourceOpener() {
   const [notice, setNotice] = useState('');
@@ -59,6 +70,7 @@ function GuideHome({ firstName }: { firstName: string }) {
         <div className="wrap">
           <h1 style={{ fontSize: 'var(--step-5)' }}>Welcome{firstName ? `, ${firstName}` : ''}.</h1>
           <p className="lede" style={{ marginTop: 12, color: '#e3dccf' }}>Your copy of Before They Say No™ is on its way.</p>
+          <DownloadNotice />
         </div>
       </section>
       <section className="band" style={{ paddingTop: 36 }}>
@@ -118,6 +130,7 @@ function SignIn() {
           {/[?&]link=(expired|invalid)/.test(window.location.search) && (
             <div style={{ marginTop: 16 }}><Alert kind="info">That sign-in link has expired or was already used. Request a new one below.</Alert></div>
           )}
+          <DownloadNotice />
           {state === 'sent' ? (
             <div style={{ marginTop: 24 }}>
               <Alert kind="ok">If that email has a RentReady purchase, a sign-in link is on its way. It expires in 30 minutes.</Alert>
@@ -178,6 +191,7 @@ function Home({ firstName, hasPlaybook }: { firstName: string; hasPlaybook: bool
         <div className="wrap">
           <h1 style={{ fontSize: 'var(--step-5)' }}>Welcome back{firstName ? `, ${firstName}` : ''}.</h1>
           <p className="lede" style={{ marginTop: 12, color: '#e3dccf' }}>Everything for the apartment you want, in one place.</p>
+          <DownloadNotice />
         </div>
       </section>
 

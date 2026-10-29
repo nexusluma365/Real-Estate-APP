@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-29 (rev. 7) — RentReady Finder redesign
+- New layout after the premium property reference: full-bleed dusk hero with a big bold headline and pill buttons;
+  a floating search card over the hero edge (pill search field, Use My Location, Search Now, and five quick-filter
+  tiles: distance, bedrooms, rent, type, second-chance); rounded photo cards; a large image/text feature block;
+  step cards. Navy pill buttons, cool light canvas, softer shadows, staged entrance and hover motion.
+- iPhone-setup-style loader: "Hey!" → "Welcome to RentReady Finder" → "We’re searching apartments · Hang tight…" →
+  "Let’s get to know each other", each fading in from a blur with a light sweep over drifting colour fields.
+  Full screen once per browser session (~8 s, Skip / Escape); a looping inline version runs while a search loads.
+- Placeholder community cards no longer use real-looking photos (navy skyline art + "Layout preview · Not a listing").
+- All search, filter, second-chance, results and property-page behaviour is unchanged.
+
+## 2026-10-29 (rev. 6) — site menu + RentReady Finder at /finder
+- Three-line menu in the top-right of the sales header (home, intent pages, checklist and other marketing pages; not on
+  checkout, upsell or customer pages). It turns into a close icon and opens a panel from the right: Home, Find Apartments
+  (`/finder/`), Before They Say No™ (`#get`), How It Works (`#how`), Contact (support email). Escape, outside click, focus
+  loop, scroll lock and reduced motion are supported. Page content is unchanged (pixel-compared screen by screen).
+- RentReady Finder (`rentready-finder/`, its own Vite/Tailwind app) is built into `dist/finder/` by `npm run build:finder`
+  and served at `/finder` with deep links and refreshes. Its Google Places API runs as `netlify/functions/finder-api.mjs`
+  (re-exports the Finder's own function) at `/finder/api/*`. Needs `GOOGLE_MAPS_API_KEY` on Netlify.
+- Finder navigation gains a subtle "Back to RentReady" link (desktop and mobile).
+- Finder now uses the RentReady logo (same house mark, wordmark, typeface and size) in its header and footer, and the RentReady favicon.
+- Headers: images from Unsplash and Google Places photos allowed; geolocation allowed for this site only (Finder's
+  "Use My Location", asked only on click).
+
 ## 2026-10-28 (rev. 5) — receipts, downloads, shipping updates, setup health
 - Purchase receipts are emailed through Resend straight from the Stripe webhook (once per order): order summary, private
   30-day download links for the Bundle files that work without signing in (entitlement re-checked; refunds revoke them),
@@ -7,7 +31,8 @@
 - /admin → **Books to ship**: shipping address from Stripe, carrier/tracking fields, *Mark shipped* emails the customer once.
 - /admin → **Setup health** (`/api/admin/health`): which settings are present, database check, and whether each product
   file is uploaded to R2. Shows statuses only, never values.
-- The free-book popup now shows once per visit (browser session) instead of once a day.
+- The free-book popup now opens 30 seconds into every new session — each page load, refresh, new tab or return visit —
+  and not again while the visitor moves between pages; its book image is larger.
 
 ## 2026-10-28 (rev. 4) — "Get this book for free" popup
 - The 30-second offer now runs site-wide (mounted in `App.tsx`) on every pre-purchase page, desktop and mobile; it stays off

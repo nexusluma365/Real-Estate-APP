@@ -1,6 +1,7 @@
-# RentReady on Netlify — static Vite build + one API function (/api/*) + a scheduled job.
+# RentReady on Netlify — static Vite build + one API function (/api/*) + a scheduled job,
+# plus RentReady Finder (rentready-finder/) built into dist/finder/ and served at /finder with its own function.
 [build]
-  command = "npm run build"
+  command = "npm run build && npm run build:finder"
   publish = "dist"
   functions = "netlify/functions"
 

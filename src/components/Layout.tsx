@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
 import { Icon } from './Icon';
+import { SiteMenu } from './SiteMenu';
 import { SITE } from '../config/site';
 import { INTENTS } from '../config/intents';
 import { isMock } from '../lib/env';
@@ -32,12 +33,14 @@ export function Layout({ children, chrome = 'marketing', headerCta }: { children
               <Link className="nav-hide" to="/">The book</Link>
               <Link to="/access">My access</Link>
               {headerCta}
+              <SiteMenu />
             </nav>
           )}
           {chrome === 'book' && (
             <nav className="nav" aria-label="Main">
               <Link className="nav-hide" to="/access">My access</Link>
               {headerCta}
+              <SiteMenu />
             </nav>
           )}
           {chrome === 'focused' && (

@@ -14,7 +14,6 @@ import { env } from '../lib/env';
 import { track } from '../lib/analytics';
 import { emitLifecycle } from '../lib/lifecycle';
 import { getQualification, saveQualification } from '../lib/qualification';
-import { read, write } from '../lib/storage';
 import { useFunnel } from '../state/FunnelContext';
 
 export const CHECKOUT_TO = { guide: '/checkout?product=guide', creditready: '/checkout?product=creditready', checklist: '/checklist' } as const;
@@ -234,14 +233,13 @@ export function BuyFaqList({ items }: { items: FaqItem[] }) {
 
 /* ------------------------------------------------------------------ free-book offer */
 
-const EXIT_KEY = 'exit_offer_at';
 const EXIT_DELAY = 1000 * 30;
 /** The offer's destination, checkout and everything after purchase never show it. */
 const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin'];
 
 /**
- * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, once per visit (browser session), never
- * for customers. Esc / backdrop / buttons close it. The email goes on to the Digital Bundle page, where the
+ * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, once per page load: every refresh,
+ * new tab or return visit starts a new session; moving between pages inside the site doesn't. Never for customers. Esc / backdrop / buttons close it. The email goes on to the Digital Bundle page, where the
  * free physical book and the Bundle's full price are both shown before anyone buys.
  */
 export function ExitOffer() {
@@ -250,15 +248,16 @@ export function ExitOffer() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const shown = useRef(false);
   const allowed = !EXIT_HIDDEN.some((p) => pathname.startsWith(p));
   // An unreachable API ('error') still means "no known purchase", so the offer can show.
   const eligible = allowed && entitlements.status !== 'loading' && entitlements.products.length === 0;
 
   useEffect(() => {
     if (!eligible) return;
-    if (read<number>(EXIT_KEY, 0, 'session')) return;
+    if (shown.current) return;
     const timer = window.setTimeout(() => {
-      write(EXIT_KEY, Date.now(), 'session');
+      shown.current = true;
       setOpen(true);
       track('exit_offer_shown', { method: 'timer_30s' });
     }, EXIT_DELAY);
