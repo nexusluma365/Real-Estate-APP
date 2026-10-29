@@ -67,10 +67,12 @@ export function r2FileStore(accountId: string, accessKeyId: string, secretAccess
   return {
     async createDownloadUrl(key: string) {
       const filename = key.slice(key.lastIndexOf('/') + 1).replace(/["\\\r\n]/g, '_');
+      // RFC 6266: an ASCII fallback plus the exact UTF-8 name, so "™" never arrives garbled.
+      const ascii = filename.replace(/[^\x20-\x7e]/g, '').replace(/\s+(\.[^.]+)$/, '$1') || 'download';
       return getSignedUrl(client, new GetObjectCommand({
         Bucket: bucket,
         Key: key,
-        ResponseContentDisposition: `attachment; filename="${filename}"`,
+        ResponseContentDisposition: `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         ResponseCacheControl: 'private, no-store',
       }), { expiresIn: DOWNLOAD_URL_SECONDS });
     },

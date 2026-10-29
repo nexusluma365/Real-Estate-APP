@@ -135,7 +135,7 @@ test('R2 file store signs private, attachment-only URLs that expire after 1 minu
   assert.equal(decodeURIComponent(url.pathname), `/rentready-private/${toolkitKey}`);
   assert.equal(url.searchParams.get('X-Amz-Expires'), '60');
   assert.ok(url.searchParams.has('X-Amz-Signature'));
-  assert.equal(url.searchParams.get('response-content-disposition'), 'attachment; filename="CREDIT REPAIR TOOLKIT™.zip"');
+  assert.equal(url.searchParams.get('response-content-disposition'), `attachment; filename="CREDIT REPAIR TOOLKIT.zip"; filename*=UTF-8''${encodeURIComponent('CREDIT REPAIR TOOLKIT™.zip')}`);
 });
 
 test('routing: unknown path 404, wrong method 405, cross-origin POST 403, security headers set', async () => {
