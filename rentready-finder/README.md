@@ -47,6 +47,6 @@ Netlify Functions for autocomplete, geocoding, Text/Nearby Search with field mas
 
 ## Phase B update — Live Google Places backend
 
-A Netlify Function now implements autocomplete, apartment searches, featured properties, property details and photo redirects. **No live results can be tested until a valid Google Places API (New) key is configured.** Set `GOOGLE_MAPS_API_KEY` in Netlify environment variables; enable Places API (New) and billing. Deploy at `/finder/` with the included `netlify.toml` routing. Test via Netlify Dev (`npx netlify dev`) rather than Vite alone, because Vite does not serve Netlify Functions.
+A Netlify Function now implements autocomplete, apartment searches, featured properties, property details and photo redirects. **No live results can be tested until a valid Google Places API (New) key is configured.** Set `GOOGLE_PLACES_API_KEY` in Netlify environment variables; enable Places API (New) and billing. The legacy `GOOGLE_MAPS_API_KEY` name is also accepted. Deploy at `/finder/` with the included `netlify.toml` routing. Test via Netlify Dev (`npx netlify dev`) rather than Vite alone, because Vite does not serve Netlify Functions.
 
 **Important:** Google Places returns apartment communities, not verified available units, prices or second-chance eligibility. The second-chance-only filter correctly returns no verified results until evidence-backed policy records are implemented. AI enrichment is not connected. Google photo use requires appropriate attribution and compliance with Google Maps Platform policies.

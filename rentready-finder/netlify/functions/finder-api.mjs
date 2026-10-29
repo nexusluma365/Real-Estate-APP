@@ -1,12 +1,12 @@
 const API = 'https://places.googleapis.com/v1';
-const key = () => process.env.GOOGLE_MAPS_API_KEY;
+const key = () => process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 const json = (statusCode, body) => ({ statusCode, headers: {'Content-Type':'application/json','Cache-Control':'no-store','Access-Control-Allow-Origin':'*'}, body:JSON.stringify(body) });
 const fields = 'places.id,places.displayName,places.formattedAddress,places.location,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.primaryType,places.photos';
 async function google(path, {method='GET',body,mask}={}) { const r=await fetch(`${API}${path}`,{method,headers:{'X-Goog-Api-Key':key(),'Content-Type':'application/json',...(mask?{'X-Goog-FieldMask':mask}:{})},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();if(!r.ok)throw new Error(data.error?.message||`Google error ${r.status}`);return data; }
 const normalize = p => ({placeId:p.id,name:p.displayName?.text||'Apartment community',formattedAddress:p.formattedAddress||'',city:null,neighborhood:null,location:{lat:p.location?.latitude??0,lng:p.location?.longitude??0},phone:p.internationalPhoneNumber||p.nationalPhoneNumber||null,website:p.websiteUri||null,googleMapsUri:p.googleMapsUri||null,primaryType:p.primaryType||null,photos:(p.photos||[]).map(x=>({name:x.name,widthPx:x.widthPx||0,heightPx:x.heightPx||0,attributions:x.authorAttributions||[]})),summary:null,policyStatus:'unconfirmed',pricing:null});
 export async function handler(event) {
  if(event.httpMethod==='OPTIONS')return {statusCode:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'},body:''};
- if(!key())return json(503,{error:'Google Places is not configured. Add GOOGLE_MAPS_API_KEY to Netlify environment variables.'});
+ if(!key())return json(503,{error:'Google Places is not configured. Add GOOGLE_PLACES_API_KEY to Netlify environment variables.'});
  try {
  const route=(event.path||'').replace(/^.*?\/finder\/api\/?/,'');
  const params=event.queryStringParameters||{};
