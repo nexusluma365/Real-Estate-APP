@@ -28,6 +28,7 @@ import { loadStripe, stripeAppearance, type StripeElement, type StripeElements, 
 import type { CheckoutStatus, MockOutcome } from '../lib/types';
 import { useFunnel } from '../state/FunnelContext';
 import { ApiError } from '../lib/api';
+import { restoreSession } from '../lib/leadService';
 
 /**
  * Front-door checkout. Both the book ($47.99) and the Digital Bundle ($79.99) include the physical book, so both
@@ -105,8 +106,20 @@ export default function Checkout() {
           await finalize(returnedPi);
           return;
         }
-        const cust = await createCustomer(lead.lead_id);
-        const pi = await createPaymentIntent({ customerId: cust.customer_id, product: choice, idempotencyKey: attemptKey(ATTEMPT_SCOPE[choice]) });
+        const prepare = async (leadId: string) => {
+          const cust = await createCustomer(leadId);
+          return createPaymentIntent({ customerId: cust.customer_id, product: choice, idempotencyKey: attemptKey(ATTEMPT_SCOPE[choice]) });
+        };
+        let pi: PaymentIntentRef;
+        try {
+          pi = await prepare(lead.lead_id);
+        } catch (e) {
+          // Saved details but no valid server session (expired / cleared cookie): restore it once, then retry.
+          if (!(e instanceof ApiError) || !['no_session', 'no_lead'].includes(e.code)) throw e;
+          const restored = await restoreSession();
+          if (!restored) throw e;
+          pi = await prepare(restored.lead_id);
+        }
         if (cancelled) return;
         intent.current = pi;
         if (!isMock) {
