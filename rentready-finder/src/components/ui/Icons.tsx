@@ -127,3 +127,30 @@ export const MailIcon = (p: P) => (
     <path d="M3.5 6.5l8.5 6.5 8.5-6.5" />
   </S>
 );
+export const LockIcon = (p: P) => (
+  <S {...p}>
+    <rect x="5" y="10.5" width="14" height="10" rx="2.5" />
+    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5M12 14.5v2.5" />
+  </S>
+);
+export const HeartIcon = ({ filled, ...p }: P & { filled?: boolean }) => (
+  <S {...p} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" />
+  </S>
+);
+export const SparkIcon = (p: P) => (
+  <S {...p}>
+    <path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z" />
+  </S>
+);
+export const BellIcon = (p: P) => (
+  <S {...p}>
+    <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />
+  </S>
+);
+export const UserIcon = (p: P) => (
+  <S {...p}>
+    <circle cx="12" cy="8.5" r="3.8" />
+    <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
+  </S>
+);

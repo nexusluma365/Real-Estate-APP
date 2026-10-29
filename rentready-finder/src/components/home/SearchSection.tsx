@@ -6,6 +6,8 @@ import { Button } from '../ui/Button';
 import { FieldLabel, Select, TextInput } from '../ui/Field';
 import { BuildingIcon, HouseIcon, InfoIcon, KeyIcon, LocateIcon, PinIcon, SearchIcon, SlidersIcon } from '../ui/Icons';
 import { SearchLoader } from '../ui/HelloLoader';
+import { RentReadyListings } from './RentReadyListings';
+import { track } from '../../services/member';
 import { Loader } from '../ui/Loader';
 import { PropertyCard } from '../property/PropertyCard';
 import { useFinder } from '../../context/FinderContext';
@@ -38,6 +40,8 @@ export function SearchSection() {
   const [locating, setLocating] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  /** The city searched by name: drives RentReady listings and is kept in the URL (?q=) so refresh/checkout return to it. */
+  const [place, setPlace] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -48,8 +52,32 @@ export function SearchSection() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // Arriving with ?q= (a shared link, a refresh, or the return from membership checkout) re-runs that search.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')?.trim();
+    if (!q || validateLocation(q)) return;
+    setQuery(q);
+    runSearch(q, { text: q });
+    window.setTimeout(() => document.getElementById('search')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const runSearch = (label: string, q: Parameters<typeof searchProperties>[0]) => {
     abortRef.current?.abort(); // cancel any previous search
+    track('finder_search', { cta_location: q.coords ? 'location' : 'text' });
+    if (q.text) {
+      setPlace(q.text);
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', q.text);
+      url.searchParams.delete('premium');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      // "Back to search" on detail pages returns here (router paths are relative to /finder).
+      try {
+        sessionStorage.setItem('rr.finder.lastSearch', `/?q=${encodeURIComponent(q.text)}`);
+      } catch {
+        /* storage unavailable */
+      }
+    }
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setStatus({ kind: 'loading', label });
@@ -322,6 +350,7 @@ export function SearchSection() {
         <div aria-live="polite" className="min-h-[1px]">
           <SearchResults status={status} secondChance={secondChanceMode} onRetry={() => onSubmit(new Event('submit') as unknown as FormEvent)} />
         </div>
+        {place && status.kind !== 'loading' ? <RentReadyListings place={place} /> : null}
       </div>
     </section>
   );

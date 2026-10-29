@@ -49,7 +49,8 @@ tests/                   npm test — unit tests + end-to-end API test on a real
 | /admin | `GET /api/admin/metrics?days=` (Bearer `ADMIN_TOKEN`) | — | aggregate counts only |
 | /admin | `GET` / `POST /api/admin/orders` (Bearer `ADMIN_TOKEN`) | `{payment_intent_id,carrier?,tracking?,tracking_url?}` | books to ship (with Stripe address) / mark shipped + email once |
 | /admin | `GET /api/admin/health` (Bearer `ADMIN_TOKEN`) | — | which settings exist, DB check, each R2 file uploaded or MISSING (no values) |
-| (receipt email) | `GET /api/files?t=` | signed 30-day link | 302 to the file, entitlement re-checked (refunds revoke) |
+| (old receipt links) | `GET /api/files?t=` | — | 302 to `/access?link=expired` (file links are no longer emailed) |
+| (admin) | `GET /api/admin/download-test` | `Authorization: Bearer ADMIN_TOKEN` | a fresh 1-minute signed link to the Bundle ZIP, for testing |
 
 ## 2. Deploy on Netlify
 
@@ -95,7 +96,7 @@ The R2 bucket name is `creditrepairbusiness`; the toolkit object is at the bucke
 
 ## 8. Email
 * **Transactional (Resend, built in):** `netlify/lib/email.ts`, sent once per stored lifecycle fact. Needs `RESEND_API_KEY` + `FROM_EMAIL` (verified sender domain).
-  * `purchase_completed` (Stripe webhook) → receipt: product, amount, order id; for the Bundle/upgrade/Playbook, signed 30-day download links (`/api/files?t=`); for the book and Bundle, "your book is on its way — we'll email you when it ships".
+  * `purchase_completed` (Stripe webhook) → receipt: product, amount, order id; for the Bundle/upgrade/Playbook, an "Open my downloads" button to `/access` (download links last 1 minute, so none are emailed); for the book and Bundle, "your book is on its way — we'll email you when it ships".
   * `order_shipped` (/admin → Books to ship → *Mark shipped*) → "your book has shipped" with optional carrier, tracking number and link.
   * `access_link_requested` → sign-in link.
 * **Marketing / recovery (optional ESP):**
@@ -123,3 +124,28 @@ The R2 bucket name is `creditrepairbusiness`; the toolkit object is at the bucke
 - [ ] `/api/files` refuses non-owners; video URL never appears in page source
 - [ ] Upsell charges only after the click; double-click creates one charge
 - [ ] Support email, privacy and terms URLs set; legal review of disclaimer, consent copy and FAQ
+
+## 9. RentReady Premium & listings (rev. 9)
+
+**Endpoints**
+
+| Route | Auth | Purpose |
+|---|---|---|
+| `POST /api/premium/checkout` `{return_to}` | session optional | Stripe Checkout (subscription). $5 intro coupon for first-time members only. |
+| `GET /api/premium/return` | — | Checkout `success_url`: confirms with Stripe, activates, signs in, 302 back to `return_to?premium=active`. |
+| `POST /api/premium/portal` | session | Stripe customer portal URL (card, invoices, cancel at period end). |
+| `GET /api/listings?place=City, ST` · `GET /api/listings/detail?id=` | session optional | Listings; second-chance details removed server-side unless Premium. |
+| `GET/POST /api/member` | session | Dashboard data; `save`, `unsave`, `viewed`, `save_search`, `delete_search`, `search_alerts`. |
+| `GET/POST /api/admin/listings` · `GET /api/admin/premium-metrics` · `POST /api/admin/premium-setup` | Bearer `ADMIN_TOKEN` | Listing management, membership metrics, one-time Stripe catalog setup. |
+
+**Owner setup before launch** (no new environment variables)
+1. Apply `supabase/migrations/20261029120000_rentready_premium.sql` to the Supabase project (SQL editor or `supabase db push`).
+2. Deploy, then run once: `curl -X POST https://werentreadygo.com/api/admin/premium-setup -H "Origin: https://werentreadygo.com" -H "Authorization: Bearer $ADMIN_TOKEN"`
+   — creates the RentReady Premium product + $19.99/month price (lookup key `rentready_premium_monthly`), the once-only
+   $14.99-off coupon `rentready_premium_intro`, and the customer-portal configuration. Safe to re-run.
+3. Stripe → Webhooks → the werentreadygo.com endpoint: add `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
+4. Stripe → Billing → Revenue recovery: turn on Smart Retries (retries over ~1 week) and set "if all retries fail" to
+   **cancel the subscription** — this matches the published 7-day grace policy.
+5. Add listings in /admin → RentReady listings (only listings you have permission to publish).
+

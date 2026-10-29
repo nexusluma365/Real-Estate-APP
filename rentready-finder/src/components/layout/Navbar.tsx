@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
-import { ArrowLeftIcon, CloseIcon, MenuIcon } from '../ui/Icons';
+import { ArrowLeftIcon, CloseIcon, LockIcon, MenuIcon, UserIcon } from '../ui/Icons';
+import { useMember } from '../../context/MemberContext';
 import { useFinder, type SectionId } from '../../context/FinderContext';
 
 /** The RentReady sales site lives at the domain root; Finder is served under /finder, so this is a full page load. */
@@ -17,6 +18,7 @@ const LINKS: { label: string; action: 'home' | 'find' | 'second' | SectionId }[]
 
 export function Navbar() {
   const { goTo, activateSecondChance } = useFinder();
+  const { premium, openOffer } = useMember();
   const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -76,6 +78,13 @@ export function Navbar() {
             </li>
           ))}
           <li>
+            {premium.active ? (
+              <a href="/account" className="flex items-center gap-1.5 py-2 text-[13.5px] font-medium text-white/85 hover:text-white"><UserIcon size={16} /> My account</a>
+            ) : (
+              <button type="button" onClick={() => openOffer('', 'nav')} className="flex items-center gap-1.5 py-2 text-[13.5px] font-semibold text-gold hover:text-white"><LockIcon size={15} /> Premium</button>
+            )}
+          </li>
+          <li>
             <button
               type="button"
               onClick={() => run('contact')}
@@ -117,6 +126,15 @@ export function Navbar() {
                   </button>
                 </li>
               ))}
+              <li className="border-b border-white/10">
+                {premium.active ? (
+                  <a href="/account" className="flex w-full items-center justify-between py-5 text-[18px] font-medium text-white">My account <UserIcon size={20} /></a>
+                ) : (
+                  <button type="button" onClick={() => { setOpen(false); openOffer('', 'nav_mobile'); }} className="flex w-full items-center justify-between py-5 text-left text-[18px] font-semibold text-gold">
+                    RentReady Premium <LockIcon size={20} />
+                  </button>
+                )}
+              </li>
               <li>
                 <a href={RENTREADY_HOME} className="flex items-center gap-2 py-5 text-[15px] font-medium text-white/65 hover:text-gold">
                   <ArrowLeftIcon size={16} />

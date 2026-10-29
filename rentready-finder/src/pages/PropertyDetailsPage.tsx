@@ -9,6 +9,9 @@ import { PolicyBadge } from '../components/property/PolicyBadge';
 import { LinkButton } from '../components/ui/Button';
 import { ArrowLeftIcon, GlobeIcon, PhoneIcon, PinIcon, RouteIcon } from '../components/ui/Icons';
 import { POLICY_LEVELS } from '../types/policy';
+import { useMember } from '../context/MemberContext';
+import { SaveButton } from '../components/property/SaveButton';
+import { track } from '../services/member';
 
 type State = { kind: 'loading' } | { kind: 'ok'; p: Property } | { kind: 'not-connected' } | { kind: 'error' };
 
@@ -32,7 +35,7 @@ export function PropertyDetailsPage() {
   return (
     <div className="min-h-screen bg-offwhite pb-24 pt-[100px]">
       <div className="container-site">
-        <Link to="/" className="inline-flex items-center gap-2 text-[13.5px] font-semibold text-navy-700 hover:text-gold-700">
+        <Link to={sessionStorage.getItem('rr.finder.lastSearch') || '/'} className="inline-flex items-center gap-2 text-[13.5px] font-semibold text-navy-700 hover:text-gold-700">
           <ArrowLeftIcon size={17} /> Back to search
         </Link>
         {state.kind === 'ok' ? <Details p={state.p} /> : <DetailsSkeleton state={state.kind} />}
@@ -87,6 +90,12 @@ function DetailsSkeleton({ state }: { state: State['kind'] }) {
 /** Live details view (fed by Phase C). Every section degrades honestly when data is missing. */
 function Details({ p }: { p: Property }) {
   const [main, ...rest] = p.photos;
+  const { recordView } = useMember();
+  useEffect(() => {
+    track('listing_view', { cta_location: 'place' });
+    recordView(`place:${p.placeId}`, p.name, p.formattedAddress);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.placeId]);
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="mt-6">
       <div className="grid gap-3 md:grid-cols-[2fr_1fr] md:grid-rows-2">
@@ -97,7 +106,10 @@ function Details({ p }: { p: Property }) {
       </div>
       <div className="mt-10 grid gap-10 lg:grid-cols-[1.6fr_1fr]">
         <div>
-          <PolicyBadge status={p.policyStatus} size="md" />
+          <div className="flex items-center justify-between gap-3">
+            <PolicyBadge status={p.policyStatus} size="md" />
+            <SaveButton refId={`place:${p.placeId}`} label={p.name} detail={p.formattedAddress} />
+          </div>
           <h1 className="mt-4 text-[34px] font-semibold leading-tight tracking-[-0.02em] text-navy-900 sm:text-[42px]">{p.name}</h1>
           <p className="mt-2 flex items-center gap-2 text-[15px] text-charcoal/70">
             <PinIcon size={17} className="text-gold-600" /> {p.formattedAddress}

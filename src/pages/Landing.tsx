@@ -82,6 +82,30 @@ function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · s
   );
 }
 
+/** Hero: apartment seekers go to the Finder; people preparing to apply get the book. */
+function HeroCtas({ variant }: { variant: string }) {
+  return (
+    <div className="bk-buy">
+      <div className="bk-hero-ctas">
+        <a className="btn bk-btn" href="/finder/" onClick={() => track('primary_cta_click', { cta_location: 'hero_finder', variant })}>
+          Find Apartments <Arrow />
+        </a>
+        <CtaLink to={BOOK_TO} className="btn bk-btn-outline" props={{ cta_location: 'hero', product: 'guide', variant }}>
+          Get the Book
+        </CtaLink>
+      </div>
+      <p className="bk-buy-note"><Icon name="home" />Search free · Book ships to you</p>
+      <p className="bk-buy-alt">
+        Want the dispute letters and videos too?{' '}
+        <CtaLink to={BUNDLE_TO} className="bk-link" props={{ cta_location: 'hero_bundle', product: 'creditready', variant }}>
+          Get the Digital Bundle.
+        </CtaLink>{' '}
+        The physical book is included, along with 20 editable letters for disputing inaccurate credit-report items and a video guide.
+      </p>
+    </div>
+  );
+}
+
 /** A visual progression, e.g. See → Identify → Prepare → Apply. */
 function Chain({ steps, className = '' }: { steps: string[]; className?: string }) {
   return (
@@ -226,10 +250,10 @@ export default function Landing({ intent }: { intent?: Intent }) {
                 {intent ? intent.hero.headline.filter(Boolean).join(' ') : <>Bad credit? Collections? Past rental problems? <span>You still have options.</span></>}
               </p>
               <p className="bk-hero-body">
-                Learn what property managers look for, what may be hurting your approval chances, and the steps you can take to strengthen your credit, prepare your application, and turn past denials into your next approval.
+                Find rental opportunities, learn what property managers may look for, and prepare before you apply.
               </p>
               <p className="bk-hero-em">Know what they may see. Fix what you can. Apply better prepared.</p>
-              <BuyBlock location="hero" />
+              <HeroCtas variant={variant} />
               <a className="bk-hero-quiz" href="#find" onClick={() => track('primary_cta_click', { cta_location: 'hero_quiz', variant })}>
                 Not sure which option fits you? Answer 3 quick questions <Arrow />
               </a>

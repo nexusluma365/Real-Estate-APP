@@ -19,6 +19,7 @@ export function DigitalKitDownload({ ctaLocation }: { ctaLocation: string }) {
       >
         Download your Credit Repair Toolkit
       </a>
+      <p className="fine">For your security each download link works for 1 minute — click again any time for a fresh one.</p>
       <p className="fine">Your physical book will be shipped to the address you provided at checkout.</p>
     </div>
   );

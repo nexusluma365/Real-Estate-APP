@@ -46,7 +46,7 @@ export type FunnelEvent =
   | 'upgrade_purchase_success';
 
 export interface EventProps {
-  product?: ProductId | 'bundle';
+  product?: ProductId | 'bundle' | 'premium';
   order_value?: number;
   revenue?: number;
   transaction_id?: string;
@@ -136,8 +136,8 @@ export function track(event: FunnelEvent, props: EventProps = {}): EventPayload 
   return payload;
 }
 
-const item = (p?: ProductId | 'bundle') =>
-  p && p !== 'bundle' ? [{ item_id: p, item_name: PRODUCTS[p].name, price: dollars(PRODUCTS[p].priceCents), quantity: 1 }] : undefined;
+const item = (p?: ProductId | 'bundle' | 'premium') =>
+  p && p !== 'bundle' && p !== 'premium' ? [{ item_id: p, item_name: PRODUCTS[p].name, price: dollars(PRODUCTS[p].priceCents), quantity: 1 }] : undefined;
 
 /**
  * GA4 recommended events + Meta standard events, derived from funnel events.

@@ -52,7 +52,9 @@ export function Layout({ children, chrome = 'marketing', headerCta }: { children
             <nav className="nav" aria-label="Customer">
               {/* The game plan comes with the Digital Bundle; book-only owners don't have it. */}
               {owns('creditready') && <Link to="/gameplan">Game plan</Link>}
-              <Link to="/access">My access</Link>
+              <a className="nav-hide" href="/finder/">Find apartments</a>
+              <Link to="/account">My account</Link>
+              <Link className="nav-hide" to="/access">Purchases</Link>
             </nav>
           )}
         </div>

@@ -5,5 +5,7 @@ Disallow: /welcome
 Disallow: /assessment
 Disallow: /gameplan
 Disallow: /access
+Disallow: /account
+Disallow: /admin
 Disallow: /api/
 Sitemap: https://werentreadygo.com/sitemap.xml

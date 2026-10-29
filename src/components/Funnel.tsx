@@ -235,7 +235,7 @@ export function BuyFaqList({ items }: { items: FaqItem[] }) {
 
 const EXIT_DELAY = 1000 * 30;
 /** The offer's destination, checkout and everything after purchase never show it. */
-const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin'];
+const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin', '/account', '/premium'];
 
 /**
  * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, once per page load: every refresh,

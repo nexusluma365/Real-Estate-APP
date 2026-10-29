@@ -22,6 +22,8 @@ const Gameplan = lazy(() => import('./pages/Gameplan'));
 const Access = lazy(() => import('./pages/Access'));
 const Checklist = lazy(() => import('./pages/Checklist'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Premium = lazy(() => import('./pages/Premium'));
+const Account = lazy(() => import('./pages/Account'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 export default function App() {
@@ -55,6 +57,9 @@ export default function App() {
               <Route path="/gameplan" element={<RequireProduct product="creditready"><Gameplan /></RequireProduct>} />
               {/* Step 7 — Retention & advocacy */}
               <Route path="/access" element={<Access />} />
+              {/* RentReady Premium membership + member dashboard (server-verified) */}
+              <Route path="/premium" element={<Premium />} />
+              <Route path="/account" element={<Account />} />
               {/* Funnel dashboard (token-protected API; not linked anywhere) */}
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />

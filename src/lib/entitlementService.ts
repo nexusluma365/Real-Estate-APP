@@ -25,7 +25,7 @@ export async function fetchEntitlements(): Promise<Entitlements> {
     };
   }
   try {
-    const r = await api<{ customer_id?: string; first_name?: string; products: ProductId[] }>('/entitlements');
+    const r = await api<{ customer_id?: string; first_name?: string; products: ProductId[]; premium?: Entitlements['premium'] }>('/entitlements');
     return { status: 'loaded', ...r, source: 'server' };
   } catch {
     return { status: 'error', products: [], source: 'none' };

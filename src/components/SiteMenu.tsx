@@ -8,12 +8,14 @@ export const FINDER_URL = '/finder/';
 
 type Item = { label: string; hint: string } & ({ section: string } | { href: string } | { home: true });
 
-// Every entry points at something that exists on the site: a Landing section id, the Finder app, or the support inbox.
+// Every entry points at something that exists on the site: a Landing section id, the Finder app, a page, or the support inbox.
 const ITEMS: Item[] = [
   { label: 'Home', hint: 'Back to the start', home: true },
   { label: 'Find Apartments', hint: 'Explore apartment communities with RentReady Finder', href: FINDER_URL },
   { label: 'Before They Say No™', hint: 'Get the book', section: 'get' },
   { label: 'How It Works', hint: 'See, identify, prepare, apply', section: 'how' },
+  { label: 'RentReady Premium', hint: 'Second-chance listings, saved searches and alerts', href: '/premium' },
+  { label: 'My Account', hint: 'Membership, saved apartments and purchases', href: '/account' },
   { label: 'Contact', hint: SITE.supportEmail, href: `mailto:${SITE.supportEmail}` },
 ];
 

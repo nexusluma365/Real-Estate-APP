@@ -20,6 +20,16 @@ import * as unsubscribe from '../lib/api/esp/unsubscribe';
 import * as metrics from '../lib/api/admin/metrics';
 import * as adminOrders from '../lib/api/admin/orders';
 import * as adminHealth from '../lib/api/admin/health';
+import * as adminDownloadTest from '../lib/api/admin/download-test';
+import * as adminListings from '../lib/api/admin/listings';
+import * as adminPremiumSetup from '../lib/api/admin/premium-setup';
+import * as adminPremiumMetrics from '../lib/api/admin/premium-metrics';
+import * as premiumCheckout from '../lib/api/premium/checkout';
+import * as premiumReturn from '../lib/api/premium/return';
+import * as premiumPortal from '../lib/api/premium/portal';
+import * as listings from '../lib/api/listings/index';
+import * as listingDetail from '../lib/api/listings/detail';
+import * as member from '../lib/api/member';
 
 type Handler = (ctx: Ctx) => Promise<Response> | Response;
 type Module = { onRequestGet?: Handler; onRequestPost?: Handler; onRequestPut?: Handler };
@@ -45,6 +55,16 @@ const ROUTES: Record<string, Module> = {
   '/api/admin/metrics': metrics,
   '/api/admin/orders': adminOrders,
   '/api/admin/health': adminHealth,
+  '/api/admin/download-test': adminDownloadTest,
+  '/api/admin/listings': adminListings,
+  '/api/admin/premium-setup': adminPremiumSetup,
+  '/api/admin/premium-metrics': adminPremiumMetrics,
+  '/api/premium/checkout': premiumCheckout,
+  '/api/premium/return': premiumReturn,
+  '/api/premium/portal': premiumPortal,
+  '/api/listings': listings,
+  '/api/listings/detail': listingDetail,
+  '/api/member': member,
 };
 
 /** Server-to-server routes authenticate with a signature or bearer token instead of an Origin header. */

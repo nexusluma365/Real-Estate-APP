@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-10-29 (rev. 9) — RentReady 2.0: Premium membership, sourced listings, member accounts
+- **RentReady Premium** — $5 first month, then $19.99/month until canceled (Stripe Billing, Stripe-hosted checkout with the
+  terms on the pay button). Server-side status from webhooks + the checkout return; access policy: active → access;
+  failed renewal → 7-day grace while Stripe retries; canceled → access to the end of the paid period. Stripe customer
+  portal for card updates, invoices and self-serve cancellation. One-time catalog setup: `POST /api/admin/premium-setup`.
+- **Listings** (`rr_listings`): admin-added, sourced records classified standard / verified second-chance / criteria
+  unknown / unavailable. Verified second-chance requires a source URL, a verification date and the quoted policy.
+  Free visitors see a locked “Second-Chance Apartment” card (rent, city, beds/baths only — the server never sends the
+  rest); members see everything. Google Places results are never labelled second-chance.
+- **Finder**: RentReady listings under every city search, Unlock Access → offer (price, renewal, cancel, no-guarantee),
+  checkout returns to the same search (`?q=`), heart-to-save, save search & alerts, `/finder/listing/:id`, recently viewed.
+- **Main site**: hero CTAs “Find Apartments” + “Get the Book”; `/premium` (offer + plain-English terms); `/account`
+  dashboard (membership & billing, saved apartments, saved searches with new-listing counts and alert toggles, recently
+  viewed, purchases, preparation tools); menu gains Premium and My Account; sitemap/robots updated.
+- **Emails**: membership welcome, renewal receipt, failed payment (Stripe hosted payment link), cancellation confirmed
+  (with access end date), membership ended, and daily de-duplicated new-listing alerts (`listing-alerts` scheduled function).
+- **Admin**: Premium panel (members, intro month, MRR, past due, joins/ends, revenue, renewal success, unlock → join funnel),
+  listings manager with re-verification reminders.
+- Migration: `supabase/migrations/20261029120000_rentready_premium.sql` (RLS on, no anon access).
+
+## 2026-10-29 (rev. 8) — 1-minute download links
+- Every product download link now expires 60 seconds after it is created (was 5 minutes). Buyers keep their purchase:
+  each Download click on /welcome, the purchase confirmation page or /access creates a fresh 1-minute link. A download
+  that starts within the minute finishes even on a slow connection. Pages note "each download link works for 1 minute".
+- Receipts no longer carry 30-day file links; they have an "Open my downloads" button to /access. Links from older
+  receipts go to /access to sign in.
+- New `GET /api/admin/download-test` (admin token): a fresh 1-minute link to the Bundle ZIP for checking the real file.
+- Checkout restores an expired session from the saved email instead of showing "Your session expired".
+
 ## 2026-10-29 (rev. 7) — RentReady Finder redesign
 - New layout after the premium property reference: full-bleed dusk hero with a big bold headline and pill buttons;
   a floating search card over the hero edge (pill search field, Use My Location, Search Now, and five quick-filter

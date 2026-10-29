@@ -128,7 +128,7 @@ function SignIn() {
           <h1 style={{ fontSize: 'var(--step-4)' }}>Find your RentReady access.</h1>
           <p className="muted" style={{ marginTop: 12 }}>Enter the email you used at checkout. We’ll send a secure link that opens your access on this device.</p>
           {/[?&]link=(expired|invalid)/.test(window.location.search) && (
-            <div style={{ marginTop: 16 }}><Alert kind="info">That sign-in link has expired or was already used. Request a new one below.</Alert></div>
+            <div style={{ marginTop: 16 }}><Alert kind="info">That link has expired or was already used. Request a new sign-in link below.</Alert></div>
           )}
           <DownloadNotice />
           {state === 'sent' ? (

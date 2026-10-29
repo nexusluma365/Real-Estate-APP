@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { SmartImage } from '../ui/SmartImage';
 import { PolicyBadge } from './PolicyBadge';
+import { SaveButton } from './SaveButton';
 import { PhoneIcon, RouteIcon, ArrowRightIcon } from '../ui/Icons';
 import { directionsUrl, photoUrl, telHref } from '../../services/api';
 import type { Property } from '../../types/property';
@@ -24,6 +25,7 @@ export function PropertyCard({ p }: { p: Property }) {
           imgClassName="transition-transform duration-[1200ms] ease-lux group-hover:scale-[1.06]"
         />
       </Link>
+      <SaveButton refId={`place:${p.placeId}`} label={p.name} detail={p.formattedAddress} className="absolute right-3 top-3 z-10" />
       {photo?.attributions[0] ? (
         <p className="px-5 pt-2 text-[10.5px] text-stone-500">
           Photo:{' '}

@@ -13,6 +13,8 @@ import { detectAbandonedCheckouts } from '../netlify/lib/jobs/abandoned';
 import { hmacHex, type Env } from '../netlify/lib/_lib';
 import { r2FileStore } from '../netlify/lib/platform';
 import { DIGITAL_KIT_FILE_KEY } from '../src/config/resources';
+import { sendListingAlerts } from '../netlify/lib/jobs/alerts';
+import { accessFrom } from '../netlify/lib/premium';
 
 const ORIGIN = 'https://rentready.test';
 const client = createClient({ url: 'file::memory:' });
@@ -42,6 +44,8 @@ const env: Env = {
 
 // ---- simulated Stripe (stateful) + ESP
 const pis = new Map<string, Record<string, unknown>>();
+const checkoutSessions = new Map<string, { id: string; params: Record<string, string>; status: string; customer?: string; email?: string }>();
+const portalCalls: Record<string, string>[] = [];
 let piSeq = 0;
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,6 +75,22 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   }
   const m = /^payment_intents\/(pi_\w+)$/.exec(path);
   if (m) return j(pis.get(m[1]));
+  // ---- Premium (Stripe Billing)
+  if (path === 'prices') return j({ data: [{ id: 'price_premium', unit_amount: 1999, recurring: { interval: 'month' } }] });
+  if (path === 'checkout/sessions' && init?.method === 'POST') {
+    const id = `cs_test_${++piSeq}`;
+    checkoutSessions.set(id, { id, params: Object.fromEntries(form), status: 'open' });
+    return j({ id, url: `https://checkout.stripe.test/${id}` });
+  }
+  const csm = /^checkout\/sessions\/(cs_\w+)$/.exec(path);
+  if (csm) {
+    const cs = checkoutSessions.get(csm[1])!;
+    return j({ id: cs.id, mode: 'subscription', status: cs.status, customer: cs.customer || 'cus_member_1',
+      customer_details: { email: cs.email || 'member@example.com', name: 'Riley Member' }, metadata: { lead_id: cs.params['metadata[lead_id]'] },
+      subscription: { id: 'sub_1', customer: cs.customer || 'cus_member_1', status: 'active', cancel_at_period_end: false, canceled_at: null, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] } } });
+  }
+  if (path === 'billing_portal/configurations') return j({ data: [{ id: 'bpc_1', metadata: { rentready: 'premium' } }] });
+  if (path === 'billing_portal/sessions') { portalCalls.push(Object.fromEntries(form)); return j({ url: 'https://billing.stripe.test/p/session' }); }
   throw new Error(`unexpected Stripe call ${path}`);
 }) as typeof fetch;
 
@@ -105,7 +125,7 @@ before(async () => {
   }
 });
 
-test('R2 file store signs private, attachment-only URLs that expire after five minutes', async () => {
+test('R2 file store signs private, attachment-only URLs that expire after 1 minute', async () => {
   const accountId = 'a'.repeat(32);
   const store = r2FileStore(accountId, 'test-access-key', 'test-secret-key', 'rentready-private');
   const signedUrl = await store.createDownloadUrl(toolkitKey);
@@ -113,7 +133,7 @@ test('R2 file store signs private, attachment-only URLs that expire after five m
   const url = new URL(signedUrl);
   assert.equal(url.hostname, `${accountId}.r2.cloudflarestorage.com`);
   assert.equal(decodeURIComponent(url.pathname), `/rentready-private/${toolkitKey}`);
-  assert.equal(url.searchParams.get('X-Amz-Expires'), '300');
+  assert.equal(url.searchParams.get('X-Amz-Expires'), '60');
   assert.ok(url.searchParams.has('X-Amz-Signature'));
   assert.equal(url.searchParams.get('response-content-disposition'), 'attachment; filename="CREDIT REPAIR TOOLKIT™.zip"');
 });
@@ -195,21 +215,17 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.deepEqual((await call('GET', '/api/entitlements')).data.products.sort(), ['creditready', 'guide']);
   assert.equal(espCalls.filter((c) => c.event === 'purchase_completed').length, 1, 'one purchase email trigger');
 
-  // receipt: sent once to the buyer, with a working download link that needs no browser session
+  // receipt: sent once to the buyer; it sends them to the access page (file links expire after 1 minute, so none are emailed)
   const receipts = emails.filter((e) => e.subject.includes('receipt'));
   assert.equal(receipts.length, 1, 'one receipt email');
   assert.equal(receipts[0].to, 'jordan@example.com');
   assert.match(receipts[0].text, /\$32\.00/);
-  const link = /(https:\/\/rentready\.test\/api\/files\?t=[\w.-]+)/.exec(receipts[0].text)?.[1];
-  assert.ok(link, 'receipt has a download link');
-  const saved = cookie;
-  cookie = '';
-  const fromEmail = await call('GET', link!.slice(ORIGIN.length));
-  assert.equal(fromEmail.status, 302);
-  assert.match(fromEmail.res.headers.get('Location') || '', /^https:\/\/downloads\.test\//, 'emailed link downloads without signing in');
-  const forged = await call('GET', link!.slice(ORIGIN.length).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')));
-  assert.match(forged.res.headers.get('Location') || '', /\/access\?link=expired$/, 'tampered link refused');
-  cookie = saved;
+  assert.match(receipts[0].text, /https:\/\/rentready\.test\/access/, 'receipt links to the access page');
+  assert.match(receipts[0].text, /1 minute/);
+  assert.doesNotMatch(receipts[0].text + receipts[0].html, /\/api\/files/, 'no direct file links in email');
+  // a link from an older receipt no longer downloads: it goes to sign-in
+  const old = await call('GET', '/api/files?t=anything.sig', undefined, { Accept: 'text/html' });
+  assert.match(old.res.headers.get('Location') || '', /\/access\?link=expired$/);
 
   // files: authorized downloads redirect to a short-lived URL; video redirects to its private URL
   const letters = await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`);
@@ -234,8 +250,7 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   const after = (await call('GET', '/api/entitlements')).data.products;
   assert.ok(!after.includes('creditready') && after.includes('guide'));
   assert.equal(espCalls.filter((c) => c.event === 'refund_processed').length, 1);
-  const deadLink = /(\/api\/files\?t=[\w.-]+)/.exec(receipts[0].text)![1];
-  assert.equal((await call('GET', deadLink)).status, 403, 'refund revokes the emailed link too');
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403, 'refund revokes downloads');
 });
 
 test('webhook rejects a bad signature', async () => {
@@ -302,3 +317,165 @@ test('a browser download without access lands on the access page with a plain-En
   assert.equal(res.status, 302);
   assert.equal(res.headers.get('Location'), `${ORIGIN}/access?download=signin`);
 });
+
+test('admin download test: token required, returns a fresh 1-minute toolkit link', async () => {
+  assert.equal((await route(new Request(ORIGIN + '/api/admin/download-test'), env)).status, 401);
+  const res = await route(new Request(ORIGIN + '/api/admin/download-test', { headers: { Authorization: `Bearer ${env.ADMIN_TOKEN}` } }), env);
+  const d = (await res.json()) as { key: string; expires_in_seconds: number; url: string };
+  assert.equal(res.status, 200);
+  assert.equal(d.key, toolkitKey);
+  assert.equal(d.expires_in_seconds, 60);
+  assert.match(d.url, /^https:\/\/downloads\.test\//);
+});
+
+// ------------------------------------------------------------------ RentReady Premium
+const admin = (method: string, path: string, data?: unknown) => route(new Request(ORIGIN + path, {
+  method, headers: { Origin: ORIGIN, Authorization: `Bearer ${env.ADMIN_TOKEN}`, 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined,
+}), env);
+const subEvent = (type: string, sub: Record<string, unknown>) => webhook({ id: `evt_${type}_${Math.random()}`, type, data: { object: { id: 'sub_1', customer: 'cus_member_1', cancel_at_period_end: false, canceled_at: null, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] }, ...sub } } });
+
+test('premium access policy: active, grace after a failed renewal, then none', () => {
+  const now = Date.parse('2026-11-10T00:00:00Z');
+  assert.equal(accessFrom({ status: 'active', current_period_end: '2026-11-01T00:00:00Z' }, now).active, true);
+  assert.equal(accessFrom({ status: 'past_due', current_period_end: '2026-11-05T00:00:00Z' }, now).active, true, 'within 7-day grace');
+  assert.equal(accessFrom({ status: 'past_due', current_period_end: '2026-11-01T00:00:00Z' }, now).active, false, 'grace over');
+  for (const st of ['canceled', 'unpaid', 'incomplete', 'incomplete_expired']) assert.equal(accessFrom({ status: st, current_period_end: '2026-12-01T00:00:00Z' }, now).active, false, st);
+});
+
+test('admin listings: verified second-chance needs a source, date and screening note', async () => {
+  assert.equal((await admin('POST', '/api/admin/listings', { classification: 'verified_second_chance', name: 'Elm Court', city: 'Charlotte', state: 'NC', source_name: 'Elm Court website', source_url: 'https://elm.example/criteria' })).status, 422);
+  assert.equal((await admin('POST', '/api/admin/listings', { classification: 'standard', name: 'No Source', city: 'Charlotte', state: 'NC' })).status, 422);
+  const ok = await admin('POST', '/api/admin/listings', {
+    listing_id: 'lst_elm', classification: 'verified_second_chance', name: 'Elm Court', address: '12 Elm St', city: 'Charlotte', state: 'NC', rent_cents: 145000, beds: 2, baths: 1,
+    phone: '704-555-0100', screening_note: 'Criteria page: “prior evictions older than 3 years considered case by case.”', source_name: 'Elm Court leasing criteria',
+    source_url: 'https://elm.example/criteria', verified_at: '2026-10-28', photo_url: 'https://elm.example/photo.jpg',
+  });
+  assert.equal(ok.status, 200);
+  assert.equal((await admin('POST', '/api/admin/listings', { listing_id: 'lst_oak', classification: 'standard', name: 'Oak Flats', city: 'Charlotte', state: 'NC', rent_cents: 132500, beds: 1, source_name: 'Oak Flats site', source_url: 'https://oak.example' })).status, 200);
+  assert.equal((await admin('POST', '/api/admin/listings', { listing_id: 'lst_gone', classification: 'unavailable', name: 'Gone Place', city: 'Charlotte', state: 'NC', source_name: 'x', source_url: 'https://gone.example' })).status, 200);
+  assert.equal((await route(new Request(ORIGIN + '/api/admin/listings'), env)).status, 401);
+});
+
+test('premium: locked listings, $5 checkout, activation, unlocked details, saving, alerts, renewal, failure, cancel', async () => {
+  cookie = '';
+  // Free visitor: verified listing is locked server-side (no name, address, phone, photo, source); unavailable hidden.
+  const free = await call('GET', '/api/listings?place=Charlotte, NC, USA');
+  assert.equal(free.status, 200);
+  assert.equal(free.data.premium, false);
+  assert.deepEqual(free.data.listings.map((l: any) => l.listing_id), ['lst_elm', 'lst_oak']);
+  const locked = free.data.listings[0];
+  assert.equal(locked.locked, true);
+  assert.equal(locked.rent_cents, 145000);
+  for (const k of ['name', 'address', 'phone', 'photo_url', 'source_url', 'screening_note', 'website']) assert.ok(!(k in locked), `locked listing hides ${k}`);
+  assert.doesNotMatch(JSON.stringify(free.data), /Elm Court|704-555|elm\.example/, 'no premium data anywhere in the response');
+  assert.equal(free.data.listings[1].name, 'Oak Flats', 'standard listings are public');
+  assert.equal((await call('GET', '/api/listings/detail?id=lst_elm')).data.listing.locked, true);
+  assert.equal((await call('POST', '/api/member', { action: 'save', ref: 'listing:lst_oak', label: 'Oak' })).status, 401);
+
+  // Checkout: hosted subscription, $5 intro via once-only coupon, terms in the submit text, safe return path.
+  const co = await call('POST', '/api/premium/checkout', { return_to: '/finder/?q=Charlotte%2C%20NC' });
+  assert.equal(co.status, 200);
+  assert.equal(co.data.intro, true);
+  const cs = checkoutSessions.get(co.data.url.split('/').pop())!;
+  assert.equal(cs.params.mode, 'subscription');
+  assert.equal(cs.params['line_items[0][price]'], 'price_premium');
+  assert.equal(cs.params['discounts[0][coupon]'], 'rentready_premium_intro');
+  assert.match(cs.params['custom_text[submit][message]'], /\$5\.00 today.*\$19\.99 every month until you cancel/);
+  assert.match(cs.params.success_url, /\/api\/premium\/return\?session_id=\{CHECKOUT_SESSION_ID\}&to=%2Ffinder%2F%3Fq%3DCharlotte/);
+  const evil = await call('POST', '/api/premium/checkout', { return_to: '//evil.example/steal' });
+  assert.match(checkoutSessions.get(evil.data.url.split('/').pop())!.params.success_url, /to=%2Ffinder%2F$/, 'open redirect refused');
+
+  // Return before payment completes → no access.
+  const pending = await call('GET', `/api/premium/return?session_id=${cs.id}&to=%2Ffinder%2F`);
+  assert.match(pending.res.headers.get('Location') || '', /premium=pending$/);
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, false);
+
+  // Paid: return confirms with Stripe, activates, signs in, and goes back to the same search.
+  cs.status = 'complete';
+  const ret = await call('GET', `/api/premium/return?session_id=${cs.id}&to=${encodeURIComponent('/finder/?q=Charlotte%2C%20NC')}`);
+  assert.equal(ret.status, 302);
+  assert.equal(ret.res.headers.get('Location'), `${ORIGIN}/finder/?q=Charlotte%2C%20NC&premium=active`);
+  const ent = (await call('GET', '/api/entitlements')).data;
+  assert.equal(ent.premium.active, true);
+  const welcome = emails.filter((e) => e.subject === 'Welcome to RentReady Premium');
+  assert.equal(welcome.length, 1);
+  assert.match(welcome[0].text, /\$19\.99 per month until you cancel/);
+  // The webhook for the same checkout is idempotent: no second welcome email.
+  await webhook({ id: 'evt_cs_done', type: 'checkout.session.completed', data: { object: { id: cs.id, mode: 'subscription' } } });
+  assert.equal(emails.filter((e) => e.subject === 'Welcome to RentReady Premium').length, 1);
+  assert.equal((await call('POST', '/api/premium/checkout', {})).status, 409, 'no double membership');
+
+  // Member: full details unlocked, saving and searches work.
+  const paid = await call('GET', '/api/listings?city=charlotte&state=nc');
+  assert.equal(paid.data.listings[0].locked, false);
+  assert.equal(paid.data.listings[0].name, 'Elm Court');
+  assert.equal(paid.data.listings[0].phone, '704-555-0100');
+  assert.equal((await call('POST', '/api/member', { action: 'save', ref: 'listing:lst_elm', label: 'Elm Court', detail: '12 Elm St' })).status, 200);
+  assert.equal((await call('POST', '/api/member', { action: 'viewed', ref: 'place:ChIJabc123', label: 'Some Place' })).status, 200);
+  assert.equal((await call('POST', '/api/member', { action: 'save', ref: 'javascript:alert(1)', label: 'x' })).status, 400);
+  const saved = await call('POST', '/api/member', { action: 'save_search', place: 'Charlotte, NC' });
+  assert.equal(saved.status, 200);
+  assert.equal((await call('POST', '/api/member', { action: 'save_search', place: 'Charlotte, NC' })).data.existing, true, 'no duplicate searches');
+  const dash = (await call('GET', '/api/member')).data;
+  assert.equal(dash.email, 'member@example.com');
+  assert.deepEqual(dash.saved.map((x: any) => x.ref), ['listing:lst_elm']);
+  assert.equal(dash.recent[0].ref, 'place:ChIJabc123');
+  assert.equal(dash.searches[0].label, 'Charlotte, NC');
+
+  // Alerts: a new listing is announced once; unavailable or already-sent listings never are.
+  await new Promise((r) => setTimeout(r, 5));
+  await admin('POST', '/api/admin/listings', { listing_id: 'lst_new', classification: 'verified_second_chance', name: 'Pine Row', city: 'Charlotte', state: 'NC', rent_cents: 120000, beds: 1, screening_note: 'Second-chance program on site.', source_name: 'Pine Row', source_url: 'https://pine.example', verified_at: '2026-10-29' });
+  await admin('POST', '/api/admin/listings', { listing_id: 'lst_new_gone', classification: 'unavailable', name: 'Gone Two', city: 'Charlotte', state: 'NC', source_name: 'x', source_url: 'https://x.example' });
+  assert.equal((await sendListingAlerts(env)).alerts_sent, 1);
+  const alert = emails.filter((e) => e.subject === 'New apartments in Charlotte, NC');
+  assert.equal(alert.length, 1);
+  assert.match(alert[0].text, /Second-chance apartment · \$1,200\/mo · 1 bed/);
+  assert.doesNotMatch(alert[0].text, /Gone Two|Pine Row/, 'no unavailable listings; names stay on the site');
+  assert.equal((await sendListingAlerts(env)).alerts_sent, 0, 'deduplicated');
+  assert.equal((await call('GET', '/api/member')).data.searches[0].new_count, 1);
+
+  // Renewal at $19.99, then a failed payment (grace), then cancellation at period end, then the end.
+  await webhook({ id: 'evt_inv_paid', type: 'invoice.paid', data: { object: { id: 'in_2', customer: 'cus_member_1', amount_paid: 1999, amount_due: 1999, billing_reason: 'subscription_cycle', parent: { subscription_details: { subscription: 'sub_1' } } } } });
+  assert.equal(emails.filter((e) => e.subject === 'Your RentReady Premium receipt').length, 1);
+  await webhook({ id: 'evt_inv_fail', type: 'invoice.payment_failed', data: { object: { id: 'in_3', customer: 'cus_member_1', amount_paid: 0, amount_due: 1999, billing_reason: 'subscription_cycle', subscription: 'sub_1', hosted_invoice_url: 'https://invoice.stripe.test/in_3', attempt_count: 1, next_payment_attempt: Math.floor(Date.now() / 1000) + 3 * 86400 } } });
+  const failMail = emails.filter((e) => e.subject.startsWith('Action needed'));
+  assert.equal(failMail.length, 1);
+  assert.match(failMail[0].html, /https:\/\/invoice\.stripe\.test\/in_3/, 'secure Stripe link to update payment');
+  await subEvent('customer.subscription.updated', { status: 'past_due', items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) - 86400 }] } });
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, true, 'grace period');
+  await subEvent('customer.subscription.updated', { status: 'active', cancel_at_period_end: true });
+  assert.equal(emails.filter((e) => e.subject === 'Your RentReady Premium cancellation is confirmed').length, 1);
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, true, 'access until the paid period ends');
+  const portal = await call('POST', '/api/premium/portal', { return_to: '/account' });
+  assert.equal(portal.data.url, 'https://billing.stripe.test/p/session');
+  assert.equal(portalCalls[0].customer, 'cus_member_1');
+  assert.equal(portalCalls[0].configuration, 'bpc_1');
+  await subEvent('customer.subscription.deleted', { status: 'canceled', canceled_at: Math.floor(Date.now() / 1000) });
+  assert.equal(emails.filter((e) => e.subject === 'Your RentReady Premium membership has ended').length, 1);
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, false);
+  assert.equal((await call('GET', '/api/listings?place=Charlotte, NC')).data.listings[0].locked, true, 'details lock again');
+  assert.equal((await call('POST', '/api/member', { action: 'save', ref: 'listing:lst_oak', label: 'Oak' })).data.code, 'premium_required');
+  assert.equal((await call('GET', '/api/member')).data.saved.length, 1, 'saved data kept after the membership ends');
+
+  // Coming back: no second intro price.
+  const again = await call('POST', '/api/premium/checkout', { return_to: '/account' });
+  assert.equal(again.data.intro, false);
+  assert.ok(!('discounts[0][coupon]' in checkoutSessions.get(again.data.url.split('/').pop())!.params));
+});
+
+test('without the Premium tables (migration not applied), buyers still get their products and the Finder still loads', async () => {
+  const broken: SqlDatabase = {
+    prepare(q: string) {
+      if (/rr_subscriptions|rr_listings/.test(q)) return { bind: () => ({ first: () => Promise.reject(new Error('relation does not exist')), all: () => Promise.reject(new Error('relation does not exist')), run: () => Promise.reject(new Error('relation does not exist')) }) };
+      return env.DB!.prepare(q);
+    },
+  };
+  const e2 = { ...env, DB: broken };
+  const res = await route(new Request(ORIGIN + '/api/entitlements', { headers: { Cookie: cookie } }), e2);
+  assert.equal(res.status, 200);
+  assert.equal(((await res.json()) as any).premium.active, false);
+  const l = await route(new Request(ORIGIN + '/api/listings?place=Charlotte, NC'), e2);
+  assert.equal(l.status, 200);
+  assert.deepEqual(((await l.json()) as any).listings, []);
+});
+

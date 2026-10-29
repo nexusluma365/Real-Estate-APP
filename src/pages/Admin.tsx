@@ -1,3 +1,4 @@
+import { ListingsPanel, PremiumPanel } from '../components/AdminPremium';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Layout } from '../components/Layout';
 import { Seo } from '../components/Seo';
@@ -216,7 +217,9 @@ export default function Admin() {
                 </table>
               </section>
 
+              {d.source === 'live' && <PremiumPanel token={token} days={d.days} />}
               {d.source === 'live' && <ShippingPanel token={token} />}
+              {d.source === 'live' && <ListingsPanel token={token} />}
 
               <section className="panel">
                 <h2>Unit economics</h2>

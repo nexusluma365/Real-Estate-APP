@@ -53,6 +53,9 @@ export function postgresDatabase(client: Sql): SqlDatabase {
   };
 }
 
+/** Signed download URLs live for 1 minute; every Download click asks /api/files for a fresh one. */
+export const DOWNLOAD_URL_SECONDS = 60;
+
 /** Creates short-lived, attachment-only URLs for objects in a private Cloudflare R2 bucket. */
 export function r2FileStore(accountId: string, accessKeyId: string, secretAccessKey: string, bucket: string): FileStore {
   const client = new S3Client({
@@ -69,7 +72,7 @@ export function r2FileStore(accountId: string, accessKeyId: string, secretAccess
         Key: key,
         ResponseContentDisposition: `attachment; filename="${filename}"`,
         ResponseCacheControl: 'private, no-store',
-      }), { expiresIn: 300 });
+      }), { expiresIn: DOWNLOAD_URL_SECONDS });
     },
     async exists(key: string) {
       try {
