@@ -23,7 +23,14 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
   const listings = (await DB.prepare('SELECT classification AS k, COUNT(*) AS n FROM rr_listings GROUP BY classification').bind().all<{ k: string; n: number }>()).results;
   const stale = (await DB.prepare("SELECT COUNT(*) AS n FROM rr_listings WHERE classification = 'verified_second_chance' AND (verified_at IS NULL OR verified_at < ?)")
     .bind(new Date(Date.now() - 30 * 86400000).toISOString()).first<{ n: number }>())?.n ?? 0;
-  const [searches, unlockClicks, offerViews, checkoutStarts] = await Promise.all([ev('finder_search'), ev('premium_unlock_click'), ev('membership_offer_view'), ev('membership_checkout_started')]);
+  const [opened, located, searches, lockedViews, unlockClicks, offerViews, checkoutStarts, unlockedViews] = await Promise.all([
+    ev('finder_opened'), ev('finder_location_set'), ev('finder_search'), ev('locked_listing_view'), ev('premium_unlock_click'),
+    ev('membership_offer_view'), ev('membership_checkout_started'), ev('premium_listing_unlocked')]);
+  const coverage = (await DB.prepare(
+    "SELECT city || ', ' || state AS k, COUNT(*) AS n, SUM(CASE WHEN classification = 'verified_second_chance' THEN 1 ELSE 0 END) AS verified FROM rr_listings WHERE classification <> 'unavailable' GROUP BY city, state ORDER BY n DESC LIMIT 30",
+  ).bind().all<{ k: string; n: number; verified: number }>()).results;
+  const saved = await DB.prepare('SELECT COUNT(*) AS n, SUM(alerts) AS alerts, COUNT(DISTINCT customer_id) AS members FROM rr_saved_searches').bind().first<{ n: number; alerts: number | null; members: number }>();
+  const renewedOnce = subs.filter((s) => paidCycles(s.subscription_id) >= 1).length;
   const started = inWindow(subs).length;
   return json({
     days,
@@ -43,7 +50,12 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
       renewals_failed: renewalsFailed,
       renewal_success_rate: renewalsPaid + renewalsFailed ? renewalsPaid / (renewalsPaid + renewalsFailed) : null,
     },
-    funnel: { finder_searches: searches, unlock_clicks: unlockClicks, offer_views: offerViews, checkout_starts: checkoutStarts, joins: started },
-    listings: { by_classification: listings, needs_reverification: stale },
+    funnel: {
+      finder_opened: opened, location_set: located, finder_searches: searches, locked_listing_views: lockedViews, unlock_clicks: unlockClicks,
+      offer_views: offerViews, checkout_starts: checkoutStarts, joins: started, premium_listings_unlocked: unlockedViews,
+      reached_first_renewal: renewedOnce,
+    },
+    listings: { by_classification: listings, needs_reverification: stale, coverage },
+    saved_searches: { total: saved?.n ?? 0, with_alerts: Number(saved?.alerts ?? 0), members: saved?.members ?? 0 },
   });
 };

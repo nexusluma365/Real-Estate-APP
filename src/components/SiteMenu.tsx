@@ -1,23 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { SITE } from '../config/site';
+import { useFunnel } from '../state/FunnelContext';
+import { memberState, openBillingPortal, signOut, type MemberState } from '../lib/memberService';
 
 /** RentReady Finder is a separate app served by the same domain at /finder/ (see netlify.toml), so it's a full page load. */
 export const FINDER_URL = '/finder/';
 
-type Item = { label: string; hint: string } & ({ section: string } | { href: string } | { home: true });
+type Item = { label: string; hint: string } & ({ section: string } | { href: string } | { home: true } | { action: 'signout' | 'billing' });
 
-// Every entry points at something that exists on the site: a Landing section id, the Finder app, a page, or the support inbox.
-const ITEMS: Item[] = [
-  { label: 'Home', hint: 'Back to the start', home: true },
-  { label: 'Find Apartments', hint: 'Explore apartment communities with RentReady Finder', href: FINDER_URL },
-  { label: 'Before They Say No™', hint: 'Get the book', section: 'get' },
-  { label: 'How It Works', hint: 'See, identify, prepare, apply', section: 'how' },
-  { label: 'RentReady Premium', hint: 'Second-chance listings, saved searches and alerts', href: '/premium' },
-  { label: 'My Account', hint: 'Membership, saved apartments and purchases', href: '/account' },
-  { label: 'Contact', hint: SITE.supportEmail, href: `mailto:${SITE.supportEmail}` },
-];
+/**
+ * Menu by membership state (server-decided, see memberState): guests get Second-Chance + Sign In; members get My Account +
+ * Sign Out; members with a failed payment also get Update Payment. The free Finder is always there.
+ */
+function menuItems(state: MemberState): Item[] {
+  const base: Item[] = [
+    { label: 'Home', hint: 'Back to the start', home: true },
+    { label: 'RentReady Finder', hint: 'Search apartments near you', href: FINDER_URL },
+    { label: 'Get the Book', hint: 'Before They Say No™ — the rental approval playbook', section: 'get' },
+  ];
+  const account: Item = { label: 'My Account', hint: state === 'active' ? 'Premium · Active' : state === 'past_due' ? 'Premium · Payment due' : 'Saved apartments, purchases and membership', href: '/account' };
+  const signOut: Item = { label: 'Sign Out', hint: 'Sign out on this device', action: 'signout' };
+  // Members go straight to second-chance listings; others see them locked, with the sign-up / sign-in offer.
+  const secondChance: Item = { label: 'Find Second-Chance Apartments', hint: state === 'active' ? 'Verified second-chance listings' : 'Sign up or sign in to see full details', href: `${FINDER_URL}?mode=second-chance` };
+  if (state === 'guest') return [...base, secondChance, { label: 'Sign In', hint: 'We’ll email you a secure link', href: '/account' }];
+  if (state === 'active') return [...base, secondChance, account, signOut];
+  if (state === 'past_due') return [...base, account, { label: 'Update Payment', hint: 'Securely update your card with Stripe', action: 'billing' }, signOut];
+  if (state === 'lapsed') return [...base, account, { label: 'Reactivate Premium', hint: '$19.99/month · cancel any time', href: '/premium' }, signOut];
+  return [...base, secondChance, account, signOut];
+}
 
 /**
  * Header menu (three-line toggle, top right) with a panel that slides in from the right beneath the header.
@@ -30,6 +41,8 @@ export function SiteMenu() {
   const panelRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { entitlements, refreshEntitlements } = useFunnel();
+  const items = menuItems(memberState(entitlements));
 
   // Any route change (including the header's own links) closes the menu.
   useEffect(() => setOpen(false), [pathname]);
@@ -63,9 +76,16 @@ export function SiteMenu() {
     };
   }, [open]);
 
-  const go = (item: Item) => {
+  const go = async (item: Item) => {
     setOpen(false);
-    if ('home' in item) {
+    if ('action' in item) {
+      if (item.action === 'billing') await openBillingPortal('/account').catch(() => navigate('/account'));
+      else {
+        await signOut();
+        await refreshEntitlements();
+        navigate('/');
+      }
+    } else if ('home' in item) {
       if (pathname === '/') window.scrollTo({ top: 0 });
       else navigate('/');
     } else if ('section' in item) {
@@ -97,7 +117,7 @@ export function SiteMenu() {
           <div className="rr-menu-scrim" onClick={() => setOpen(false)} aria-hidden="true" />
           <nav ref={panelRef} id="rr-menu" className="rr-menu-panel" aria-label="Site menu" aria-hidden={!open}>
             <ul>
-              {ITEMS.map((item, i) => (
+              {items.map((item, i) => (
                 <li key={item.label} style={{ ['--i' as string]: i }}>
                   {'href' in item ? (
                     <a className="rr-menu-link" href={item.href} tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}>
@@ -110,7 +130,7 @@ export function SiteMenu() {
                       className="rr-menu-link"
                       tabIndex={open ? 0 : -1}
                       aria-current={'home' in item && pathname === '/' ? 'page' : undefined}
-                      onClick={() => go(item)}
+                      onClick={() => void go(item)}
                     >
                       <span className="rr-menu-label">{item.label}</span>
                       <span className="rr-menu-hint">{item.hint}</span>

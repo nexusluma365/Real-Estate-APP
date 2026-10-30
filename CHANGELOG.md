@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-29 (rev. 10) — Finder conversion: local discovery, sign-in states, unlock-to-listing
+- Menu by membership state (server-decided): guest → Premium Membership + Sign In; member → My Account (Premium
+  indicator) + Sign Out; payment failed → + Update Payment (Stripe portal); lapsed → + Reactivate. Free Finder always.
+- Sign in: email link from /account (also from the offer's "Already a member? Sign in"), now for Premium-only members
+  too, returning to the exact page (`next`, same-site only). `POST /api/session/logout`.
+- Finder opens near the visitor without surprise prompts: link ?q=/?city= → last search on this device → precise
+  location only if already permitted → approximate area from Netlify IP geo (`GET /api/geo`, labelled approximate).
+  Intro loader skipped for ad/search deep links. Compact hero "Find Apartments That Fit Your Situation."
+- "Apartments Near You": RentReady listings first (verified second-chance on top), server-side rent/bedroom/second-chance
+  filters with an honest "N don't match" count, then Google results. Locked card copy per spec.
+- Offer: "Unlock RentReady Premium", 8 benefits, "Unlock Premium for $5", billing/cancellation/privacy links.
+  Unlocking a card returns to the same search with "Welcome to RentReady Premium!" and "View Apartment Details".
+- Listing page: Contact Property, Save Apartment, View Location, Back to Results; final-decision note.
+- Inactive members: "Premium Access Is Currently Unavailable" with Update Payment or Reactivate Premium (Finder + account).
+- Welcome Back panel: saved apartments, recent searches, real new-listing counts (or "no new"), membership status.
+- Analytics: finder_opened, finder_location_set, locked_listing_view (on screen, once), premium_listing_unlocked,
+  ad attribution (gclid/utm) on every Finder event; admin funnel table, cost per signup, coverage by city, saved searches.
+- /privacy page (factual, from the code — review with counsel). Finder never scrolls sideways at 320px.
+
 ## 2026-10-29 (rev. 9) — RentReady 2.0: Premium membership, sourced listings, member accounts
 - **RentReady Premium** — $5 first month, then $19.99/month until canceled (Stripe Billing, Stripe-hosted checkout with the
   terms on the pay button). Server-side status from webhooks + the checkout return; access policy: active → access;

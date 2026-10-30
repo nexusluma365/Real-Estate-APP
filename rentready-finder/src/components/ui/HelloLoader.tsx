@@ -84,6 +84,8 @@ const SEEN_KEY = 'rr-finder-intro-seen';
 const introTotal = INTRO.reduce((ms, p) => ms + cycleMs(p), 0);
 
 function alreadySeen() {
+  // Arriving on a specific search, a listing, the checkout return or from an ad: go straight to results.
+  if (/[?&](q|city|premium|gclid|utm_source|utm_campaign)=/.test(location.search) || /\/(listing|property)\//.test(location.pathname)) return true;
   try {
     return sessionStorage.getItem(SEEN_KEY) === '1';
   } catch {
@@ -111,9 +113,12 @@ export function IntroLoader() {
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && finish();
     window.addEventListener('keydown', onKey);
+    // The header (and its menu) stays usable above the intro; using it ends the intro (see Navbar).
+    window.addEventListener('rr:skip-intro', finish);
     return () => {
       document.body.style.overflow = overflow;
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('rr:skip-intro', finish);
     };
   }, [show]);
 
@@ -128,7 +133,7 @@ export function IntroLoader() {
           initial={{ opacity: 1 }}
           exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.04, filter: 'blur(8px)' }}
           transition={{ duration: 0.7, ease }}
-          className="hello-stage fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
+          className="hello-stage fixed inset-0 z-[45] flex items-center justify-center overflow-hidden"
         >
           <Aurora />
           <div className="relative">

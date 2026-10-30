@@ -7,7 +7,9 @@ import { FieldLabel, Select, TextInput } from '../ui/Field';
 import { BuildingIcon, HouseIcon, InfoIcon, KeyIcon, LocateIcon, PinIcon, SearchIcon, SlidersIcon } from '../ui/Icons';
 import { SearchLoader } from '../ui/HelloLoader';
 import { RentReadyListings } from './RentReadyListings';
-import { track } from '../../services/member';
+import { getApproximateArea, lastSearch, track, trackOnce } from '../../services/member';
+import { WelcomeBack } from './WelcomeBack';
+import { useMember } from '../../context/MemberContext';
 import { Loader } from '../ui/Loader';
 import { PropertyCard } from '../property/PropertyCard';
 import { useFinder } from '../../context/FinderContext';
@@ -33,6 +35,19 @@ function validateLocation(raw: string): string | null {
 
 export function SearchSection() {
   const { filters, setFilters, secondChanceMode, clearSecondChance } = useFinder();
+  const { premium, loading: memberLoading, openOffer } = useMember();
+
+  // Arriving via "Find Second-Chance Apartments" on the main site: non-members get the sign-up / sign-in offer, once per session.
+  useEffect(() => {
+    if (memberLoading || premium.active || new URLSearchParams(window.location.search).get('mode') !== 'second-chance') return;
+    try {
+      if (sessionStorage.getItem('rr.finder.scOffer')) return;
+      sessionStorage.setItem('rr.finder.scOffer', '1');
+    } catch {
+      /* storage unavailable: show it */
+    }
+    openOffer('See every verified second-chance apartment in full — name, address, contact details and the screening policy its source publishes.', 'second_chance_link');
+  }, [memberLoading, premium.active, openOffer]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<LocationSuggestion | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -42,6 +57,9 @@ export function SearchSection() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   /** The city searched by name: drives RentReady listings and is kept in the URL (?q=) so refresh/checkout return to it. */
   const [place, setPlace] = useState<string | null>(null);
+  /** How the current area was chosen — shown next to it so we never imply a precise location we don't have. */
+  const [areaSource, setAreaSource] = useState<'search' | 'link' | 'saved' | 'approximate' | 'precise' | null>(null);
+  const [locatingArea, setLocatingArea] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -52,13 +70,62 @@ export function SearchSection() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Arriving with ?q= (a shared link, a refresh, or the return from membership checkout) re-runs that search.
+  /**
+   * Start near the visitor, in this order, without ever springing a permission prompt on them:
+   * 1. ?q= / ?city= in the link (ad landing pages, shared links, the return from checkout)
+   * 2. the last city they searched on this device
+   * 3. precise location — only if they already granted it to this site before
+   * 4. an approximate area from their connection, labelled as approximate
+   * Otherwise the search field is ready and "Use My Location" asks only when tapped.
+   */
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get('q')?.trim();
-    if (!q || validateLocation(q)) return;
-    setQuery(q);
-    runSearch(q, { text: q });
-    window.setTimeout(() => document.getElementById('search')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    trackOnce('opened', 'finder_opened');
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'second-chance') setFilters((f) => ({ ...f, secondChance: f.secondChance === 'any' ? 'verified' : f.secondChance }));
+    const linked = (params.get('q') || params.get('city'))?.trim();
+    const start = (q: string, source: NonNullable<typeof areaSource>) => {
+      setQuery(q);
+      setAreaSource(source);
+      setLocatingArea(false);
+      runSearch(q, { text: q });
+      track('finder_location_set', { cta_location: source });
+    };
+    if (linked && !validateLocation(linked)) {
+      start(linked, 'link');
+      return;
+    }
+    const saved = lastSearch.get();
+    if (saved && !validateLocation(saved)) {
+      start(saved, 'saved');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const approx = await getApproximateArea();
+      const granted = await navigator.permissions?.query({ name: 'geolocation' as PermissionName }).then((r) => r.state === 'granted').catch(() => false);
+      if (cancelled) return;
+      if (granted && 'geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (cancelled) return;
+            setLocatingArea(false);
+            setAreaSource('precise');
+            setQuery('Current location');
+            setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            // RentReady listings are organised by city; the approximate city stands in for coordinates.
+            if (approx) setPlace(approx);
+            runSearch('your current location', { coords: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
+            track('finder_location_set', { cta_location: 'precise' });
+          },
+          () => (approx ? start(approx, 'approximate') : setLocatingArea(false)),
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 },
+        );
+      } else if (approx) start(approx, 'approximate');
+      else setLocatingArea(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -67,6 +134,7 @@ export function SearchSection() {
     track('finder_search', { cta_location: q.coords ? 'location' : 'text' });
     if (q.text) {
       setPlace(q.text);
+      lastSearch.set(q.text);
       const url = new URL(window.location.href);
       url.searchParams.set('q', q.text);
       url.searchParams.delete('premium');
@@ -84,12 +152,13 @@ export function SearchSection() {
     // hard client timeout so the loader can never spin indefinitely
     const timeout = window.setTimeout(() => ctrl.abort(), 15000);
     searchProperties(q, filters, ctrl.signal)
-      .then((data) => setStatus({ kind: 'results', data }))
+      // A malformed reply is treated as a failed search, never allowed to break the page.
+      .then((data) => setStatus(Array.isArray(data?.properties) ? { kind: 'results', data: { ...data, unsupportedFilters: data.unsupportedFilters || [] } } : { kind: 'error', message: 'More apartment communities couldn’t load right now. Please try again.' }))
       .catch((e: unknown) => {
         if (e instanceof ServiceNotConnectedError) setStatus({ kind: 'not-connected', label });
         else if (e instanceof DOMException && e.name === 'AbortError') {
           if (abortRef.current === ctrl) setStatus({ kind: 'error', message: 'The search took too long. Please try again.' });
-        } else setStatus({ kind: 'error', message: 'Something went wrong while searching. Please try again.' });
+        } else setStatus({ kind: 'error', message: 'More apartment communities couldn’t load right now. Please try again.' });
       })
       .finally(() => window.clearTimeout(timeout));
   };
@@ -97,6 +166,7 @@ export function SearchSection() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (coords && query === 'Current location') {
+      setAreaSource('precise');
       runSearch('your current location', { coords });
       return;
     }
@@ -106,6 +176,7 @@ export function SearchSection() {
       document.getElementById('location-input')?.focus();
       return;
     }
+    setAreaSource('search');
     runSearch(query.trim(), selected ? { placeId: selected.placeId, text: query.trim() } : { text: query.trim() });
   };
 
@@ -206,7 +277,7 @@ export function SearchSection() {
                 <span className="hidden sm:inline">{locating ? 'Locating…' : 'Use My Location'}</span>
               </Button>
               <Button type="submit" size="lg" className="h-14 flex-1 px-9 lg:flex-none" disabled={status.kind === 'loading'} icon={<SearchIcon size={18} />}>
-                Search Now
+                Find Apartments
               </Button>
             </div>
           </div>
@@ -347,10 +418,39 @@ export function SearchSection() {
 
         <AnimatePresence initial={false}>{secondChanceMode ? <SecondChancePanel onClose={clearSecondChance} /> : null}</AnimatePresence>
 
-        <div aria-live="polite" className="min-h-[1px]">
-          <SearchResults status={status} secondChance={secondChanceMode} onRetry={() => onSubmit(new Event('submit') as unknown as FormEvent)} />
+        <WelcomeBack />
+
+        <div className="mt-12">
+          <h2 className="text-[28px] font-extrabold tracking-[-0.03em] text-navy-900 sm:text-[34px]">{secondChanceMode ? 'Second-Chance Apartments' : 'Apartments Near You'}</h2>
+          <p className="mt-1.5 text-[15px] text-charcoal/70">
+            {secondChanceMode
+              ? 'Only apartments whose source publishes flexible screening. Turn off Second-Chance to see everything.'
+              : 'Explore available apartments in your area, including premium rental opportunities.'}
+          </p>
+          <p className="mt-2 text-[13.5px] font-medium text-navy-700" aria-live="polite">
+            {locatingArea && !place ? 'Finding your area…'
+              : place ? <>Showing: <strong>{place}</strong>{areaSource === 'approximate' ? ' · approximate area based on your connection' : areaSource === 'saved' ? ' · your last search' : areaSource === 'precise' ? ' · near your current location' : ''}{areaSource === 'approximate' || areaSource === 'saved' ? ' — search any city or ZIP above to change it.' : ''}</>
+              : 'Enter a city or ZIP code above to see apartments.'}
+          </p>
         </div>
-        {place && status.kind !== 'loading' ? <RentReadyListings place={place} /> : null}
+
+        {place ? (
+          <RentReadyListings
+            place={place}
+            filters={{ minRent: filters.minRent, maxRent: filters.maxRent, bedrooms: filters.bedrooms, secondChanceOnly: filters.secondChance !== 'any' }}
+          />
+        ) : locatingArea ? (
+          <div className="mt-6 grid gap-7 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+            {[0, 1, 2].map((i) => <div key={i} className="skeleton h-[360px] rounded-[26px]" />)}
+          </div>
+        ) : null}
+
+        {/* Second-chance mode shows only verified second-chance listings; Google results can't be verified, so they're hidden. */}
+        {!secondChanceMode ? (
+          <div aria-live="polite" className="min-h-[1px]">
+            <SearchResults status={status} secondChance={false} onRetry={() => onSubmit(new Event('submit') as unknown as FormEvent)} />
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -436,7 +536,7 @@ function SearchResults({ status, secondChance, onRetry }: { status: Status; seco
           <Grid title="Other apartment communities nearby" note="Rental policy not confirmed." items={other} />
         </>
       ) : (
-        <Grid title={`Apartment communities near ${data.location.label}`} items={data.properties} />
+        <Grid title={`More apartment communities near ${data.location.label}`} items={data.properties} />
       )}
     </div>
   );

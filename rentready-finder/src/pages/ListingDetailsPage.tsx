@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useMember } from '../context/MemberContext';
-import { bathsLabel, bedsLabel, getListing, money, track, type RRListing } from '../services/member';
+import { bathsLabel, bedsLabel, getListing, money, track, trackOnce, type RRListing } from '../services/member';
 import { ListingCard, CLASS_LABEL } from '../components/property/ListingCard';
 import { SaveButton } from '../components/property/SaveButton';
 import { SmartImage } from '../components/ui/SmartImage';
 import { Skeleton } from '../components/ui/Loader';
 import { LinkButton } from '../components/ui/Button';
-import { ArrowLeftIcon, GlobeIcon, PhoneIcon, PinIcon, ShieldCheckIcon } from '../components/ui/Icons';
+import { ArrowLeftIcon, GlobeIcon, HeartIcon, PhoneIcon, PinIcon, RouteIcon, ShieldCheckIcon } from '../components/ui/Icons';
 
 type State = { kind: 'loading' } | { kind: 'ok'; l: RRListing } | { kind: 'missing' } | { kind: 'error' };
 const date = (d: string | null) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : null);
@@ -33,6 +33,8 @@ export function ListingDetailsPage() {
   useEffect(() => {
     if (state.kind !== 'ok') return;
     track('listing_view', { cta_location: state.l.locked ? 'listing_locked' : 'listing' });
+    if (state.l.locked) trackOnce(`locked:${state.l.listing_id}`, 'locked_listing_view', { cta_location: 'detail' });
+    else if (state.l.classification === 'verified_second_chance') trackOnce(`unlocked:${state.l.listing_id}`, 'premium_listing_unlocked', { product: 'premium' });
     if (!state.l.locked) recordView(`listing:${state.l.listing_id}`, state.l.name, `${state.l.city}, ${state.l.state}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.kind === 'ok' && state.l.listing_id, state.kind === 'ok' && state.l.locked]);
@@ -42,7 +44,7 @@ export function ListingDetailsPage() {
     <div className="min-h-screen bg-offwhite pb-24 pt-[100px]">
       <div className="container-site">
         <Link to={back} className="inline-flex items-center gap-2 text-[13.5px] font-semibold text-navy-700 hover:text-gold-700">
-          <ArrowLeftIcon size={17} /> Back to search
+          <ArrowLeftIcon size={17} /> Back to Results
         </Link>
         {state.kind === 'loading' ? (
           <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]" aria-busy="true"><Skeleton className="h-[380px] !rounded-[24px]" /><Skeleton className="h-[380px] !rounded-[24px]" /></div>
@@ -63,6 +65,9 @@ export function ListingDetailsPage() {
 
 function Full({ l }: { l: Extract<RRListing, { locked: false }> }) {
   const facts = [bedsLabel(l.beds), bathsLabel(l.baths)].filter(Boolean).join(' · ');
+  const { saved, toggleSave } = useMember();
+  const ref = `listing:${l.listing_id}`;
+  const mapQuery = encodeURIComponent([l.name, l.address, `${l.city}, ${l.state}`].filter(Boolean).join(', '));
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mt-6 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
       <div>
@@ -84,14 +89,24 @@ function Full({ l }: { l: Extract<RRListing, { locked: false }> }) {
           <div className="mt-8 rounded-[22px] border border-gold/40 bg-gold-100/50 p-6">
             <h2 className="flex items-center gap-2 text-[17px] font-extrabold text-navy-900"><ShieldCheckIcon size={19} className="text-gold-700" /> What the source says about screening</h2>
             <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal/85">{l.screening_note}</p>
-            <p className="mt-3 text-[12.5px] text-charcoal/60">Policies change and each application is decided by the property. Confirm the current criteria with the leasing office before you pay an application fee.</p>
+            <p className="mt-3 text-[12.5px] text-charcoal/60">The property manager makes the final decision on every application, and policies change. Confirm the current criteria with the leasing office before you pay an application fee.</p>
           </div>
         ) : null}
       </div>
       <aside className="h-fit space-y-3 rounded-[24px] bg-white p-6 shadow-card lg:sticky lg:top-24">
-        <h2 className="text-[17px] font-extrabold text-navy-900">Contact the property</h2>
-        {l.phone ? <LinkButton href={`tel:${l.phone.replace(/[^\d+]/g, '')}`} className="w-full" icon={<PhoneIcon size={17} />}>Call {l.phone}</LinkButton> : <p className="text-[14px] text-charcoal/65">No phone number listed.</p>}
-        {l.website ? <LinkButton href={l.website} target="_blank" rel="noopener noreferrer" variant="outline-dark" className="w-full" icon={<GlobeIcon size={17} />}>Property website</LinkButton> : null}
+        <h2 className="text-[17px] font-extrabold text-navy-900">Contact Property</h2>
+        {l.phone ? <LinkButton href={`tel:${l.phone.replace(/[^\d+]/g, '')}`} className="w-full" icon={<PhoneIcon size={17} />}>Call {l.phone}</LinkButton> : null}
+        {l.website ? <LinkButton href={l.website} target="_blank" rel="noopener noreferrer" variant={l.phone ? 'outline-dark' : 'primary'} className="w-full" icon={<GlobeIcon size={17} />}>Property website</LinkButton> : null}
+        {!l.phone && !l.website ? <p className="text-[14px] text-charcoal/65">No contact details were published by the source. Use the source link below.</p> : null}
+        <button
+          type="button"
+          onClick={() => void toggleSave(ref, l.name, `${l.city}, ${l.state}`)}
+          aria-pressed={saved.has(ref)}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-mist bg-white text-[15px] font-semibold text-navy-700 hover:border-navy-700"
+        >
+          <HeartIcon size={18} filled={saved.has(ref)} className={saved.has(ref) ? 'text-[#C2523E]' : ''} /> {saved.has(ref) ? 'Saved' : 'Save Apartment'}
+        </button>
+        <LinkButton href={`https://www.google.com/maps/search/?api=1&query=${mapQuery}`} target="_blank" rel="noopener noreferrer" variant="outline-dark" className="w-full" icon={<RouteIcon size={17} />}>View Location</LinkButton>
         <div className="border-t border-mist pt-4 text-[12.5px] leading-relaxed text-charcoal/65">
           <p>Source: <a href={l.source_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-navy-700 underline underline-offset-2">{l.source_name}</a></p>
           {l.verified_at ? <p>Last checked {date(l.verified_at)}</p> : null}

@@ -24,6 +24,7 @@ const Checklist = lazy(() => import('./pages/Checklist'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Premium = lazy(() => import('./pages/Premium'));
 const Account = lazy(() => import('./pages/Account'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
               {/* RentReady Premium membership + member dashboard (server-verified) */}
               <Route path="/premium" element={<Premium />} />
               <Route path="/account" element={<Account />} />
+              <Route path="/privacy" element={<Privacy />} />
               {/* Funnel dashboard (token-protected API; not linked anywhere) */}
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />

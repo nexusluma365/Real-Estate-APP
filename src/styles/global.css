@@ -1245,3 +1245,6 @@ a:hover > .bk-arrow { transform: translateX(3px); }
 .adm-listing-form { display: grid; gap: 12px 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .adm-listing-form .adm-wide { grid-column: 1 / -1; }
 .adm-listing-form .field span { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
+.acct-badge { margin-left: 10px; padding: 3px 10px; border-radius: 999px; background: #d4af6a; color: #0b1426; font-size: .78rem; font-weight: 700; vertical-align: middle; }
+.acct-signout { margin-top: 14px; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; font: inherit; font-size: .9rem; cursor: pointer; }
+.acct-signout:hover { background: rgba(255,255,255,.1); }

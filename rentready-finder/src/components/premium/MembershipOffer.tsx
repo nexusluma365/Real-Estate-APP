@@ -6,15 +6,19 @@ import { CheckIcon, CloseIcon, LockIcon } from '../ui/Icons';
 import { Loader } from '../ui/Loader';
 
 const INCLUDES = [
-  'Full details for verified second-chance listings: name, address, contact and the screening policy we found, with its source',
-  'Save apartments and searches to your account',
-  'Email alerts when new listings match a saved search',
-  'Recently viewed apartments and your renter preparation checklist',
+  'Unlock eligible premium second-chance listings',
+  'View authorized property photos and details',
+  'Access available property contact information',
+  'Save apartments',
+  'Save searches',
+  'Receive relevant new-listing alerts',
+  'Access rental application preparation resources',
+  'Manage your membership from your account',
 ];
 
 /** The RentReady Premium offer. Every price, renewal term and the way to cancel are stated before checkout. */
 export function MembershipOffer() {
-  const { offer, closeOffer, premium } = useMember();
+  const { offer, closeOffer, premium, signedIn } = useMember();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -39,8 +43,8 @@ export function MembershipOffer() {
     setError('');
     track('membership_checkout_started', { product: 'premium', value: returning ? 19.99 : 5 });
     try {
-      // Come back to exactly this page (search, filters and the listing they were looking at).
-      await startMembershipCheckout(`${location.pathname}${location.search}`);
+      // Come back to exactly where they were: the search, and the listing they chose (offer.returnTo).
+      await startMembershipCheckout(offer.returnTo || `${location.pathname}${location.search}`);
     } catch (e) {
       setBusy(false);
       setError(e instanceof ApiError && e.code === 'already_member' ? 'Your membership is already active — reload the page to see everything.' : e instanceof Error ? e.message : 'Checkout didn’t open. Please try again.');
@@ -74,9 +78,11 @@ export function MembershipOffer() {
             <span className="grid h-12 w-12 place-items-center rounded-full bg-navy-700 text-gold"><LockIcon size={22} /></span>
             <p className="mt-5 text-[12px] font-semibold uppercase tracking-[0.16em] text-gold-700">RentReady Premium</p>
             <h2 id="offer-title" className="mt-2 text-[28px] font-extrabold leading-[1.1] tracking-[-0.03em] text-navy-900">
-              {returning ? 'Rejoin RentReady Premium' : 'Unlock second-chance listings'}
+              {returning ? 'Reactivate RentReady Premium' : 'Unlock RentReady Premium'}
             </h2>
-            {offer.reason ? <p className="mt-2 text-[15px] leading-relaxed text-charcoal/75">{offer.reason}</p> : null}
+            <p className="mt-2 text-[15px] leading-relaxed text-charcoal/75">
+              {offer.reason || 'Explore verified second-chance rental opportunities and get tools to prepare for your next application.'}
+            </p>
 
             <div className="mt-6 rounded-[20px] bg-offwhite p-5">
               <p className="flex items-baseline gap-2 text-navy-900">
@@ -110,11 +116,22 @@ export function MembershipOffer() {
               disabled={busy}
               className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-navy-700 text-[16px] font-bold text-white shadow-pill transition-colors hover:bg-navy-900 disabled:opacity-70"
             >
-              {busy ? <><Loader size="sm" tone="light" /> Opening secure checkout…</> : returning ? 'Rejoin for $19.99/month' : 'Start for $5'}
+              {busy ? <><Loader size="sm" tone="light" /> Opening secure checkout…</> : returning ? 'Reactivate for $19.99/month' : 'Unlock Premium for $5'}
             </button>
-            <p className="mt-3 text-center text-[12px] text-charcoal/55">
-              <a href="/premium#terms" className="underline underline-offset-2 hover:text-navy-700">Membership terms</a> · Payments by Stripe
+            <p className="mt-2 text-center text-[13px] font-medium text-navy-800">
+              {returning ? 'Renews at $19.99/month. Cancel anytime.' : 'First month $5. Renews at $19.99/month. Cancel anytime.'}
             </p>
+            <p className="mt-3 text-center text-[12px] text-charcoal/55">
+              <a href="/premium#terms" className="underline underline-offset-2 hover:text-navy-700">Billing terms</a> ·{' '}
+              <a href="/premium#terms" className="underline underline-offset-2 hover:text-navy-700">Cancellation</a> ·{' '}
+              <a href="/privacy" className="underline underline-offset-2 hover:text-navy-700">Privacy</a> · Payments by Stripe
+            </p>
+            {!signedIn ? (
+              <p className="mt-4 text-center text-[13px] text-charcoal/70">
+                Already a member?{' '}
+                <a href={`/account?next=${encodeURIComponent(offer.returnTo || `${location.pathname}${location.search}`)}`} className="font-semibold text-navy-700 underline underline-offset-2">Sign in</a>
+              </p>
+            ) : null}
           </motion.div>
         </motion.div>
       ) : null}

@@ -7,7 +7,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createClient } from '@libsql/client';
-import { route } from '../netlify/functions/api.mts';
+import { approximateArea, route } from '../netlify/functions/api.mts';
 import { sqlDatabase } from './sqliteDatabase';
 import { detectAbandonedCheckouts } from '../netlify/lib/jobs/abandoned';
 import { hmacHex, type Env } from '../netlify/lib/_lib';
@@ -15,6 +15,7 @@ import { r2FileStore } from '../netlify/lib/platform';
 import { DIGITAL_KIT_FILE_KEY } from '../src/config/resources';
 import { sendListingAlerts } from '../netlify/lib/jobs/alerts';
 import { accessFrom } from '../netlify/lib/premium';
+import { mixListings } from '../netlify/lib/listings';
 
 const ORIGIN = 'https://rentready.test';
 const client = createClient({ url: 'file::memory:' });
@@ -477,5 +478,85 @@ test('without the Premium tables (migration not applied), buyers still get their
   const l = await route(new Request(ORIGIN + '/api/listings?place=Charlotte, NC'), e2);
   assert.equal(l.status, 200);
   assert.deepEqual(((await l.json()) as any).listings, []);
+});
+
+test('sign in / sign out: a Premium-only member gets an email link, lands where they were, and other sessions see nothing of theirs', async () => {
+  cookie = '';
+  // member@example.com (from the Premium test) has a membership but bought no book: the link is still sent.
+  const before = emails.length;
+  assert.equal((await call('POST', '/api/access/link', { email: 'member@example.com', next: '/finder/?q=Charlotte%2C%20NC&listing=lst_elm' })).status, 200);
+  const mail = emails.slice(before).find((e) => e.subject === 'Your RentReady sign-in link');
+  assert.ok(mail, 'sign-in link emailed to a Premium member');
+  const link = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s"]+)/.exec(mail!.text)![1].replace(/&amp;/g, '&');
+  const v = await call('GET', link.slice(ORIGIN.length));
+  assert.equal(v.res.headers.get('Location'), `${ORIGIN}/finder/?q=Charlotte%2C%20NC&listing=lst_elm`);
+  assert.equal((await call('GET', '/api/member')).data.email, 'member@example.com');
+  // Unknown emails get the same reply and no email (no account enumeration).
+  const n = emails.length;
+  assert.deepEqual((await call('POST', '/api/access/link', { email: 'nobody@example.com' })).data, { sent: true });
+  assert.equal(emails.length, n);
+  // next can never leave the site.
+  const evil = await call('POST', '/api/access/link', { email: 'member@example.com', next: 'https://evil.example' });
+  assert.equal(evil.status, 200);
+  const evilMail = emails[emails.length - 1];
+  const evilLink = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s"]+)/.exec(evilMail.text)![1];
+  assert.equal((await call('GET', evilLink.slice(ORIGIN.length))).res.headers.get('Location'), `${ORIGIN}/access`);
+
+  // Sign out: cookie expired, member data and premium details no longer available.
+  const out = await call('POST', '/api/session/logout', {});
+  assert.match(out.res.headers.get('Set-Cookie') || '', /rr_sid=;.*Max-Age=0/);
+  cookie = '';
+  assert.equal((await call('GET', '/api/member')).status, 401);
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, false);
+
+  // Another visitor's session (a book buyer) never sees the member's saved apartments.
+  const lead = await call('POST', '/api/leads', { first_name: 'Other', email: 'other@example.com', email_consent: false, lead_source: 'start' });
+  assert.equal(lead.status, 200);
+  const other = await call('GET', '/api/member');
+  assert.equal(other.status, 200);
+  assert.deepEqual(other.data.saved, []);
+  assert.equal(other.data.email, 'other@example.com');
+});
+
+test('listing filters (server-side) and approximate area', async () => {
+  cookie = '';
+  const all = (await call('GET', '/api/listings?place=Charlotte, NC')).data;
+  const cheap = (await call('GET', '/api/listings?place=Charlotte, NC&max_rent=1300')).data;
+  assert.ok(cheap.listings.every((l: any) => l.rent_cents == null || l.rent_cents <= 130000));
+  assert.equal(cheap.filtered_out, all.listings.length - cheap.listings.length);
+  assert.ok(cheap.filtered_out > 0);
+  const sc = (await call('GET', '/api/listings?place=Charlotte, NC&second_chance=1')).data;
+  assert.ok(sc.listings.length > 0 && sc.listings.every((l: any) => l.classification === 'verified_second_chance'));
+  assert.ok(sc.listings.every((l: any) => l.locked === true), 'still locked when filtered');
+  const twoBeds = (await call('GET', '/api/listings?place=Charlotte, NC&beds=2')).data;
+  assert.ok(twoBeds.listings.every((l: any) => l.beds == null || l.beds >= 2));
+  assert.deepEqual(approximateArea({ city: 'Charlotte', subdivision: { code: 'NC' }, country: { code: 'US' } } as any), { city: 'Charlotte', state: 'NC', approximate: true });
+  assert.equal(approximateArea({ city: 'Toronto', subdivision: { code: 'ON' }, country: { code: 'CA' } } as any), null);
+  assert.equal(approximateArea(undefined), null);
+});
+
+test('listings mix second-chance apartments in; second-chance mode shows only them; nearby fallback is labelled', async () => {
+  const c = (classification: string, id: string) => ({ classification, id }) as any;
+  const mixed = mixListings([c('standard', 's1'), c('standard', 's2'), c('standard', 's3'), c('standard', 's4'), c('verified_second_chance', 'v1'), c('verified_second_chance', 'v2'), c('unknown', 'u1')]);
+  assert.deepEqual(mixed.map((x: any) => x.id), ['v1', 's1', 's2', 'v2', 's3', 's4', 'u1'], 'second-chance first, then one in every three');
+  assert.deepEqual(mixListings([c('verified_second_chance', 'v1'), c('verified_second_chance', 'v2'), c('standard', 's1')]).map((x: any) => x.id), ['v1', 's1', 'v2']);
+
+  cookie = '';
+  // Concord has only a standard listing: normal results add Charlotte's verified second-chance listings, flagged nearby.
+  await admin('POST', '/api/admin/listings', { listing_id: 'lst_concord', classification: 'standard', name: 'Concord Commons', city: 'Concord', state: 'NC', rent_cents: 110000, beds: 1, source_name: 'Concord Commons', source_url: 'https://concord.example' });
+  const concord = (await call('GET', '/api/listings?place=Concord, NC')).data;
+  assert.equal(concord.listings[0].listing_id, 'lst_concord');
+  const near = concord.listings.filter((l: any) => l.nearby);
+  assert.ok(near.length > 0 && near.length <= 3, 'up to 3 nearby second-chance listings');
+  assert.ok(near.every((l: any) => l.classification === 'verified_second_chance' && l.locked && l.city === 'Charlotte'));
+  assert.doesNotMatch(JSON.stringify(near), /Elm Court|Pine Row|704-555/, 'nearby listings are locked server-side too');
+  // Second-chance mode: only second-chance listings (here: the nearby ones).
+  const scOnly = (await call('GET', '/api/listings?place=Concord, NC&second_chance=1')).data;
+  assert.ok(scOnly.listings.length > 0 && scOnly.listings.every((l: any) => l.classification === 'verified_second_chance'));
+  // A city that has its own second-chance listing gets no nearby padding.
+  const clt = (await call('GET', '/api/listings?place=Charlotte, NC')).data;
+  assert.ok(!clt.listings.some((l: any) => l.nearby));
+  assert.equal(clt.listings[0].classification, 'verified_second_chance');
+  assert.ok(clt.listings.some((l: any) => l.classification === 'standard'), 'normal results are a mix');
 });
 

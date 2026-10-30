@@ -15,9 +15,10 @@ export interface ListingRow {
   verified_at: string | null; created_at: string; updated_at: string;
 }
 
-export type PublicListing =
+export type PublicListing = (
   | ({ locked: false } & Omit<ListingRow, 'created_at' | 'updated_at'>)
-  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null };
+  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null }
+) & { nearby?: boolean };
 
 /** Second-chance details are a Premium feature; everything else is public. */
 export function present(row: ListingRow, premium: boolean): PublicListing {
@@ -44,3 +45,27 @@ export function parsePlace(raw: string): { city: string; state: string } | null 
   const m = /^(.+?)\s+([A-Za-z]{2})$/.exec(raw.trim());
   return m ? { city: m[1].replace(/,$/, ''), state: m[2].toUpperCase() } : null;
 }
+
+/**
+ * Normal results mix verified second-chance listings in among the others instead of grouping them: the first result
+ * is second-chance, then one in every three, and whatever remains of either kind follows.
+ */
+export function mixListings<T extends { classification: Classification }>(rows: T[]): T[] {
+  const sc = rows.filter((r) => r.classification === 'verified_second_chance');
+  const rest = rows.filter((r) => r.classification !== 'verified_second_chance');
+  const out: T[] = [];
+  while (sc.length || rest.length) {
+    if (sc.length) out.push(sc.shift()!);
+    out.push(...rest.splice(0, 2));
+    if (!rest.length) out.push(...sc.splice(0));
+  }
+  return out;
+}
+
+/** Verified second-chance listings elsewhere in the same state — offered (labelled "nearby") when the city has none. */
+export async function secondChanceInState(env: Env, city: string, state: string, limit = 3): Promise<ListingRow[]> {
+  return (await env.DB!.prepare(
+    "SELECT * FROM rr_listings WHERE UPPER(state) = UPPER(?) AND LOWER(city) <> LOWER(?) AND classification = 'verified_second_chance' ORDER BY verified_at DESC LIMIT ?",
+  ).bind(state.trim(), city.trim(), limit).all<ListingRow>()).results;
+}
+

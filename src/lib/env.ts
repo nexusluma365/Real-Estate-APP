@@ -29,8 +29,8 @@ export const env = {
   /** Book delivery estimate shown at checkout and in the FAQ (from your print/fulfillment partner). */
   physicalDeliveryNote: e.VITE_PHYSICAL_DELIVERY_NOTE || '',
   /** Privacy policy / terms URLs. Footer links render only when set. */
-  privacyUrl: e.VITE_PRIVACY_URL || '',
-  termsUrl: e.VITE_TERMS_URL || '',
+  privacyUrl: e.VITE_PRIVACY_URL || '/privacy',
+  termsUrl: e.VITE_TERMS_URL || '/premium#terms',
   /** Money-back guarantee window in days. 0 hides every guarantee mention. */
   moneyBackDays: Math.max(0, Number.parseInt(e.VITE_MONEY_BACK_DAYS ?? '30', 10) || 0),
 };

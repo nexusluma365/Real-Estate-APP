@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMember } from '../../context/MemberContext';
-import { bathsLabel, bedsLabel, money, track, type RRListing } from '../../services/member';
+import { bathsLabel, bedsLabel, money, track, trackOnce, type RRListing } from '../../services/member';
 import { SmartImage } from '../ui/SmartImage';
 import { ArrowRightIcon, LockIcon, ShieldCheckIcon } from '../ui/Icons';
 import { SaveButton } from './SaveButton';
@@ -19,10 +20,24 @@ const checked = (d: string | null) => (d ? `Verified ${new Date(d).toLocaleDateS
 /** A RentReady listing. Locked cards only ever receive public fields from the server. */
 export function ListingCard({ l }: { l: RRListing }) {
   const { openOffer } = useMember();
+  const ref = useRef<HTMLElement>(null);
+
+  // "Locked premium listing viewed": once per listing per session, when at least half the card is on screen.
+  useEffect(() => {
+    if (!l.locked || !ref.current || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        trackOnce(`locked:${l.listing_id}`, 'locked_listing_view', { cta_location: 'results' });
+        io.disconnect();
+      }
+    }, { threshold: 0.5 });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [l.locked, l.listing_id]);
 
   if (l.locked) {
     return (
-      <article className="group relative flex flex-col overflow-hidden rounded-[26px] bg-white shadow-card ring-1 ring-gold/30 transition-[transform,box-shadow] duration-500 ease-lux hover:-translate-y-1.5 hover:shadow-float">
+      <article ref={ref} className="group relative flex flex-col overflow-hidden rounded-[26px] bg-white shadow-card ring-1 ring-gold/30 transition-[transform,box-shadow] duration-500 ease-lux hover:-translate-y-1.5 hover:shadow-float">
         <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(140deg,#34496A_0%,#263750_40%,#1B2739_100%)]">
           {/* No photo is sent for locked listings: this is an abstract, intentionally blurred placeholder. */}
           <span aria-hidden="true" className="absolute -left-10 top-6 h-40 w-40 rounded-full bg-gold/40 blur-3xl" />
@@ -42,19 +57,22 @@ export function ListingCard({ l }: { l: RRListing }) {
             {l.rent_cents != null ? <span className="text-[14px] font-semibold text-charcoal/60"> /month</span> : null}
           </p>
           {facts(l) ? <p className="mt-1 text-[13.5px] text-charcoal/70">{facts(l)}</p> : null}
-          <p className="mt-3 text-[12.5px] leading-relaxed text-charcoal/60">
-            Name, address, contact and the published screening policy are included with Premium. {checked(l.verified_at)}.
-          </p>
+          {l.verified_at ? <p className="mb-5 mt-3 text-[12px] text-stone-500">{checked(l.verified_at)}</p> : <span className="mb-5" />}
           <button
             type="button"
             onClick={() => {
               track('premium_unlock_click', { cta_location: 'listing_card', product: 'premium' });
-              openOffer('See the name, address, contact details and screening policy for this apartment and every verified second-chance listing.', 'listing_card');
+              // After checkout, come back to this search and offer this exact apartment (listing=…).
+              const u = new URL(location.href);
+              u.searchParams.set('listing', l.listing_id);
+              const back = location.pathname.includes('/listing/') ? `${location.pathname}` : `${u.pathname}${u.search}`;
+              openOffer('', 'listing_card', back);
             }}
-            className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-navy-700 text-[14px] font-bold text-white shadow-pill hover:bg-navy-900"
+            className="mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-full bg-navy-700 text-[14.5px] font-bold text-white shadow-pill hover:bg-navy-900"
           >
             <LockIcon size={16} /> Unlock Access
           </button>
+          <p className="mt-2.5 text-center text-[12.5px] leading-relaxed text-charcoal/65">See property details and contact information with RentReady Premium.</p>
         </div>
       </article>
     );

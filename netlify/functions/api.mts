@@ -30,6 +30,7 @@ import * as premiumPortal from '../lib/api/premium/portal';
 import * as listings from '../lib/api/listings/index';
 import * as listingDetail from '../lib/api/listings/detail';
 import * as member from '../lib/api/member';
+import * as logout from '../lib/api/session/logout';
 
 type Handler = (ctx: Ctx) => Promise<Response> | Response;
 type Module = { onRequestGet?: Handler; onRequestPost?: Handler; onRequestPut?: Handler };
@@ -65,6 +66,7 @@ const ROUTES: Record<string, Module> = {
   '/api/listings': listings,
   '/api/listings/detail': listingDetail,
   '/api/member': member,
+  '/api/session/logout': logout,
 };
 
 /** Server-to-server routes authenticate with a signature or bearer token instead of an Origin header. */
@@ -102,6 +104,21 @@ export async function route(request: Request, env: Env): Promise<Response> {
   return out;
 }
 
-export default async (request: Request, _context: Context) => route(request, netlifyEnv());
+/**
+ * GET /api/geo — the visitor's APPROXIMATE area from Netlify's IP geolocation (city/region only, US only), used to
+ * start the Finder near them without asking for precise location. Never stored. Always labelled "approximate".
+ */
+export function approximateArea(geo?: Context['geo']) {
+  const city = geo?.city;
+  const state = geo?.subdivision?.code;
+  return geo?.country?.code === 'US' && city && state && /^[A-Z]{2}$/.test(state) ? { city, state, approximate: true } : null;
+}
+
+export default async (request: Request, context: Context) => {
+  if (new URL(request.url).pathname === '/api/geo') {
+    return new Response(JSON.stringify({ area: approximateArea(context?.geo) }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' } });
+  }
+  return route(request, netlifyEnv());
+};
 
 export const config: Config = { path: '/api/*' };

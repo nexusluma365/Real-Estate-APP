@@ -36,6 +36,8 @@ export interface Entitlements {
   customer_id?: string;
   first_name?: string;
   products: ProductId[];
+  /** A session cookie exists (customer or member). */
+  signed_in?: boolean;
   /** RentReady Premium membership (server-decided; absent in mock mode). */
   premium?: { active: boolean; had_premium?: boolean; status?: string | null; current_period_end?: string | null; cancel_at_period_end?: boolean };
   /** Server-issued. In mock mode this is a local simulation flag. */

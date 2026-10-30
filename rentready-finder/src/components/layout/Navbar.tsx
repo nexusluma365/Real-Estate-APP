@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
-import { ArrowLeftIcon, CloseIcon, LockIcon, MenuIcon, UserIcon } from '../ui/Icons';
+import { ArrowLeftIcon, CloseIcon, MenuIcon, UserIcon } from '../ui/Icons';
 import { useMember } from '../../context/MemberContext';
+import { useFindSecondChance } from '../../hooks/useFindSecondChance';
+import { openBillingPortal } from '../../services/member';
 import { useFinder, type SectionId } from '../../context/FinderContext';
 
 /** The RentReady sales site lives at the domain root; Finder is served under /finder, so this is a full page load. */
@@ -12,17 +15,19 @@ const RENTREADY_HOME = '/';
 const LINKS: { label: string; action: 'home' | 'find' | 'second' | SectionId }[] = [
   { label: 'Home', action: 'home' },
   { label: 'Find Apartments', action: 'find' },
-  { label: 'Second-Chance Options', action: 'second' },
+  { label: 'Find Second-Chance Apartments', action: 'second' },
   { label: 'How It Works', action: 'how-it-works' },
 ];
 
 export function Navbar() {
-  const { goTo, activateSecondChance } = useFinder();
-  const { premium, openOffer } = useMember();
+  const { goTo } = useFinder();
+  const { state, openOffer, signOut } = useMember();
+  const signInHref = () => `/account?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
   const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const solid = scrolled || pathname !== '/';
+  // Solid while the menu is open too, so the header and the panel below it read as one piece.
+  const solid = scrolled || pathname !== '/' || open;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -39,11 +44,14 @@ export function Navbar() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  const findSecondChance = useFindSecondChance();
+
   const run = (a: (typeof LINKS)[number]['action'] | 'contact') => {
+    window.dispatchEvent(new Event('rr:skip-intro'));
     setOpen(false);
     if (a === 'home') goTo('top');
     else if (a === 'find') goTo('search', { focusSearch: true });
-    else if (a === 'second') activateSecondChance();
+    else if (a === 'second') findSecondChance('nav');
     else goTo(a as SectionId);
   };
 
@@ -58,15 +66,16 @@ export function Navbar() {
           <Logo />
         </button>
 
-        <ul className="hidden items-center gap-8 lg:flex">
+        <ul className="hidden items-center gap-5 whitespace-nowrap lg:flex xl:gap-6">
           <li>
-            <a href={RENTREADY_HOME} className="flex items-center gap-1.5 py-2 text-[12.5px] font-medium text-white/60 transition-colors duration-200 hover:text-gold">
+            <a href={RENTREADY_HOME} className="hidden items-center gap-1.5 py-2 text-[12.5px] font-medium text-white/60 xl:flex transition-colors duration-200 hover:text-gold">
               <ArrowLeftIcon size={14} />
               Back to RentReady
             </a>
           </li>
           {LINKS.map((l) => (
-            <li key={l.label}>
+            // "How It Works" stays in the footer and mobile menu; on narrower desktops the nav keeps to one line.
+            <li key={l.label} className={l.action === 'how-it-works' ? 'hidden xl:block' : undefined}>
               <button
                 type="button"
                 onClick={() => run(l.action)}
@@ -77,11 +86,21 @@ export function Navbar() {
               </button>
             </li>
           ))}
+          {state === 'past_due' ? (
+            <li><button type="button" onClick={() => void openBillingPortal(`${location.pathname}${location.search}`)} className="py-2 text-[13.5px] font-semibold text-gold hover:text-white">Update Payment</button></li>
+          ) : state === 'lapsed' ? (
+            <li><button type="button" onClick={() => openOffer('', 'nav_reactivate')} className="py-2 text-[13.5px] font-semibold text-gold hover:text-white">Reactivate</button></li>
+          ) : null}
           <li>
-            {premium.active ? (
-              <a href="/account" className="flex items-center gap-1.5 py-2 text-[13.5px] font-medium text-white/85 hover:text-white"><UserIcon size={16} /> My account</a>
+            {state === 'guest' ? (
+              <a href={signInHref()} className="flex items-center gap-1.5 py-2 text-[13.5px] font-medium text-white/85 hover:text-white"><UserIcon size={16} /> Sign In</a>
             ) : (
-              <button type="button" onClick={() => openOffer('', 'nav')} className="flex items-center gap-1.5 py-2 text-[13.5px] font-semibold text-gold hover:text-white"><LockIcon size={15} /> Premium</button>
+              <span className="flex items-center gap-2.5">
+                <a href="/account" className="flex items-center gap-1.5 py-2 text-[13.5px] font-medium text-white/85 hover:text-white">
+                  <UserIcon size={16} /> My Account{state === 'active' ? <span className="rounded-full bg-gold px-1.5 py-px text-[10px] font-bold text-navy-900">PREMIUM</span> : null}
+                </a>
+                <button type="button" onClick={() => void signOut()} className="py-2 text-[12.5px] text-white/60 hover:text-white">Sign Out</button>
+              </span>
             )}
           </li>
           <li>
@@ -101,12 +120,17 @@ export function Navbar() {
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
           aria-controls="mobile-menu"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            window.dispatchEvent(new Event('rr:skip-intro'));
+            setOpen((o) => !o);
+          }}
         >
           {open ? <CloseIcon size={26} /> : <MenuIcon size={26} />}
         </button>
       </nav>
 
+      {/* Rendered at page level: the solid header's backdrop blur would otherwise trap this fixed panel inside the header. */}
+      {createPortal(
       <AnimatePresence>
         {open ? (
           <motion.div
@@ -115,7 +139,7 @@ export function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
-            className="fixed inset-x-0 bottom-0 top-[68px] bg-navy-900 lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-[68px] z-[49] overflow-y-auto overscroll-contain bg-navy-900 lg:hidden"
           >
             <ul className="container-site flex flex-col pt-6">
               {[...LINKS, { label: 'Contact', action: 'contact' as const }].map((l) => (
@@ -126,15 +150,30 @@ export function Navbar() {
                   </button>
                 </li>
               ))}
+              {state === 'past_due' ? (
+                <li className="border-b border-white/10">
+                  <button type="button" onClick={() => void openBillingPortal(`${location.pathname}${location.search}`)} className="flex w-full items-center justify-between py-5 text-left text-[18px] font-semibold text-gold">Update Payment</button>
+                </li>
+              ) : state === 'lapsed' ? (
+                <li className="border-b border-white/10">
+                  <button type="button" onClick={() => { setOpen(false); openOffer('', 'nav_mobile_reactivate'); }} className="flex w-full items-center justify-between py-5 text-left text-[18px] font-semibold text-gold">Reactivate Premium</button>
+                </li>
+              ) : null}
               <li className="border-b border-white/10">
-                {premium.active ? (
-                  <a href="/account" className="flex w-full items-center justify-between py-5 text-[18px] font-medium text-white">My account <UserIcon size={20} /></a>
+                {state === 'guest' ? (
+                  <a href={signInHref()} className="flex w-full items-center justify-between py-5 text-[18px] font-medium text-white">Sign In <UserIcon size={20} /></a>
                 ) : (
-                  <button type="button" onClick={() => { setOpen(false); openOffer('', 'nav_mobile'); }} className="flex w-full items-center justify-between py-5 text-left text-[18px] font-semibold text-gold">
-                    RentReady Premium <LockIcon size={20} />
-                  </button>
+                  <a href="/account" className="flex w-full items-center justify-between py-5 text-[18px] font-medium text-white">
+                    <span>My Account {state === 'active' ? <span className="ml-2 rounded-full bg-gold px-2 py-0.5 text-[11px] font-bold text-navy-900">PREMIUM</span> : null}</span>
+                    <UserIcon size={20} />
+                  </a>
                 )}
               </li>
+              {state !== 'guest' ? (
+                <li className="border-b border-white/10">
+                  <button type="button" onClick={() => { setOpen(false); void signOut(); }} className="flex w-full items-center justify-between py-5 text-left text-[18px] font-medium text-white/80">Sign Out</button>
+                </li>
+              ) : null}
               <li>
                 <a href={RENTREADY_HOME} className="flex items-center gap-2 py-5 text-[15px] font-medium text-white/65 hover:text-gold">
                   <ArrowLeftIcon size={16} />
@@ -144,7 +183,9 @@ export function Navbar() {
             </ul>
           </motion.div>
         ) : null}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </header>
   );
 }

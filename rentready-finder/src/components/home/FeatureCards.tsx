@@ -4,6 +4,7 @@ import { SmartImage } from '../ui/SmartImage';
 import { BuildingIcon, HouseIcon, KeyIcon, ArrowRightIcon } from '../ui/Icons';
 import { MEDIA } from '../../config/media';
 import { useFinder } from '../../context/FinderContext';
+import { useFindSecondChance } from '../../hooks/useFindSecondChance';
 
 interface Card {
   title: string;
@@ -17,7 +18,8 @@ interface Card {
 
 /** Three ways in. Photos are editorial atmosphere (config/media.ts), never presented as listings. */
 export function FeatureCards() {
-  const { goTo, activateSecondChance, clearSecondChance } = useFinder();
+  const { goTo, clearSecondChance } = useFinder();
+  const findSecondChance = useFindSecondChance();
 
   const cards: Card[] = [
     {
@@ -33,13 +35,13 @@ export function FeatureCards() {
       },
     },
     {
-      title: 'Second-Chance Options',
+      title: 'Second-Chance Apartments',
       kicker: 'Evidence-based labels',
       body: 'Explore properties with published flexible screening or rental policies.',
       icon: <KeyIcon size={16} />,
-      cta: 'See verification levels',
+      cta: 'Find second-chance apartments',
       image: MEDIA.preview[1],
-      onClick: activateSecondChance,
+      onClick: () => findSecondChance('card'),
     },
     {
       title: 'Find Your Fit',

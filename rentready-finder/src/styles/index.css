@@ -4,6 +4,8 @@
 
 @layer base {
   html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+  /* Never scroll sideways on small phones (decorative glows and the header sit flush with the edge at 320px). */
+  html, body { overflow-x: clip; }
   body {
     @apply bg-offwhite text-charcoal font-sans antialiased;
     text-rendering: optimizeLegibility;

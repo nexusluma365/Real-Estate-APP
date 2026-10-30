@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Seo } from '../components/Seo';
 import { Alert, Loader, Spinner } from '../components/ui';
 import { PRODUCTS } from '../config/products';
 import { ApiError } from '../lib/api';
 import { isMock } from '../lib/env';
-import { fetchMember, finderHref, memberAction, openBillingPortal, PREMIUM_INTRO, PREMIUM_PRICE, startPremium, type MemberData } from '../lib/memberService';
+import { fetchMember, finderHref, memberAction, openBillingPortal, PREMIUM_INTRO, PREMIUM_PRICE, requestSignInLink, signOut, startPremium, type MemberData } from '../lib/memberService';
+import { validateEmail } from '../lib/validation';
+import { useFunnel } from '../state/FunnelContext';
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
 
@@ -16,6 +18,10 @@ export default function Account() {
   const [state, setState] = useState<'loading' | 'ok' | 'signin' | 'error'>('loading');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const { refreshEntitlements } = useFunnel();
+  // Where to land after signing in (e.g. the Finder listing the visitor came from).
+  const next = new URLSearchParams(window.location.search).get('next') || '/account';
 
   const load = () =>
     fetchMember()
@@ -46,13 +52,13 @@ export default function Account() {
   if (state !== 'ok' || !data) {
     return (
       <Layout chrome="customer">
-        <Seo title="My account | RentReady" noindex />
-        <section className="band"><div className="wrap" style={{ maxWidth: 620 }}>
-          <h1 style={{ fontSize: 'var(--step-4)' }}>My account</h1>
-          {state === 'error' ? <div style={{ marginTop: 16 }}><Alert kind="error">Your account didn’t load. Please try again in a moment.</Alert></div> : (
-            <p className="lede" style={{ marginTop: 12 }}>Sign in with the email you used at RentReady — we’ll email you a secure link.</p>
-          )}
-          <Link className="btn" style={{ marginTop: 24 }} to="/access">Email me a sign-in link</Link>
+        <Seo title="Sign in | RentReady" noindex />
+        <section className="band"><div className="wrap" style={{ maxWidth: 560 }}>
+          <h1 style={{ fontSize: 'var(--step-4)' }}>Sign in to RentReady</h1>
+          {state === 'error' ? <div style={{ marginTop: 16 }}><Alert kind="error">Your account didn’t load. Please try again in a moment.</Alert></div> : null}
+          <p className="lede" style={{ marginTop: 12 }}>Enter the email you used for RentReady Premium or a purchase. We’ll email you a secure sign-in link — no password needed.</p>
+          <SignInForm next={next} />
+          <p className="muted" style={{ marginTop: 24 }}>New here? <Link to="/premium">See RentReady Premium</Link> or <a href="/finder/">search apartments free</a>.</p>
         </div></section>
       </Layout>
     );
@@ -65,7 +71,10 @@ export default function Account() {
       <Seo title="My account | RentReady" noindex />
       <section className="access-head"><div className="wrap">
         <h1 style={{ fontSize: 'var(--step-5)' }}>Welcome{data.first_name ? `, ${data.first_name}` : ''}.</h1>
-        <p className="lede" style={{ marginTop: 12, color: '#e3dccf' }}>{data.email}</p>
+        <p className="lede" style={{ marginTop: 12, color: '#e3dccf' }}>
+          {data.email}{p.active && <span className="acct-badge">Premium</span>}
+        </p>
+        <button className="acct-signout" onClick={async () => { await signOut(); await refreshEntitlements(); navigate('/'); }}>Sign out</button>
       </div></section>
       <section className="band" style={{ paddingTop: 36 }}>
         <div className="wrap stack acct" style={{ ['--s' as string]: '24px', maxWidth: 860 }}>
@@ -93,13 +102,28 @@ export default function Account() {
               </>
             ) : (
               <>
+                {p.had_premium && (
+                  <div style={{ marginBottom: 12 }}>
+                    <Alert kind="info"><strong>Premium Access Is Currently Unavailable</strong><br />Your membership isn’t active. You can still explore regular apartments.</Alert>
+                  </div>
+                )}
                 <p className="muted">
-                  {p.had_premium ? 'Your membership has ended. Your saved apartments and searches are still here.' : `Unlock verified second-chance listings, saved searches and new-listing alerts — ${PREMIUM_INTRO} for your first month, then ${PREMIUM_PRICE}/month.`}
+                  {p.status === 'past_due' || p.status === 'unpaid'
+                    ? 'Your last membership payment couldn’t be collected. Update your card to restore access — your saved apartments and searches are still here.'
+                    : p.had_premium
+                      ? 'Your membership has ended. Your saved apartments and searches are still here.'
+                      : `Unlock verified second-chance listings, saved searches and new-listing alerts — ${PREMIUM_INTRO} for your first month, then ${PREMIUM_PRICE}/month.`}
                 </p>
                 <div className="acct-actions">
-                  <button className="btn btn-sm" disabled={!!busy} onClick={() => act('join', () => startPremium('/account'))}>
-                    {busy === 'join' ? <><Spinner /> Opening checkout…</> : p.had_premium ? `Rejoin for ${PREMIUM_PRICE}/month` : `Start for ${PREMIUM_INTRO}`}
-                  </button>
+                  {p.status === 'past_due' || p.status === 'unpaid' ? (
+                    <button className="btn btn-sm" disabled={!!busy} onClick={() => act('portal', () => openBillingPortal('/account'))}>
+                      {busy === 'portal' ? <><Spinner /> Opening…</> : 'Update Payment'}
+                    </button>
+                  ) : (
+                    <button className="btn btn-sm" disabled={!!busy} onClick={() => act('join', () => startPremium('/account'))}>
+                      {busy === 'join' ? <><Spinner /> Opening checkout…</> : p.had_premium ? `Reactivate Premium — ${PREMIUM_PRICE}/month` : `Start for ${PREMIUM_INTRO}`}
+                    </button>
+                  )}
                   <Link className="bk-link" to="/premium">What’s included</Link>
                 </div>
               </>
@@ -161,3 +185,37 @@ export default function Account() {
     </Layout>
   );
 }
+
+function SignInForm({ next }: { next: string }) {
+  const [email, setEmail] = useState('');
+  const [err, setErr] = useState('');
+  const [sent, setSent] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const v = validateEmail(email);
+    if (v) return setErr(v);
+    setErr('');
+    setSent('sending');
+    try {
+      await requestSignInLink(email.trim(), next);
+      setSent('sent');
+    } catch {
+      setSent('error');
+    }
+  }
+  if (sent === 'sent') {
+    return <div style={{ marginTop: 20 }}><Alert kind="ok">If that email has a RentReady membership or purchase, a sign-in link is on its way. It works once and expires in 30 minutes.</Alert></div>;
+  }
+  return (
+    <form className="form" onSubmit={submit} noValidate style={{ marginTop: 20 }}>
+      <div className="field">
+        <label htmlFor="signin-email">Email</label>
+        <input id="signin-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!err || undefined} aria-describedby={err ? 'signin-err' : undefined} />
+        {err && <p id="signin-err" className="field-error" role="alert">{err}</p>}
+      </div>
+      {sent === 'error' && <Alert kind="error">We couldn’t send that just now. Please try again.</Alert>}
+      <button className="btn btn-block" disabled={sent === 'sending'}>{sent === 'sending' ? <><Spinner /> Sending</> : 'Email me a sign-in link'}</button>
+    </form>
+  );
+}
+

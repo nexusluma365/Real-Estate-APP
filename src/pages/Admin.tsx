@@ -217,7 +217,7 @@ export default function Admin() {
                 </table>
               </section>
 
-              {d.source === 'live' && <PremiumPanel token={token} days={d.days} />}
+              {d.source === 'live' && <PremiumPanel token={token} days={d.days} spendCents={spendCents} />}
               {d.source === 'live' && <ShippingPanel token={token} />}
               {d.source === 'live' && <ListingsPanel token={token} />}
 

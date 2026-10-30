@@ -1,9 +1,10 @@
 import { notConfigured, setSession, type Ctx } from '../../_lib';
+import { safeReturn } from '../../premium';
 
 const sha256 = async (s: string) =>
   [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
-/** GET /api/access/verify?token=… — consumes a single-use sign-in token, sets the session cookie, redirects to /access. */
+/** GET /api/access/verify?token=… — consumes a single-use sign-in token, sets the session cookie, redirects to `next` (same-site path) or /access. */
 export const onRequestGet = async ({ request, env }: Ctx) => {
   if (!env.SESSION_SECRET || !env.DB) return notConfigured('Sign-in links');
   const url = new URL(request.url);
@@ -16,5 +17,5 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
   if (!row || row.used_at || row.expires_at < new Date().toISOString() || !row.stripe_customer_id) return back('?link=expired');
   await env.DB.prepare('UPDATE rr_access_tokens SET used_at = ? WHERE token_hash = ?').bind(new Date().toISOString(), hash).run();
   const cookie = await setSession(env, { lead_id: row.lead_id, customer_id: row.stripe_customer_id });
-  return new Response(null, { status: 302, headers: { Location: `${url.origin}/access`, 'Set-Cookie': cookie, 'Cache-Control': 'no-store' } });
+  return new Response(null, { status: 302, headers: { Location: `${url.origin}${safeReturn(url.searchParams.get('next'), '/access')}`, 'Set-Cookie': cookie, 'Cache-Control': 'no-store' } });
 };

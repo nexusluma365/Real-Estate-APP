@@ -1,9 +1,11 @@
 import { Logo } from './Logo';
 import { MailIcon } from '../ui/Icons';
 import { useFinder } from '../../context/FinderContext';
+import { useFindSecondChance } from '../../hooks/useFindSecondChance';
 
 export function Footer() {
-  const { goTo, activateSecondChance } = useFinder();
+  const { goTo } = useFinder();
+  const findSecondChance = useFindSecondChance();
   const link = 'text-[14px] text-white/70 transition-colors hover:text-gold';
   return (
     <footer id="contact" className="bg-navy-900 text-white">
@@ -18,7 +20,7 @@ export function Footer() {
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold">Explore</h2>
           <ul className="mt-5 space-y-3">
             <li><button type="button" className={link} onClick={() => goTo('search', { focusSearch: true })}>Find Apartments</button></li>
-            <li><button type="button" className={link} onClick={activateSecondChance}>Second-Chance Options</button></li>
+            <li><button type="button" className={link} onClick={() => findSecondChance('footer')}>Find Second-Chance Apartments</button></li>
             <li><button type="button" className={link} onClick={() => goTo('how-it-works')}>How It Works</button></li>
           </ul>
         </nav>

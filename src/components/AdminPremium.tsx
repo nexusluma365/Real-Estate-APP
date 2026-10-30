@@ -5,13 +5,17 @@ import { env } from '../lib/env';
 interface PM {
   members: { with_access: number; intro_month: number; past_due: number; canceling: number; started: number; ended: number; mrr_cents: number };
   billing: { revenue_cents: number; refunded_cents: number; renewals_paid: number; renewals_failed: number; renewal_success_rate: number | null };
-  funnel: { finder_searches: number; unlock_clicks: number; offer_views: number; checkout_starts: number; joins: number };
-  listings: { by_classification: { k: string; n: number }[]; needs_reverification: number };
+  funnel: {
+    finder_opened: number; location_set: number; finder_searches: number; locked_listing_views: number; unlock_clicks: number; offer_views: number;
+    checkout_starts: number; joins: number; premium_listings_unlocked: number; reached_first_renewal: number;
+  };
+  listings: { by_classification: { k: string; n: number }[]; needs_reverification: number; coverage: { k: string; n: number; verified: number }[] };
+  saved_searches: { total: number; with_alerts: number; members: number };
 }
 const money = (c: number) => `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—');
 
-export function PremiumPanel({ token, days }: { token: string; days: number }) {
+export function PremiumPanel({ token, days, spendCents = 0 }: { token: string; days: number; spendCents?: number }) {
   const [d, setD] = useState<PM | null>(null);
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -34,9 +38,28 @@ export function PremiumPanel({ token, days }: { token: string; days: number }) {
         {t(`Joined / ended (${days}d)`, `${d.members.started} / ${d.members.ended}`)}
         {t(`Membership revenue (${days}d)`, money(d.billing.revenue_cents), d.billing.refunded_cents ? `${money(d.billing.refunded_cents)} refunded` : undefined)}
         {t('Renewal success', d.billing.renewal_success_rate == null ? '—' : `${Math.round(d.billing.renewal_success_rate * 100)}%`, `${d.billing.renewals_paid} paid · ${d.billing.renewals_failed} failed`)}
-        {t('Unlock clicks → offer', `${d.funnel.unlock_clicks} → ${d.funnel.offer_views}`, `${d.funnel.finder_searches} Finder searches`)}
+        {t('Cost per Premium signup', spendCents && d.members.started ? money(Math.round(spendCents / d.members.started)) : '—', 'uses the ad spend entered below')}
+        {t('Saved searches', String(d.saved_searches.total), `${d.saved_searches.with_alerts} with alerts · ${d.saved_searches.members} members`)}
+        {t('Unlock clicks → offer', `${d.funnel.unlock_clicks} → ${d.funnel.offer_views}`, `${d.funnel.locked_listing_views} locked listing views`)}
         {t('Offer → checkout → join', `${pct(d.funnel.checkout_starts, d.funnel.offer_views)} → ${pct(d.funnel.joins, d.funnel.checkout_starts)}`, `${d.funnel.checkout_starts} checkouts · ${d.funnel.joins} joins`)}
       </div>
+      <table className="adm-table" style={{ marginTop: 18 }}>
+        <thead><tr><th>Finder funnel ({days}d)</th><th>Count</th></tr></thead>
+        <tbody>
+          {([
+            ['Finder opened (sessions)', d.funnel.finder_opened], ['Location set', d.funnel.location_set], ['Searches', d.funnel.finder_searches],
+            ['Locked listing views', d.funnel.locked_listing_views], ['Unlock Access clicks', d.funnel.unlock_clicks], ['Membership offer views', d.funnel.offer_views],
+            ['Checkouts started', d.funnel.checkout_starts], ['$5 memberships started (Stripe-verified)', d.funnel.joins],
+            ['Premium listings viewed unlocked', d.funnel.premium_listings_unlocked], ['Members who reached a $19.99 renewal (all time)', d.funnel.reached_first_renewal],
+          ] as [string, number][]).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}
+        </tbody>
+      </table>
+      {d.listings.coverage.length > 0 && (
+        <table className="adm-table" style={{ marginTop: 18 }}>
+          <thead><tr><th>Listing coverage</th><th>Listings</th><th>Verified second-chance</th></tr></thead>
+          <tbody>{d.listings.coverage.map((c) => <tr key={c.k}><td>{c.k}</td><td>{c.n}</td><td>{c.verified}</td></tr>)}</tbody>
+        </table>
+      )}
       <p className="muted" style={{ marginTop: 14 }}>
         Listings: {d.listings.by_classification.map((c) => `${c.n} ${c.k.replace(/_/g, ' ')}`).join(' · ') || 'none yet'}
         {d.listings.needs_reverification ? ` · ${d.listings.needs_reverification} verified listing(s) not re-checked in 30 days` : ''}
