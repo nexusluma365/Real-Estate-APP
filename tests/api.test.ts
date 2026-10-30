@@ -49,6 +49,8 @@ const env: Env = {
 // ---- simulated Stripe (stateful) + ESP
 const pis = new Map<string, Record<string, unknown>>();
 const checkoutSessions = new Map<string, { id: string; params: Record<string, string>; status: string; customer?: string; email?: string }>();
+const stripeSubscriptions = new Map<string, Record<string, unknown>>();
+let stripeSubscriptionFetchFailures = 0;
 const portalCalls: Record<string, string>[] = [];
 // ---- simulated property websites + OpenAI verdicts for the second-chance scanner
 let googleCalls = 0, openaiCalls = 0;
@@ -128,6 +130,14 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     return j({ id: cs.id, mode: 'subscription', status: cs.status, customer: cs.customer || 'cus_member_1',
       customer_details: { email: cs.email || 'member@example.com', name: 'Riley Member' }, metadata: { lead_id: cs.params['metadata[lead_id]'] },
       subscription: { id: 'sub_1', customer: cs.customer || 'cus_member_1', status: 'active', cancel_at_period_end: false, canceled_at: null, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] } } });
+  }
+  const sm = /^subscriptions\/(sub_\w+)$/.exec(path);
+  if (sm) {
+    if (stripeSubscriptionFetchFailures > 0) {
+      stripeSubscriptionFetchFailures--;
+      throw new Error('temporary Stripe subscription lookup failure');
+    }
+    return j(stripeSubscriptions.get(sm[1]) || { id: sm[1], customer: 'cus_member_1', status: 'canceled', cancel_at_period_end: false, canceled_at: null });
   }
   if (path === 'billing_portal/configurations') return j({ data: [{ id: 'bpc_1', metadata: { rentready: 'premium' } }] });
   if (path === 'billing_portal/sessions') { portalCalls.push(Object.fromEntries(form)); return j({ url: 'https://billing.stripe.test/p/session' }); }
@@ -372,7 +382,11 @@ test('admin download test: token required, returns a fresh 1-minute toolkit link
 const admin = (method: string, path: string, data?: unknown) => route(new Request(ORIGIN + path, {
   method, headers: { Origin: ORIGIN, Authorization: `Bearer ${env.ADMIN_TOKEN}`, 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined,
 }), env);
-const subEvent = (type: string, sub: Record<string, unknown>) => webhook({ id: `evt_${type}_${Math.random()}`, type, data: { object: { id: 'sub_1', customer: 'cus_member_1', cancel_at_period_end: false, canceled_at: null, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] }, ...sub } } });
+const subEvent = (type: string, sub: Record<string, unknown>) => {
+  const snapshot = { id: 'sub_1', customer: 'cus_member_1', status: 'active', cancel_at_period_end: false, canceled_at: null, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] }, ...sub };
+  stripeSubscriptions.set('sub_1', snapshot);
+  return webhook({ id: `evt_${type}_${Math.random()}`, type, data: { object: snapshot } });
+};
 
 test('premium access policy: active, grace after a failed renewal, then none', () => {
   const now = Date.parse('2026-11-10T00:00:00Z');
@@ -496,6 +510,22 @@ test('premium: locked listings, $5 checkout, activation, unlocked details, savin
   assert.equal((await call('GET', '/api/listings?place=Charlotte, NC')).data.listings[0].locked, true, 'details lock again');
   assert.equal((await call('POST', '/api/member', { action: 'save', ref: 'listing:lst_oak', label: 'Oak' })).data.code, 'premium_required');
   assert.equal((await call('GET', '/api/member')).data.saved.length, 1, 'saved data kept after the membership ends');
+
+  // An older event snapshot must not reactivate a subscription whose current Stripe state is canceled.
+  const staleSubscription = { id: 'sub_1', customer: 'cus_member_1', status: 'active', cancel_at_period_end: false, canceled_at: null, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] } };
+  const staleEvent = { id: 'evt_old_active_snapshot', type: 'customer.subscription.updated', data: { object: staleSubscription } };
+  assert.equal((await webhook(staleEvent)).status, 200);
+  assert.equal((await client.execute("SELECT status FROM rr_subscriptions WHERE subscription_id = 'sub_1'")).rows[0].status, 'canceled');
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, false);
+
+  // A transient Stripe lookup error is retried rather than being recorded as a completed webhook.
+  stripeSubscriptionFetchFailures = 1;
+  const retryEvent = { id: 'evt_retry_subscription_lookup', type: 'customer.subscription.updated', data: { object: staleSubscription } };
+  assert.equal((await webhook(retryEvent)).status, 500);
+  assert.equal((await client.execute("SELECT id FROM rr_webhook_events WHERE id = 'evt_retry_subscription_lookup'")).rows.length, 0);
+  assert.equal((await webhook(retryEvent)).status, 200);
+  assert.equal((await client.execute("SELECT id FROM rr_webhook_events WHERE id = 'evt_retry_subscription_lookup'")).rows.length, 1);
+  assert.equal((await call('GET', '/api/entitlements')).data.premium.active, false);
 
   // Coming back: no second intro price.
   const again = await call('POST', '/api/premium/checkout', { return_to: '/account' });
@@ -701,4 +731,3 @@ test('second-chance fallback reaches other states (labelled), and locked cards g
   assert.equal((await call('GET', '/api/listings/preview?id=lst_elm')).status, 404, 'non-Google photos get no preview');
   assert.equal((await call('GET', '/api/listings/preview?id=../../x')).status, 400);
 });
-
