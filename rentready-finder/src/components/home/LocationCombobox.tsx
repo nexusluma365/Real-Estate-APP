@@ -26,10 +26,12 @@ export function LocationCombobox({ value, onChange, onSelect, invalid, described
   const debounced = useDebounce(value.trim(), 280);
   const abortRef = useRef<AbortController | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Only the visitor's own typing asks Google for suggestions — never a city the page filled in (each lookup costs money).
+  const typed = useRef(false);
 
   useEffect(() => {
     abortRef.current?.abort();
-    if (debounced.length < 2) {
+    if (debounced.length < 2 || !typed.current) {
       setItems([]);
       return;
     }
@@ -97,6 +99,7 @@ export function LocationCombobox({ value, onChange, onSelect, invalid, described
         placeholder="City, state, ZIP code, or address"
         value={value}
         onChange={(e) => {
+          typed.current = true;
           onChange(e.target.value);
           setOpen(true);
         }}

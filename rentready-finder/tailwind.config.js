@@ -12,7 +12,7 @@ export default {
         mist: '#E9EDF3',
       },
       fontFamily: {
-        sans: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Manrope', 'Manrope Fallback', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         card: '0 10px 30px -12px rgba(38, 55, 80, 0.18), 0 2px 6px -2px rgba(38, 55, 80, 0.06)',

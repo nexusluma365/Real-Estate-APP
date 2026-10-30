@@ -1,3 +1,14 @@
+/* Stand-in for Manrope while it downloads, sized to Manrope's measured metrics (3% wider, taller ascent),
+   so text doesn't re-wrap and push the page when the real font arrives. */
+@font-face {
+  font-family: 'Manrope Fallback';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+  size-adjust: 103%;
+  ascent-override: 103.4%;
+  descent-override: 29.1%;
+  line-gap-override: 0%;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

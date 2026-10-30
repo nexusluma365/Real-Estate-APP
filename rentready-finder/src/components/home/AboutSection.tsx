@@ -12,7 +12,7 @@ export function AboutSection() {
       <div className="container-site">
         <Reveal>
           <div className="grid items-center gap-8 rounded-[34px] bg-white p-4 shadow-card ring-1 ring-black/[0.03] md:grid-cols-[1.05fr_1fr] md:gap-12 md:p-5">
-            <SmartImage src={MEDIA.about.src} alt={MEDIA.about.alt} className="aspect-[4/3] rounded-[28px] md:aspect-auto md:h-full md:min-h-[420px]" />
+            <SmartImage src={MEDIA.about.src} srcSet={MEDIA.about.srcSet} sizes="(min-width: 768px) 560px, 100vw" alt={MEDIA.about.alt} className="aspect-[4/3] rounded-[28px] md:aspect-auto md:h-full md:min-h-[420px]" />
             <div className="px-3 pb-6 md:px-0 md:py-8 md:pr-10">
               <p className="eyebrow">Why RentReady Finder</p>
               <h2 id="about-title" className="mt-3 text-[32px] font-extrabold leading-[1.08] tracking-[-0.03em] text-navy-900 sm:text-[40px]">

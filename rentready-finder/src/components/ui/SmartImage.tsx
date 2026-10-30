@@ -9,10 +9,13 @@ interface SmartImageProps {
   eager?: boolean;
   /** "editorial" falls back to a navy gradient; "property" shows the honest "Photo unavailable" placeholder. */
   kind?: 'editorial' | 'property';
+  /** Responsive sources so phones never download desktop-sized photos. */
+  srcSet?: string;
+  sizes?: string;
 }
 
 /** Lazy-loaded image with a subtle fade-in and a graceful fallback. Reserves space to avoid layout shift. */
-export function SmartImage({ src, alt, className = '', imgClassName = '', eager = false, kind = 'editorial' }: SmartImageProps) {
+export function SmartImage({ src, alt, className = '', imgClassName = '', eager = false, kind = 'editorial', srcSet, sizes }: SmartImageProps) {
   const [state, setState] = useState<'loading' | 'loaded' | 'error'>(src ? 'loading' : 'error');
 
   return (
@@ -20,6 +23,8 @@ export function SmartImage({ src, alt, className = '', imgClassName = '', eager 
       {src && state !== 'error' ? (
         <img
           src={src}
+          srcSet={srcSet}
+          sizes={srcSet ? sizes : undefined}
           alt={alt}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"

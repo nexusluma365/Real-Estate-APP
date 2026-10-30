@@ -16,7 +16,7 @@ export function Hero() {
   return (
     <section id="top" aria-labelledby="hero-title" className="relative isolate flex min-h-[420px] items-center overflow-hidden">
       <motion.div className="absolute inset-0 -z-20" initial={{ scale: 1.08 }} animate={{ scale: 1 }} transition={{ duration: 2.4, ease }}>
-        <SmartImage src={MEDIA.hero.src} alt="" eager className="absolute inset-0 h-full w-full" />
+        <SmartImage src={MEDIA.hero.src} srcSet={MEDIA.hero.srcSet} sizes="100vw" alt="" eager className="absolute inset-0 h-full w-full" />
       </motion.div>
       {/* Dusk grade: deep navy at the top-left for the headline, cooler and lighter toward the skyline */}
       <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(105deg,rgba(14,21,34,0.9)_0%,rgba(27,39,57,0.7)_38%,rgba(38,55,80,0.25)_72%,rgba(52,73,106,0.35)_100%)]" />

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, HashRouter, Link, Route, Routes } from 'react-router-dom';
 import { MotionConfig } from 'motion/react';
 import { FinderProvider } from './context/FinderContext';
@@ -5,12 +6,27 @@ import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { ErrorBoundary } from './components/layout/ErrorBoundary';
 import { HomePage } from './pages/HomePage';
-import { PropertyDetailsPage } from './pages/PropertyDetailsPage';
+import { Skeleton } from './components/ui/Loader';
+
+// The home page (search + results) is in the first download; detail pages load when opened.
+const PropertyDetailsPage = lazy(() => import('./pages/PropertyDetailsPage').then((m) => ({ default: m.PropertyDetailsPage })));
+const ListingDetailsPage = lazy(() => import('./pages/ListingDetailsPage').then((m) => ({ default: m.ListingDetailsPage })));
+
+/** Same shape as the detail pages' own loading state, so nothing jumps when the page arrives. */
+function DetailFallback() {
+  return (
+    <div className="min-h-screen bg-offwhite pb-24 pt-[100px]" aria-busy="true">
+      <div className="container-site">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="mt-6 h-[380px] !rounded-[24px]" />
+      </div>
+    </div>
+  );
+}
 import { IntroLoader } from './components/ui/HelloLoader';
 import { MemberProvider } from './context/MemberContext';
 import { MembershipOffer } from './components/premium/MembershipOffer';
 import { PremiumReturnNotice } from './components/premium/PremiumReturnNotice';
-import { ListingDetailsPage } from './pages/ListingDetailsPage';
 
 declare const __ROUTER_MODE__: 'hash' | 'browser';
 
@@ -39,8 +55,8 @@ function Shell() {
         <main>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/property/:placeId" element={<PropertyDetailsPage />} />
-            <Route path="/listing/:id" element={<ListingDetailsPage />} />
+            <Route path="/property/:placeId" element={<Suspense fallback={<DetailFallback />}><PropertyDetailsPage /></Suspense>} />
+            <Route path="/listing/:id" element={<Suspense fallback={<DetailFallback />}><ListingDetailsPage /></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

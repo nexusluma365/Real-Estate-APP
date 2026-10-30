@@ -12,7 +12,7 @@ interface Card {
   body: string;
   icon: ReactNode;
   cta: string;
-  image: { src: string; alt: string };
+  image: { src: string; srcSet?: string; alt: string };
   onClick: () => void;
 }
 
@@ -69,7 +69,7 @@ export function FeatureCards() {
           {cards.map((c, i) => (
             <Reveal key={c.title} delay={i * 0.08}>
               <article className="group flex h-full flex-col overflow-hidden rounded-[26px] bg-white shadow-card ring-1 ring-black/[0.03] transition-[transform,box-shadow] duration-500 ease-lux hover:-translate-y-1.5 hover:shadow-float">
-                <SmartImage src={c.image.src} alt={c.image.alt} className="aspect-[16/10]" imgClassName="transition-transform duration-[1200ms] ease-lux group-hover:scale-[1.06]" />
+                <SmartImage src={c.image.src} srcSet={c.image.srcSet} sizes="(min-width: 768px) 360px, 100vw" alt={c.image.alt} className="aspect-[16/10]" imgClassName="transition-transform duration-[1200ms] ease-lux group-hover:scale-[1.06]" />
                 <div className="flex flex-1 flex-col p-6">
                   <h3 className="text-[20px] font-extrabold tracking-[-0.02em] text-navy-900">{c.title}</h3>
                   <p className="mt-1 text-[12.5px] font-semibold text-gold-700">{c.kicker}</p>

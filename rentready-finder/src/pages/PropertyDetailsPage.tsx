@@ -99,7 +99,7 @@ function Details({ p }: { p: Property }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="mt-6">
       <div className="grid gap-3 md:grid-cols-[2fr_1fr] md:grid-rows-2">
-        <SmartImage kind="property" eager src={main ? photoUrl(main.name, 1600) : null} alt={`${p.name}`} className="aspect-[16/10] rounded-[24px] md:row-span-2 md:aspect-auto md:h-[460px]" />
+        <SmartImage kind="property" eager src={main ? photoUrl(main.name, 1200) : null} srcSet={main ? `${photoUrl(main.name, 640)} 640w, ${photoUrl(main.name, 1200)} 1200w` : undefined} sizes="(min-width: 768px) 66vw, 100vw" alt={`${p.name}`} className="aspect-[16/10] rounded-[24px] md:row-span-2 md:aspect-auto md:h-[460px]" />
         {[0, 1].map((i) => (
           <SmartImage key={i} kind="property" src={rest[i] ? photoUrl(rest[i].name, 800) : null} alt={`${p.name} photo ${i + 2}`} className="hidden rounded-[24px] md:block" />
         ))}

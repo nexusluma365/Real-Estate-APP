@@ -19,7 +19,9 @@ export function PropertyCard({ p }: { p: Property }) {
       <Link to={`/property/${encodeURIComponent(p.placeId)}`} className="block" tabIndex={-1} aria-hidden="true">
         <SmartImage
           kind="property"
-          src={photo ? photoUrl(photo.name, 900) : null}
+          src={photo ? photoUrl(photo.name, 640) : null}
+          srcSet={photo ? `${photoUrl(photo.name, 400)} 400w, ${photoUrl(photo.name, 640)} 640w, ${photoUrl(photo.name, 900)} 900w` : undefined}
+          sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
           alt={`${p.name} exterior`}
           className="aspect-[4/3]"
           imgClassName="transition-transform duration-[1200ms] ease-lux group-hover:scale-[1.06]"
