@@ -16,6 +16,8 @@ import { DIGITAL_KIT_FILE_KEY } from '../src/config/resources';
 import { sendListingAlerts } from '../netlify/lib/jobs/alerts';
 import { accessFrom } from '../netlify/lib/premium';
 import { mixListings } from '../netlify/lib/listings';
+import { checkedRent, enqueueArea, processQueue, quoteOnPage, safeUrl } from '../netlify/lib/scan';
+import { MIGRATIONS } from '../netlify/lib/migrations';
 
 const ORIGIN = 'https://rentready.test';
 const client = createClient({ url: 'file::memory:' });
@@ -35,6 +37,7 @@ const env: Env = {
   RESEND_API_KEY: 're_test_x',
   FROM_EMAIL: 'RentReady <support@send.rentready.test>',
   SUPPORT_EMAIL: 'support@rentready.test',
+  GOOGLE_MAPS_API_KEY: 'g-test',
   DB: sqlDatabase(client),
   PRODUCT_FILES: {
     async createDownloadUrl(key) {
@@ -47,6 +50,21 @@ const env: Env = {
 const pis = new Map<string, Record<string, unknown>>();
 const checkoutSessions = new Map<string, { id: string; params: Record<string, string>; status: string; customer?: string; email?: string }>();
 const portalCalls: Record<string, string>[] = [];
+// ---- simulated property websites + OpenAI verdicts for the second-chance scanner
+let googleCalls = 0, openaiCalls = 0;
+const mediaCalls: string[] = [];
+const siteFetches: string[] = [];
+const SITES: { id: string; name: string; website: string | null; home: string; criteria: string; verdict: Record<string, unknown> }[] = [
+  { id: 'ChIJyes', name: 'Willow Point', website: 'https://willowpoint.com/', home: 'Spacious homes. 1 bedrooms starting at $1,180 per month.',
+    criteria: 'Applicants with a prior eviction may be considered through our Second Chance Leasing program with an additional deposit.',
+    verdict: { second_chance: 'yes', evidence_quote: 'Applicants with a prior eviction may be considered through our Second Chance Leasing program with an additional deposit.', evidence_page: 1, rent_min: 1180, rent_max: null, rent_quote: '1 bedrooms starting at $1,180 per month' } },
+  { id: 'ChIJfake', name: 'Harbor Flats', website: 'https://harborflats.com/', home: 'Luxury living downtown.', criteria: 'A credit check is required for all applicants.',
+    verdict: { second_chance: 'yes', evidence_quote: 'We welcome applicants with evictions and bad credit at Harbor Flats.', evidence_page: 1, rent_min: 900, rent_max: null, rent_quote: 'from $900' } },
+  { id: 'ChIJno', name: 'Oak Gardens', website: 'https://oakgardens.com/', home: 'Pet friendly.', criteria: 'Applicants must have a credit score of 650.',
+    verdict: { second_chance: 'no', evidence_quote: '', evidence_page: 0, rent_min: null, rent_max: null, rent_quote: '' } },
+  { id: 'ChIJnoweb', name: 'No Site Commons', website: null, home: '', criteria: '', verdict: {} },
+  { id: 'ChIJlocal', name: 'Sneaky Place', website: 'http://127.0.0.1/admin', home: '', criteria: '', verdict: {} },
+];
 let piSeq = 0;
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -59,6 +77,27 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     emails.push(JSON.parse(String(init?.body)));
     return new Response('{"id":"em_1"}');
   }
+  if (url.host === 'places.googleapis.com' && url.pathname.endsWith('/media')) {
+    mediaCalls.push(url.href);
+    return new Response(JSON.stringify({ photoUri: `https://lh3.googleusercontent.com/tiny?w=${url.searchParams.get('maxWidthPx')}` }));
+  }
+  if (url.host === 'places.googleapis.com') {
+    googleCalls++;
+    return new Response(JSON.stringify({ places: SITES.map((x) => ({ id: x.id, displayName: { text: x.name }, formattedAddress: `${x.id} Main St, Durham, NC, USA`, nationalPhoneNumber: '(919) 555-0100', websiteUri: x.website, photos: [{ name: `places/${x.id}/photos/p1` }] })) }));
+  }
+  if (url.host === 'api.openai.com') {
+    openaiCalls++;
+    const prompt = JSON.parse(String(init?.body)).messages[1].content as string;
+    const site = SITES.find((x) => prompt.startsWith(`Property: ${x.name}`))!;
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(site.verdict) } }] }));
+  }
+  const site = SITES.find((x) => x.website && new URL(x.website).host === url.host);
+  if (site) {
+    siteFetches.push(url.href);
+    if (url.pathname.includes('criteria')) return new Response(`<html><body><h1>Rental criteria</h1><p>${site.criteria}</p></body></html>`, { headers: { 'Content-Type': 'text/html' } });
+    return new Response(`<html><body><nav><a href="/rental-criteria">Rental Criteria</a></nav><p>${site.home}</p><script>var x = "Second chance";</script></body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  }
+  if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') { siteFetches.push(url.href); return new Response('internal'); }
   if (url.host !== 'api.stripe.com') return realFetch(input, init);
   const form = new URLSearchParams(String(init?.body || ''));
   const path = url.pathname.replace('/v1/', '');
@@ -580,5 +619,86 @@ test('include_nearby adds same-state second-chance listings even when the city h
   assert.ok(own.length > 0 && own.every((l: any) => l.city === 'Charlotte'));
   assert.ok(near.length > 0 && near.every((l: any) => l.city !== 'Charlotte' && l.state === 'NC' && l.classification === 'verified_second_chance' && l.locked));
   assert.equal((await call('GET', '/api/listings?place=Charlotte, NC&second_chance=1')).data.listings.filter((l: any) => l.nearby).length, 0, 'not added without the flag');
+});
+
+test('embedded migrations match the .sql files; migrate endpoint is admin-only and refuses anything outside rr_', async () => {
+  for (const [name, sql] of MIGRATIONS) assert.equal(sql, readFileSync(`supabase/migrations/${name}.sql`, 'utf8'), `${name} drifted`);
+  assert.equal((await route(new Request(ORIGIN + '/api/admin/migrate', { method: 'POST', headers: { Origin: ORIGIN } }), env)).status, 401);
+  for (const [, sql] of MIGRATIONS) {
+    for (const stmt of sql.replace(/--.*$/gm, '').split(';').map((x) => x.trim()).filter(Boolean)) assert.match(stmt.replace(/\s+/g, ' '), /rr_/, 'every statement targets rr_ tables');
+  }
+});
+
+test('scanner safeguards: safe URLs only, quotes must be on the page, rent must be published', () => {
+  for (const bad of ['http://site.com', 'https://127.0.0.1/', 'https://localhost/', 'https://[::1]/', 'https://intranet/', 'https://x.internal/', 'https://a.com:8443/', 'javascript:alert(1)', 'https://user:pw@a.com/'])
+    assert.equal(safeUrl(bad), null, bad);
+  assert.ok(safeUrl('https://willowpoint.com/apply'));
+  const page = 'Rental criteria\nApplicants with a prior eviction may be considered through our Second Chance Leasing program.';
+  assert.ok(quoteOnPage('applicants with a prior eviction may be considered through our second chance leasing program.', page));
+  assert.ok(!quoteOnPage('We welcome applicants with evictions and bad credit.', page), 'invented quote rejected');
+  assert.ok(!quoteOnPage('eviction', page), 'too short to be evidence');
+  const v = (o: object) => ({ second_chance: 'yes', evidence_quote: '', evidence_page: 0, rent_min: null, rent_max: null, rent_quote: '', ...o }) as any;
+  assert.deepEqual(checkedRent(v({ rent_min: 1250, rent_max: 1600, rent_quote: 'From $1,250 - $1,600/mo' }), [{ text: 'Floor plans From $1,250 - $1,600/mo' }]), { min: 1250, max: 1600 });
+  assert.equal(checkedRent(v({ rent_min: 1250, rent_quote: 'From $1,250' }), [{ text: 'Call for pricing' }]), null, 'rent not on the page');
+  assert.equal(checkedRent(v({ rent_min: 1500, rent_quote: 'From $1,250' }), [{ text: 'From $1,250' }]), null, 'number not in the quote');
+});
+
+test('second-chance scan: verified quote → listed; invented quote, no policy, no website, unsafe site → not listed; caps and re-checks', async () => {
+  cookie = '';
+  const e2 = { ...env, OPENAI_API_KEY: 'sk-test', GOOGLE_MAPS_API_KEY: 'g-test', SCAN_DAILY_LIMIT: '10' };
+  const q1 = await enqueueArea(e2, 'Durham', 'NC');
+  assert.deepEqual(q1, { status: 'queued', queued: 5 });
+  assert.equal((await enqueueArea(e2, 'durham', 'nc')).status, 'recent', 'an area is queued at most once a day');
+  assert.equal(googleCalls, 1);
+  const r1 = await processQueue(e2, ORIGIN, 3);
+  const r2 = await processQueue(e2, ORIGIN, 3);
+  assert.equal((r1 as any).processed + ((r2 as any).processed ?? 0), 5);
+  assert.ok(!siteFetches.some((u) => u.includes('127.0.0.1')), 'internal address never fetched');
+  assert.ok(siteFetches.some((u) => u.endsWith('/rental-criteria')), 'criteria page read');
+
+  const d = (await call('GET', '/api/listings?place=Durham, NC&second_chance=1')).data;
+  assert.deepEqual(d.listings.filter((l: any) => !l.nearby).map((l: any) => l.listing_id), ['gp_ChIJyes'], 'only the property whose own site states the policy');
+  assert.equal(d.listings[0].locked, true);
+  assert.equal(d.listings[0].rent_cents, 118000, 'published rent kept');
+  const full = (await client.execute({ sql: 'SELECT * FROM rr_listings WHERE listing_id = ?', args: ['gp_ChIJyes'] })).rows[0] as any;
+  assert.match(full.screening_note, /prior eviction may be considered through our Second Chance Leasing program/);
+  assert.equal(full.source_url, 'https://willowpoint.com/rental-criteria');
+  assert.equal(full.source_name, 'Property website (checked automatically)');
+  const scans = Object.fromEntries(((await client.execute("SELECT place_id, result FROM rr_place_scans WHERE city = 'Durham'")).rows as any[]).map((r) => [r.place_id, r.result]));
+  assert.deepEqual(scans, { ChIJyes: 'second_chance', ChIJfake: 'unclear', ChIJno: 'no', ChIJnoweb: 'no_website', ChIJlocal: 'no_website' });
+
+  // Daily cap: scans stop once SCAN_DAILY_LIMIT is reached.
+  await client.execute({ sql: 'INSERT INTO rr_scan_queue (place_id, city, state, payload, enqueued_at) VALUES (?, ?, ?, ?, ?)', args: ['ChIJno', 'Durham', 'NC', JSON.stringify({ id: 'ChIJno', name: 'Oak Gardens', address: '', phone: null, website: 'https://oakgardens.com/', photo: null }), new Date().toISOString()] });
+  const capped = await processQueue({ ...e2, SCAN_DAILY_LIMIT: '3' }, ORIGIN, 3);
+  assert.equal((capped as any).skipped, 'daily limit reached');
+  await client.execute("DELETE FROM rr_scan_queue WHERE place_id = 'ChIJno'");
+
+  // Re-check after the TTL: the policy has been removed from the site → the listing is taken down.
+  SITES[0].verdict = { second_chance: 'no', evidence_quote: '', evidence_page: 0, rent_min: null, rent_max: null, rent_quote: '' };
+  await client.execute("UPDATE rr_place_scans SET scanned_at = '2026-01-01T00:00:00.000Z' WHERE place_id = 'ChIJyes'");
+  await processQueue({ ...e2, SCAN_DAILY_LIMIT: '100' }, ORIGIN, 3);
+  assert.equal(((await client.execute("SELECT classification FROM rr_listings WHERE listing_id = 'gp_ChIJyes'")).rows[0] as any).classification, 'unavailable');
+  assert.equal((await call('GET', '/api/listings?place=Durham, NC&second_chance=1')).data.listings.filter((l: any) => !l.nearby).length, 0, 'taken down (only other cities’ listings remain, labelled nearby)');
+
+  // Status endpoint for the page's progress message.
+  const st = (await call('GET', '/api/scan/area?place=Durham, NC')).data;
+  assert.deepEqual(Object.keys(st).sort(), ['checked', 'found', 'pending']);
+});
+
+test('second-chance fallback reaches other states (labelled), and locked cards get only a 48px photo preview', async () => {
+  cookie = '';
+  await admin('POST', '/api/admin/listings', { listing_id: 'lst_ga', classification: 'verified_second_chance', name: 'Peach Court', address: '5 Peach St', city: 'Atlanta', state: 'GA', rent_cents: 130000, screening_note: 'Second chance leasing available.', source_name: 'Peach', source_url: 'https://peach.example', verified_at: '2026-10-30', photo_url: `${ORIGIN}/finder/api/photos?name=${encodeURIComponent('places/PEACH/photos/abc')}&maxWidthPx=900` });
+  // Wyoming has no listings at all: other states' verified listings are shown, flagged nearby with their own city.
+  const wy = (await call('GET', '/api/listings?place=Cheyenne, WY&second_chance=1&include_nearby=1')).data;
+  assert.ok(wy.listings.length > 0 && wy.listings.every((l: any) => l.nearby && l.classification === 'verified_second_chance' && l.state !== 'WY' && l.locked));
+  const peach = (await call('GET', '/api/listings?place=Atlanta, GA&second_chance=1')).data.listings.find((l: any) => l.listing_id === 'lst_ga');
+  assert.equal(peach.has_preview, true);
+  assert.ok(!('photo_url' in peach), 'full photo url is never sent before unlocking');
+  const pv = await call('GET', '/api/listings/preview?id=lst_ga');
+  assert.equal(pv.status, 302);
+  assert.match(pv.res.headers.get('Location') || '', /lh3\.googleusercontent\.com\/tiny\?w=48$/);
+  assert.match(mediaCalls[mediaCalls.length - 1], /places\/PEACH\/photos\/abc\/media\?maxWidthPx=48/);
+  assert.equal((await call('GET', '/api/listings/preview?id=lst_elm')).status, 404, 'non-Google photos get no preview');
+  assert.equal((await call('GET', '/api/listings/preview?id=../../x')).status, 400);
 });
 

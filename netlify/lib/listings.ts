@@ -17,14 +17,14 @@ export interface ListingRow {
 
 export type PublicListing = (
   | ({ locked: false } & Omit<ListingRow, 'created_at' | 'updated_at'>)
-  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; rent_max_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null }
+  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; rent_max_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null; has_preview: boolean }
 ) & { nearby?: boolean };
 
 /** Second-chance details are a Premium feature; everything else is public. */
 export function present(row: ListingRow, premium: boolean): PublicListing {
   if (row.classification === 'verified_second_chance' && !premium) {
     const { listing_id, city, state, rent_cents, rent_max_cents, beds, baths, verified_at } = row;
-    return { locked: true, listing_id, classification: 'verified_second_chance', city, state, rent_cents, rent_max_cents: rent_max_cents ?? null, beds, baths, verified_at };
+    return { locked: true, listing_id, classification: 'verified_second_chance', city, state, rent_cents, rent_max_cents: rent_max_cents ?? null, beds, baths, verified_at, has_preview: !!googlePhotoName(row.photo_url) };
   }
   const { created_at: _c, updated_at: _u, ...rest } = row;
   return { locked: false, ...rest };
@@ -62,10 +62,29 @@ export function mixListings<T extends { classification: Classification }>(rows: 
   return out;
 }
 
-/** Verified second-chance listings elsewhere in the same state — offered (labelled "nearby") when the city has none. */
+/**
+ * Verified second-chance listings outside the city — offered (flagged `nearby`, each card shows its city) when the
+ * city has none: the same state first, then other states, most recently checked first. Never invented.
+ */
 export async function secondChanceInState(env: Env, city: string, state: string, limit = 3): Promise<ListingRow[]> {
-  return (await env.DB!.prepare(
+  const DB = env.DB!;
+  const inState = (await DB.prepare(
     "SELECT * FROM rr_listings WHERE UPPER(state) = UPPER(?) AND LOWER(city) <> LOWER(?) AND classification = 'verified_second_chance' ORDER BY verified_at DESC LIMIT ?",
   ).bind(state.trim(), city.trim(), limit).all<ListingRow>()).results;
+  if (inState.length >= limit) return inState;
+  const other = (await DB.prepare(
+    "SELECT * FROM rr_listings WHERE UPPER(state) <> UPPER(?) AND classification = 'verified_second_chance' ORDER BY verified_at DESC LIMIT ?",
+  ).bind(state.trim(), limit - inState.length).all<ListingRow>()).results;
+  return [...inState, ...other];
 }
+
+/** A tiny, blurred-on-screen preview is allowed for Google photos only (the full photo is a Premium detail). */
+export const googlePhotoName = (photoUrl: string | null) => {
+  try {
+    const name = photoUrl ? new URL(photoUrl).searchParams.get('name') : null;
+    return name && /^places\/[^/]+\/photos\/[^/]+$/.test(name) ? name : null;
+  } catch {
+    return null;
+  }
+};
 

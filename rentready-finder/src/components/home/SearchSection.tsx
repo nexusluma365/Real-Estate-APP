@@ -9,6 +9,7 @@ import { SearchLoader } from '../ui/HelloLoader';
 import { RentReadyListings } from './RentReadyListings';
 import { getApproximateArea, lastSearch, track, trackOnce } from '../../services/member';
 import { WelcomeBack } from './WelcomeBack';
+import { cleanPlace } from '../../hooks/useSecondChanceScan';
 import { useMember } from '../../context/MemberContext';
 import { Loader } from '../ui/Loader';
 import { PropertyCard } from '../property/PropertyCard';
@@ -430,7 +431,7 @@ export function SearchSection() {
           </p>
           <p className="mt-2 text-[13.5px] font-medium text-navy-700" aria-live="polite">
             {locatingArea && !place ? 'Finding your area…'
-              : place ? <>Showing: <strong>{place}</strong>{areaSource === 'approximate' ? ' · approximate area based on your connection' : areaSource === 'saved' ? ' · your last search' : areaSource === 'precise' ? ' · near your current location' : ''}{areaSource === 'approximate' || areaSource === 'saved' ? ' — search any city or ZIP above to change it.' : ''}</>
+              : place ? <>Showing: <strong>{cleanPlace(place)}</strong>{areaSource === 'approximate' ? ' · approximate area based on your connection' : areaSource === 'saved' ? ' · your last search' : areaSource === 'precise' ? ' · near your current location' : ''}{areaSource === 'approximate' || areaSource === 'saved' ? ' — search any city or ZIP above to change it.' : ''}</>
               : 'Enter a city or ZIP code above to see apartments.'}
           </p>
         </div>

@@ -7,6 +7,8 @@ import { ListingCard } from '../property/ListingCard';
 import { useFinder } from '../../context/FinderContext';
 import { useMember } from '../../context/MemberContext';
 import { getListings, type RRListing } from '../../services/member';
+import { cleanPlace, useSecondChanceScan } from '../../hooks/useSecondChanceScan';
+import { ScanProgress } from './ScanProgress';
 
 const LAUNCH_CITY = (import.meta.env.VITE_LAUNCH_CITY as string | undefined) ?? 'Charlotte, NC';
 
@@ -18,7 +20,8 @@ const LAUNCH_CITY = (import.meta.env.VITE_LAUNCH_CITY as string | undefined) ?? 
 export function FeaturedSection() {
   const { goTo, area } = useFinder();
   const { premium } = useMember();
-  const place = area || LAUNCH_CITY;
+  const place = cleanPlace(area || LAUNCH_CITY);
+  const [reload, setReload] = useState(0);
   const [state, setState] = useState<{ kind: 'loading' } | { kind: 'ok'; items: RRListing[] } | { kind: 'none' }>({ kind: 'loading' });
 
   useEffect(() => {
@@ -28,15 +31,18 @@ export function FeaturedSection() {
       .then((d) => setState(d.listings.length ? { kind: 'ok', items: d.listings } : { kind: 'none' }))
       .catch(() => !ctrl.signal.aborted && setState({ kind: 'none' }));
     return () => ctrl.abort();
-  }, [place, premium.active]);
+  }, [place, premium.active, reload]);
 
   const items = state.kind === 'ok' ? state.items : [];
+  // No second-chance listings for this city yet → check its apartment websites now.
+  const scan = useSecondChanceScan(place, state.kind !== 'loading' && !items.some((l) => !l.nearby), () => setReload((n) => n + 1));
   const own = items.filter((l) => !l.nearby);
   const elsewhere = items.filter((l) => l.nearby);
   // Lead with this city; if it has none yet, lead with the closest we have (labelled).
   const top = own.length ? own.slice(0, 6) : elsewhere.slice(0, 6);
   const more = own.length ? [...own.slice(6), ...elsewhere] : elsewhere.slice(6);
-  const st = items[0]?.state;
+  const states = [...new Set(elsewhere.map((l) => l.state))];
+  const elsewhereLabel = states.length === 1 ? `elsewhere in ${states[0]}` : 'in other areas';
 
   return (
     <section id="featured" aria-labelledby="featured-title" className="pb-8 pt-16 md:pt-20">
@@ -49,7 +55,7 @@ export function FeaturedSection() {
             </h2>
             <p className="mt-2 flex items-center gap-1.5 text-[13.5px] font-medium text-charcoal/65">
               <PinIcon size={15} className="text-gold-600" /> Showing: {place}
-              {state.kind === 'ok' && !own.length ? ` · none listed here yet, these are elsewhere in ${st}` : ''}
+              {state.kind === 'ok' && !own.length ? ` · none listed here yet, these are ${elsewhereLabel}` : ''}
             </p>
           </div>
           <Button variant="outline-dark" onClick={() => goTo('search', { focusSearch: true })}>
@@ -66,11 +72,9 @@ export function FeaturedSection() {
             {top.map((l) => <ListingCard key={l.listing_id} l={l} />)}
           </div>
         ) : (
-          <p className="mt-10 rounded-[22px] bg-white p-6 text-[14.5px] leading-relaxed text-charcoal/75 shadow-card">
-            We don’t have verified second-chance communities in or near {place} yet. We only list a community here when its own
-            published criteria show flexible screening — search above and save it to be emailed when one is added.
-          </p>
+          <ScanProgress place={place} scan={scan} />
         )}
+        {state.kind === 'ok' && !own.length ? <ScanProgress place={place} scan={scan} compact /> : null}
 
         {more.length ? (
           <>
@@ -78,7 +82,7 @@ export function FeaturedSection() {
               <h3 className="text-[24px] font-extrabold tracking-[-0.025em] text-navy-900">More Second-Chance Apartments</h3>
               <p className="mt-1 text-[13.5px] text-charcoal/65">
                 {own.length > 6 ? `More in ${place}` : ''}{own.length > 6 && elsewhere.length ? ' and ' : ''}
-                {elsewhere.length ? `${own.length > 6 ? 'elsewhere' : 'Elsewhere'} in ${st} — each card shows its city.` : '.'}
+                {elsewhere.length ? `${own.length > 6 ? elsewhereLabel : elsewhereLabel[0].toUpperCase() + elsewhereLabel.slice(1)} — each card shows its city.` : '.'}
               </p>
             </Reveal>
             <div className="mt-8 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">

@@ -7,7 +7,7 @@ const BASE = '/api';
 export interface PremiumStatus { active: boolean; status?: string | null; current_period_end?: string | null; cancel_at_period_end?: boolean; grace_until?: string | null; had_premium?: boolean }
 export type Classification = 'standard' | 'verified_second_chance' | 'unknown' | 'unavailable';
 export type RRListing = (
-  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; rent_max_cents?: number | null; beds: number | null; baths: number | null; verified_at: string | null }
+  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; rent_max_cents?: number | null; beds: number | null; baths: number | null; verified_at: string | null; has_preview?: boolean }
   | {
       locked: false; listing_id: string; classification: Classification; name: string; address: string | null; city: string; state: string; rent_cents: number | null; rent_max_cents?: number | null;
       beds: number | null; baths: number | null; description: string | null; phone: string | null; website: string | null; photo_url: string | null;

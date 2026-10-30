@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-30 (rev. 13) — second-chance listings everywhere, blurred photos
+- When a city has no second-chance listings, verified ones from elsewhere in the state — then other states — are shown
+  (flagged nearby; every card shows its city). Nothing is ever invented: with no verified listings anywhere, the scan
+  progress message shows instead.
+- Locked cards show the listing's real photo heavily blurred, from `GET /api/listings/preview` — a 48px version fetched
+  server-side, so the full photo never reaches non-members.
+
+## 2026-10-30 (rev. 12) — automatic second-chance checks (OpenAI, quote-verified)
+- When an area has no second-chance listings, the Finder queues its Google apartment communities (`POST /api/scan/area`,
+  once a day per area). The `scan-queue` scheduled function (every minute, 3 at a time, `SCAN_DAILY_LIMIT` per day,
+  default 200) reads each property's own website (home + up to 2 criteria/apply/pricing pages; https public sites
+  only) and asks OpenAI (`OPENAI_MODEL`) whether it publishes a second-chance / flexible-screening policy and rent.
+- A property is listed as second-chance ONLY when the model's quote is found word-for-word on the page; the listing
+  shows that quote, the page and the date ("Property website (checked automatically)"). Rent only when published.
+  Re-checked every `RENTREADY_VERIFICATION_TTL_DAYS` (30); taken down if the policy disappears.
+- The Finder shows live progress ("Checking apartment websites in Charlotte, NC… 2 checked, 3 to go") and the
+  results appear without a reload; "checked N, none publish a policy" when that's the honest answer.
+- `POST /api/admin/migrate` (admin token) applies RentReady's own rr_ migrations safely (the Supabase project is
+  shared with another app, so `supabase db push` isn't used). New migration `20261030120000_rentready_scans.sql`.
+
 ## 2026-10-30 (rev. 11) — "View Second Chance Communities In This Area"
 - The Finder's "Explore Apartment Communities" section is now "View Second Chance Communities In This Area": RentReady's
   verified second-chance listings for the visitor's current area (same-state "nearby" ones when the city has none).

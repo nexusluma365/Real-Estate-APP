@@ -149,3 +149,10 @@ The R2 bucket name is `creditrepairbusiness`; the toolkit object is at the bucke
    **cancel the subscription** — this matches the published 7-day grace policy.
 5. Add listings in /admin → RentReady listings (only listings you have permission to publish).
 
+## 10. Automatic second-chance checks (rev. 12)
+- Apply the database tables once (after deploying): `curl -X POST https://werentreadygo.com/api/admin/migrate -H "Origin: https://werentreadygo.com" -H "Authorization: Bearer $ADMIN_TOKEN"` — applies only rr_ tables; safe to repeat.
+- Scans start by themselves when a visitor views an area with no second-chance listings. Each area is queued at most
+  once a day; at most `SCAN_DAILY_LIMIT` websites are checked per day (one OpenAI request each).
+- Automatically listed properties show in /admin → RentReady listings with source "Property website (checked
+  automatically)". Edit or mark any of them unavailable there; manual listings are never overwritten by scans.
+

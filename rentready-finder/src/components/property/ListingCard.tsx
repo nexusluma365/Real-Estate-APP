@@ -15,7 +15,7 @@ export const CLASS_LABEL: Record<RRListing['classification'], string> = {
 
 const facts = (l: RRListing) => [bedsLabel(l.beds), bathsLabel(l.baths)].filter(Boolean).join(' · ');
 // Verification dates are calendar dates (YYYY-MM-DD): format in UTC so they never shift a day.
-const checked = (d: string | null) => (d ? `Verified ${new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}` : null);
+const checked = (d: string | null) => (d ? `Policy checked ${new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}` : null);
 
 /** A RentReady listing. Locked cards only ever receive public fields from the server. */
 export function ListingCard({ l }: { l: RRListing }) {
@@ -39,7 +39,18 @@ export function ListingCard({ l }: { l: RRListing }) {
     return (
       <article ref={ref} className="group relative flex flex-col overflow-hidden rounded-[26px] bg-white shadow-card ring-1 ring-gold/30 transition-[transform,box-shadow] duration-500 ease-lux hover:-translate-y-1.5 hover:shadow-float">
         <div className="relative aspect-[4/3] overflow-hidden bg-[linear-gradient(140deg,#34496A_0%,#263750_40%,#1B2739_100%)]">
-          {/* No photo is sent for locked listings: this is an abstract, intentionally blurred placeholder. */}
+          {/* Locked: at most a 48px preview of the photo (server-side), shown heavily blurred — the full photo is a Premium detail. */}
+          {l.has_preview ? (
+            <img
+              src={`/api/listings/preview?id=${encodeURIComponent(l.listing_id)}`}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+              className="absolute inset-0 h-full w-full scale-125 object-cover opacity-90 blur-xl"
+            />
+          ) : null}
+          <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(140deg,rgba(38,55,80,0.55),rgba(27,39,57,0.7))]" />
           <span aria-hidden="true" className="absolute -left-10 top-6 h-40 w-40 rounded-full bg-gold/40 blur-3xl" />
           <span aria-hidden="true" className="absolute -right-6 bottom-0 h-44 w-44 rounded-full bg-[#9CC3DD]/30 blur-3xl" />
           <span className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-navy-900">

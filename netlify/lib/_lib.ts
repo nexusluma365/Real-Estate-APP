@@ -28,6 +28,15 @@ export interface Env {
   FROM_EMAIL?: string;
   /** Reply-to / support address shown in emails. */
   SUPPORT_EMAIL?: string;
+  /** Google Places API key (server-side) — used to list an area's apartment communities for second-chance checks. */
+  GOOGLE_MAPS_API_KEY?: string;
+  /** OpenAI: reads property websites for published second-chance / flexible screening policies (quote-verified). */
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
+  /** Most property websites checked per day (cost cap). Default 200. */
+  SCAN_DAILY_LIMIT?: string;
+  /** Days before a property is checked again. Default 30. */
+  RENTREADY_VERIFICATION_TTL_DAYS?: string;
 }
 
 /** The small database surface the handlers use (prepare → bind → first | all | run). */

@@ -5,11 +5,15 @@ import { ApiError, getListings, memberAction, openBillingPortal, track, type Lis
 import { ListingCard } from '../property/ListingCard';
 import { BellIcon, CheckIcon, ShieldCheckIcon } from '../ui/Icons';
 import { Skeleton } from '../ui/Loader';
+import { cleanPlace, useSecondChanceScan } from '../../hooks/useSecondChanceScan';
+import { ScanProgress } from './ScanProgress';
 
 type State = { kind: 'loading' } | { kind: 'ok'; listings: RRListing[]; locked: number; filteredOut: number } | { kind: 'none'; filteredOut: number } | { kind: 'error' };
 
 /** RentReady's own sourced listings for the searched city (rent, beds, verification), with Premium unlocks and saved searches. */
-export function RentReadyListings({ place, filters }: { place: string; filters?: ListingFilters }) {
+export function RentReadyListings({ place: rawPlace, filters }: { place: string; filters?: ListingFilters }) {
+  const place = cleanPlace(rawPlace);
+  const [reload, setReload] = useState(0);
   const { premium, state: member, openOffer } = useMember();
   const fkey = JSON.stringify(filters || {});
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -24,7 +28,10 @@ export function RentReadyListings({ place, filters }: { place: string; filters?:
       .catch((e) => !ctrl.signal.aborted && setState(e instanceof ApiError && e.code === 'bad_place' ? { kind: 'none', filteredOut: 0 } : { kind: 'error' }));
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [place, premium.active, fkey]);
+  }, [place, premium.active, fkey, reload]);
+
+  const hasOwnSecondChance = state.kind === 'ok' && state.listings.some((l) => !l.nearby && l.classification === 'verified_second_chance');
+  const scan = useSecondChanceScan(place, state.kind !== 'loading' && state.kind !== 'error' && !hasOwnSecondChance, () => setReload((n) => n + 1));
 
   const saveSearch = async () => {
     if (!premium.active) {
@@ -88,15 +95,19 @@ export function RentReadyListings({ place, filters }: { place: string; filters?:
           {state.listings.some((l) => l.nearby) ? (
             <>
               <p className="mt-8 text-[14px] font-semibold text-navy-800">
-                {state.listings.some((l) => !l.nearby) ? 'No' : 'No verified'} second-chance apartments in {place} yet — here are some elsewhere in {state.listings.find((l) => l.nearby)!.state}:
+                No second-chance apartments listed in {place} yet — here are some{' '}
+                {new Set(state.listings.filter((l) => l.nearby).map((l) => l.state)).size === 1 ? `elsewhere in ${state.listings.find((l) => l.nearby)!.state}` : 'in other areas'} (each card shows its city):
               </p>
               <div className="mt-4 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
                 {state.listings.filter((l) => l.nearby).map((l) => <ListingCard key={l.listing_id} l={l} />)}
               </div>
             </>
           ) : null}
+          {!hasOwnSecondChance ? <ScanProgress place={place} scan={scan} compact /> : null}
           {state.filteredOut ? <p className="mt-4 text-[13px] text-charcoal/60">{state.filteredOut} more {state.filteredOut === 1 ? 'listing doesn’t' : 'listings don’t'} match your filters.</p> : null}
         </>
+      ) : state.kind === 'none' && !state.filteredOut ? (
+        <ScanProgress place={place} scan={scan} />
       ) : (
         <p className="mt-6 rounded-[22px] bg-white p-6 text-[14px] leading-relaxed text-charcoal/75 shadow-card">
           {state.kind === 'error'

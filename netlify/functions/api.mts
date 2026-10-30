@@ -29,8 +29,11 @@ import * as premiumReturn from '../lib/api/premium/return';
 import * as premiumPortal from '../lib/api/premium/portal';
 import * as listings from '../lib/api/listings/index';
 import * as listingDetail from '../lib/api/listings/detail';
+import * as listingPreview from '../lib/api/listings/preview';
 import * as member from '../lib/api/member';
 import * as logout from '../lib/api/session/logout';
+import * as scanArea from '../lib/api/scan/area';
+import * as adminMigrate from '../lib/api/admin/migrate';
 
 type Handler = (ctx: Ctx) => Promise<Response> | Response;
 type Module = { onRequestGet?: Handler; onRequestPost?: Handler; onRequestPut?: Handler };
@@ -65,8 +68,11 @@ const ROUTES: Record<string, Module> = {
   '/api/premium/portal': premiumPortal,
   '/api/listings': listings,
   '/api/listings/detail': listingDetail,
+  '/api/listings/preview': listingPreview,
   '/api/member': member,
   '/api/session/logout': logout,
+  '/api/scan/area': scanArea,
+  '/api/admin/migrate': adminMigrate,
 };
 
 /** Server-to-server routes authenticate with a signature or bearer token instead of an Origin header. */
