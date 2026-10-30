@@ -30,13 +30,14 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const getMembership = () => call<{ premium?: PremiumStatus; signed_in?: boolean; first_name?: string }>('/entitlements');
 
-export interface ListingFilters { minRent: number | null; maxRent: number | null; bedrooms: number | null; secondChanceOnly: boolean }
+export interface ListingFilters { minRent: number | null; maxRent: number | null; bedrooms: number | null; secondChanceOnly: boolean; includeNearby?: boolean }
 export function getListings(place: string, f?: ListingFilters, signal?: AbortSignal) {
   const q = new URLSearchParams({ place });
   if (f?.minRent != null) q.set('min_rent', String(f.minRent));
   if (f?.maxRent != null) q.set('max_rent', String(f.maxRent));
   if (f?.bedrooms != null) q.set('beds', String(f.bedrooms));
   if (f?.secondChanceOnly) q.set('second_chance', '1');
+  if (f?.includeNearby) q.set('include_nearby', '1');
   return call<{ place: { city: string; state: string }; premium: boolean; listings: RRListing[]; locked_count: number; filtered_out: number }>(`/listings?${q}`, { signal });
 }
 

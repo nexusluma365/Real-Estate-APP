@@ -5,7 +5,8 @@
   verified second-chance listings for the visitor's current area (same-state "nearby" ones when the city has none).
   Non-members see a blurred card with only the rent (or rent range), city, beds/baths and Unlock Access — the server
   sends nothing else; members see full details. Honest empty state when no verified listings exist.
-- The Google communities follow as "More Apartment Communities" (free; "screening policies not confirmed").
+- "More Second-Chance Apartments" follows: the rest of the city's verified second-chance listings plus others in the
+  state (`include_nearby=1`), blurred for non-members. Google communities are no longer in this section (still in search).
 - Listings support a rent range (`rent_max_cents`, admin field "Highest rent"); shown as "$1,250–$1,600/month".
 - Fixed: the "View Property" button on community cards was squashed to a thin bar.
 

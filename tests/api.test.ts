@@ -572,3 +572,13 @@ test('rent ranges: locked cards show the range only; the highest rent can’t be
   assert.doesNotMatch(JSON.stringify(d), /Maple Row|9 Maple|704-555-0199|maple\.example/, 'only price range, city and beds before unlocking');
 });
 
+test('include_nearby adds same-state second-chance listings even when the city has its own', async () => {
+  cookie = '';
+  const d = (await call('GET', '/api/listings?place=Charlotte, NC&second_chance=1&include_nearby=1')).data;
+  const own = d.listings.filter((l: any) => !l.nearby);
+  const near = d.listings.filter((l: any) => l.nearby);
+  assert.ok(own.length > 0 && own.every((l: any) => l.city === 'Charlotte'));
+  assert.ok(near.length > 0 && near.every((l: any) => l.city !== 'Charlotte' && l.state === 'NC' && l.classification === 'verified_second_chance' && l.locked));
+  assert.equal((await call('GET', '/api/listings?place=Charlotte, NC&second_chance=1')).data.listings.filter((l: any) => l.nearby).length, 0, 'not added without the flag');
+});
+

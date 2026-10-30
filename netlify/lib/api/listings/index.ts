@@ -8,6 +8,7 @@ import { premiumStatus } from '../../premium';
  * when that filter is set (never silently hidden); `filtered_out` says how many were excluded.
  * Normal results mix second-chance listings in; second_chance=1 returns only those. When the city has no verified
  * second-chance listing, up to 3 from elsewhere in the state are added and flagged `nearby` (shown as such).
+ * include_nearby=1 always adds up to 9 same-state second-chance listings from other cities (flagged `nearby`).
  */
 export const onRequestGet = async ({ request, env }: Ctx) => {
   if (!env.DB) return notConfigured('Listings');
@@ -28,9 +29,10 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
     (max == null || r.rent_cents == null || r.rent_cents <= max * 100) &&
     (beds == null || r.beds == null || r.beds >= beds);
   const kept = rows.filter((r) => (!onlySecondChance || r.classification === 'verified_second_chance') && fits(r));
-  const nearby = kept.some((r) => r.classification === 'verified_second_chance')
+  const wantNearby = q.get('include_nearby') === '1';
+  const nearby = !wantNearby && kept.some((r) => r.classification === 'verified_second_chance')
     ? []
-    : (await secondChanceInState(env, place.city, place.state).catch(() => [] as ListingRow[])).filter(fits);
+    : (await secondChanceInState(env, place.city, place.state, wantNearby ? 9 : 3).catch(() => [] as ListingRow[])).filter(fits);
   const ordered = onlySecondChance ? kept : mixListings(kept);
   const listings = [...ordered.map((r) => present(r, premium)), ...nearby.map((r) => ({ ...present(r, premium), nearby: true }))];
   return json({
