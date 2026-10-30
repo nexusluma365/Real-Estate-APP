@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS rr_listings (
   address TEXT,
   city TEXT NOT NULL,
   state TEXT NOT NULL,
-  rent_cents INTEGER,                        -- advertised monthly rent from the source
+  rent_cents INTEGER,                        -- advertised monthly rent from the source (lowest, when a range)
+  rent_max_cents INTEGER,                    -- highest advertised rent, when the source gives a range
   beds REAL, baths REAL,
   description TEXT, phone TEXT, website TEXT, photo_url TEXT,
   screening_note TEXT,                       -- what the source says about screening (premium detail)
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS rr_listings (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+ALTER TABLE rr_listings ADD COLUMN IF NOT EXISTS rent_max_cents INTEGER;
 CREATE INDEX IF NOT EXISTS rr_idx_listings_city ON rr_listings (state, city);
 CREATE TABLE IF NOT EXISTS rr_saved_listings (customer_id TEXT NOT NULL, ref TEXT NOT NULL, label TEXT NOT NULL, detail TEXT, saved_at TEXT NOT NULL, PRIMARY KEY (customer_id, ref));
 CREATE TABLE IF NOT EXISTS rr_recent_views (customer_id TEXT NOT NULL, ref TEXT NOT NULL, label TEXT NOT NULL, detail TEXT, viewed_at TEXT NOT NULL, PRIMARY KEY (customer_id, ref));

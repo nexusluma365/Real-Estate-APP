@@ -10,21 +10,21 @@ export type Classification = (typeof CLASSIFICATIONS)[number];
 
 export interface ListingRow {
   listing_id: string; classification: Classification; name: string; address: string | null; city: string; state: string;
-  rent_cents: number | null; beds: number | null; baths: number | null; description: string | null; phone: string | null;
+  rent_cents: number | null; rent_max_cents: number | null; beds: number | null; baths: number | null; description: string | null; phone: string | null;
   website: string | null; photo_url: string | null; screening_note: string | null; source_name: string; source_url: string;
   verified_at: string | null; created_at: string; updated_at: string;
 }
 
 export type PublicListing = (
   | ({ locked: false } & Omit<ListingRow, 'created_at' | 'updated_at'>)
-  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null }
+  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; rent_max_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null }
 ) & { nearby?: boolean };
 
 /** Second-chance details are a Premium feature; everything else is public. */
 export function present(row: ListingRow, premium: boolean): PublicListing {
   if (row.classification === 'verified_second_chance' && !premium) {
-    const { listing_id, city, state, rent_cents, beds, baths, verified_at } = row;
-    return { locked: true, listing_id, classification: 'verified_second_chance', city, state, rent_cents, beds, baths, verified_at };
+    const { listing_id, city, state, rent_cents, rent_max_cents, beds, baths, verified_at } = row;
+    return { locked: true, listing_id, classification: 'verified_second_chance', city, state, rent_cents, rent_max_cents: rent_max_cents ?? null, beds, baths, verified_at };
   }
   const { created_at: _c, updated_at: _u, ...rest } = row;
   return { locked: false, ...rest };

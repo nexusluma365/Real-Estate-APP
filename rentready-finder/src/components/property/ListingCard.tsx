@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMember } from '../../context/MemberContext';
-import { bathsLabel, bedsLabel, money, track, trackOnce, type RRListing } from '../../services/member';
+import { bathsLabel, bedsLabel, rentRange, track, trackOnce, type RRListing } from '../../services/member';
 import { SmartImage } from '../ui/SmartImage';
 import { ArrowRightIcon, LockIcon, ShieldCheckIcon } from '../ui/Icons';
 import { SaveButton } from './SaveButton';
@@ -53,7 +53,7 @@ export function ListingCard({ l }: { l: RRListing }) {
           <h3 className="text-[19px] font-extrabold tracking-[-0.02em] text-navy-900">Second-Chance Apartment</h3>
           <p className="mt-1 text-[13px] font-semibold text-gold-700">{l.city}, {l.state}</p>
           <p className="mt-3 text-[24px] font-extrabold tracking-[-0.02em] text-navy-900">
-            {money(l.rent_cents) ?? 'Rent on request'}
+            {rentRange(l) ?? 'Rent on request'}
             {l.rent_cents != null ? <span className="text-[14px] font-semibold text-charcoal/60"> /month</span> : null}
           </p>
           {facts(l) ? <p className="mt-1 text-[13.5px] text-charcoal/70">{facts(l)}</p> : null}
@@ -93,7 +93,7 @@ export function ListingCard({ l }: { l: RRListing }) {
         </h3>
         <p className="mt-1 text-[13px] text-charcoal/70">{l.address ? `${l.address}, ` : ''}{l.city}, {l.state}</p>
         <p className="mt-3 text-[22px] font-extrabold tracking-[-0.02em] text-navy-900">
-          {money(l.rent_cents) ?? 'Contact for pricing'}
+          {rentRange(l) ?? 'Contact for pricing'}
           {l.rent_cents != null ? <span className="text-[14px] font-semibold text-charcoal/60"> /month</span> : null}
         </p>
         {facts(l) ? <p className="mt-1 text-[13.5px] text-charcoal/70">{facts(l)}</p> : null}

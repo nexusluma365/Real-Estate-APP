@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-30 (rev. 11) — "View Second Chance Communities In This Area"
+- The Finder's "Explore Apartment Communities" section is now "View Second Chance Communities In This Area": RentReady's
+  verified second-chance listings for the visitor's current area (same-state "nearby" ones when the city has none).
+  Non-members see a blurred card with only the rent (or rent range), city, beds/baths and Unlock Access — the server
+  sends nothing else; members see full details. Honest empty state when no verified listings exist.
+- The Google communities follow as "More Apartment Communities" (free; "screening policies not confirmed").
+- Listings support a rent range (`rent_max_cents`, admin field "Highest rent"); shown as "$1,250–$1,600/month".
+- Fixed: the "View Property" button on community cards was squashed to a thin bar.
+
 ## 2026-10-29 (rev. 10) — Finder conversion: local discovery, sign-in states, unlock-to-listing
 - Menu by membership state (server-decided): guest → Premium Membership + Sign In; member → My Account (Premium
   indicator) + Sign Out; payment failed → + Update Payment (Stripe portal); lapsed → + Reactivate. Free Finder always.

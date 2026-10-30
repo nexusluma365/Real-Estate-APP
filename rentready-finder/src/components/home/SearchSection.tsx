@@ -34,7 +34,7 @@ function validateLocation(raw: string): string | null {
 }
 
 export function SearchSection() {
-  const { filters, setFilters, secondChanceMode, clearSecondChance } = useFinder();
+  const { filters, setFilters, secondChanceMode, clearSecondChance, setArea } = useFinder();
   const { premium, loading: memberLoading, openOffer } = useMember();
 
   // Arriving via "Find Second-Chance Apartments" on the main site: non-members get the sign-up / sign-in offer, once per session.
@@ -60,6 +60,7 @@ export function SearchSection() {
   /** How the current area was chosen — shown next to it so we never imply a precise location we don't have. */
   const [areaSource, setAreaSource] = useState<'search' | 'link' | 'saved' | 'approximate' | 'precise' | null>(null);
   const [locatingArea, setLocatingArea] = useState(true);
+  useEffect(() => setArea(place), [place, setArea]);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {

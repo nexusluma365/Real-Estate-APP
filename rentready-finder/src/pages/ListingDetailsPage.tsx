@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useMember } from '../context/MemberContext';
-import { bathsLabel, bedsLabel, getListing, money, track, trackOnce, type RRListing } from '../services/member';
+import { bathsLabel, bedsLabel, getListing, rentRange, track, trackOnce, type RRListing } from '../services/member';
 import { ListingCard, CLASS_LABEL } from '../components/property/ListingCard';
 import { SaveButton } from '../components/property/SaveButton';
 import { SmartImage } from '../components/ui/SmartImage';
@@ -81,7 +81,7 @@ function Full({ l }: { l: Extract<RRListing, { locked: false }> }) {
           <SaveButton refId={`listing:${l.listing_id}`} label={l.name} detail={`${l.city}, ${l.state}`} />
         </div>
         <p className="mt-5 text-[28px] font-extrabold tracking-[-0.02em] text-navy-900">
-          {money(l.rent_cents) ?? 'Contact for pricing'}{l.rent_cents != null ? <span className="text-[15px] font-semibold text-charcoal/60"> /month advertised</span> : null}
+          {rentRange(l) ?? 'Contact for pricing'}{l.rent_cents != null ? <span className="text-[15px] font-semibold text-charcoal/60"> /month advertised</span> : null}
         </p>
         {facts ? <p className="mt-1 text-[15px] text-charcoal/70">{facts}</p> : null}
         {l.description ? <p className="mt-6 max-w-[660px] whitespace-pre-line text-[15.5px] leading-[1.75] text-charcoal/80">{l.description}</p> : null}

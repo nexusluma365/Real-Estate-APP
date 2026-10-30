@@ -18,13 +18,13 @@ export async function sendListingAlerts(env: Env, now = new Date()) {
     const isCustomer = q.customer_id.startsWith('cus_');
     if (!(await premiumStatus(env, isCustomer ? q.customer_id : undefined, leadId)).active) continue;
     const fresh = (await DB.prepare(
-      `SELECT l.listing_id, l.classification, l.rent_cents, l.beds FROM rr_listings l
+      `SELECT l.listing_id, l.classification, l.rent_cents, l.rent_max_cents, l.beds FROM rr_listings l
         WHERE LOWER(l.city) = LOWER(?) AND UPPER(l.state) = UPPER(?) AND l.classification <> 'unavailable' AND l.created_at > ?
           AND NOT EXISTS (SELECT 1 FROM rr_alerts_sent a WHERE a.search_id = ? AND a.listing_id = l.listing_id) LIMIT 20`,
-    ).bind(q.city, q.state, q.created_at, q.search_id).all<{ listing_id: string; classification: string; rent_cents: number | null; beds: number | null }>()).results;
+    ).bind(q.city, q.state, q.created_at, q.search_id).all<{ listing_id: string; classification: string; rent_cents: number | null; rent_max_cents: number | null; beds: number | null }>()).results;
     if (!fresh.length) continue;
     const items = fresh.map((l) => [l.classification === 'verified_second_chance' ? 'Second-chance apartment' : 'Apartment',
-      l.rent_cents ? `$${Math.round(l.rent_cents / 100).toLocaleString('en-US')}/mo` : null, l.beds != null ? `${l.beds === 0 ? 'Studio' : `${l.beds} bed`}` : null].filter(Boolean).join(' · '));
+      l.rent_cents ? `$${Math.round(l.rent_cents / 100).toLocaleString('en-US')}${l.rent_max_cents && l.rent_max_cents > l.rent_cents ? `–$${Math.round(l.rent_max_cents / 100).toLocaleString('en-US')}` : ''}/mo` : null, l.beds != null ? `${l.beds === 0 ? 'Studio' : `${l.beds} bed`}` : null].filter(Boolean).join(' · '));
     await recordLifecycle(env, leadId, 'listing_alert', { place: q.label, items }, `${q.search_id}:${now.toISOString().slice(0, 10)}:${fresh.map((f) => f.listing_id).join(',')}`.slice(0, 250));
     for (const l of fresh) await DB.prepare('INSERT INTO rr_alerts_sent (search_id, listing_id, sent_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').bind(q.search_id, l.listing_id, now.toISOString()).run();
     sent++;

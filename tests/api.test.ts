@@ -560,3 +560,15 @@ test('listings mix second-chance apartments in; second-chance mode shows only th
   assert.ok(clt.listings.some((l: any) => l.classification === 'standard'), 'normal results are a mix');
 });
 
+test('rent ranges: locked cards show the range only; the highest rent can’t be below the lowest', async () => {
+  cookie = '';
+  assert.equal((await admin('POST', '/api/admin/listings', { listing_id: 'lst_range', classification: 'verified_second_chance', name: 'Maple Row', address: '9 Maple', city: 'Gastonia', state: 'NC', rent_cents: 125000, rent_max_cents: 120000, screening_note: 'x', source_name: 'Maple', source_url: 'https://maple.example', verified_at: '2026-10-29' })).status, 422);
+  assert.equal((await admin('POST', '/api/admin/listings', { listing_id: 'lst_range', classification: 'verified_second_chance', name: 'Maple Row', address: '9 Maple', city: 'Gastonia', state: 'NC', rent_cents: 125000, rent_max_cents: 160000, beds: 1, screening_note: 'Criteria page: second-chance leasing available.', source_name: 'Maple', source_url: 'https://maple.example', verified_at: '2026-10-29', phone: '704-555-0199' })).status, 200);
+  const d = (await call('GET', '/api/listings?place=Gastonia, NC&second_chance=1')).data;
+  const l = d.listings.find((x: any) => x.listing_id === 'lst_range');
+  assert.equal(l.locked, true);
+  assert.equal(l.rent_cents, 125000);
+  assert.equal(l.rent_max_cents, 160000);
+  assert.doesNotMatch(JSON.stringify(d), /Maple Row|9 Maple|704-555-0199|maple\.example/, 'only price range, city and beds before unlocking');
+});
+

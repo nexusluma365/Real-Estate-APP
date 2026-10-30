@@ -61,7 +61,7 @@ export function PropertyCard({ p }: { p: Property }) {
         <div className="mt-5 flex flex-col gap-2">
           <Link
             to={`/property/${encodeURIComponent(p.placeId)}`}
-            className={`${action} w-full bg-navy-700 text-white hover:bg-navy-900`}
+            className={`${action} w-full flex-none bg-navy-700 text-white hover:bg-navy-900`}
           >
             View Property <ArrowRightIcon size={15} />
           </Link>

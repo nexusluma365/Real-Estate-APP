@@ -69,7 +69,7 @@ export function PremiumPanel({ token, days, spendCents = 0 }: { token: string; d
 }
 
 interface Listing { listing_id: string; classification: string; name: string; city: string; state: string; rent_cents: number | null; verified_at: string | null; source_url: string; needs_reverification: boolean }
-const EMPTY = { listing_id: '', classification: 'verified_second_chance', name: '', address: '', city: '', state: '', rent: '', beds: '', baths: '', phone: '', website: '', photo_url: '', description: '', screening_note: '', source_name: '', source_url: '', verified_at: new Date().toISOString().slice(0, 10) };
+const EMPTY = { listing_id: '', classification: 'verified_second_chance', name: '', address: '', city: '', state: '', rent: '', rent_max: '', beds: '', baths: '', phone: '', website: '', photo_url: '', description: '', screening_note: '', source_name: '', source_url: '', verified_at: new Date().toISOString().slice(0, 10) };
 
 export function ListingsPanel({ token }: { token: string }) {
   const [rows, setRows] = useState<Listing[]>([]);
@@ -87,10 +87,10 @@ export function ListingsPanel({ token }: { token: string }) {
     e.preventDefault();
     setBusy(true);
     setMsg('');
-    const { rent, ...rest } = f;
+    const { rent, rent_max, ...rest } = f;
     const r = await fetch(`${env.apiBase}/admin/listings`, {
       method: 'POST', credentials: 'omit', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...rest, listing_id: f.listing_id || undefined, rent_cents: rent ? Math.round(Number(rent) * 100) : null }),
+      body: JSON.stringify({ ...rest, listing_id: f.listing_id || undefined, rent_cents: rent ? Math.round(Number(rent) * 100) : null, rent_max_cents: rent_max ? Math.round(Number(rent_max) * 100) : null }),
     }).catch(() => null);
     const out = r ? await r.json().catch(() => ({})) : {};
     setBusy(false);
@@ -117,7 +117,7 @@ export function ListingsPanel({ token }: { token: string }) {
           </select>
         </label>
         {field('name', 'Property name')}{field('address', 'Street address')}{field('city', 'City')}{field('state', 'State (2 letters)')}
-        {field('rent', 'Advertised rent ($/month)', 'number')}{field('beds', 'Bedrooms (0 = studio)', 'number')}{field('baths', 'Bathrooms', 'number')}
+        {field('rent', 'Advertised rent, lowest ($/month)', 'number')}{field('rent_max', 'Highest rent, if a range ($/month)', 'number')}{field('beds', 'Bedrooms (0 = studio)', 'number')}{field('baths', 'Bathrooms', 'number')}
         {field('phone', 'Phone')}{field('website', 'Property website (https)')}{field('photo_url', 'Photo URL you may use (https)')}
         {field('source_name', 'Source name')}{field('source_url', 'Source URL (https)')}{field('verified_at', 'Date verified', 'date')}
         <label className="field adm-wide"><span>Screening note (what the source says)</span><textarea className="input" rows={2} value={f.screening_note} onChange={(e) => setF({ ...f, screening_note: e.target.value })} /></label>

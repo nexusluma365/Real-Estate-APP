@@ -96,7 +96,8 @@ CREATE TABLE IF NOT EXISTS rr_listings (
   address TEXT,
   city TEXT NOT NULL,
   state TEXT NOT NULL,
-  rent_cents INTEGER,                        -- advertised monthly rent from the source
+  rent_cents INTEGER,                        -- advertised monthly rent from the source (lowest, when a range)
+  rent_max_cents INTEGER,                    -- highest advertised rent, when the source gives a range
   beds REAL, baths REAL,
   description TEXT, phone TEXT, website TEXT, photo_url TEXT,
   screening_note TEXT,                       -- what the source says about screening (premium detail)

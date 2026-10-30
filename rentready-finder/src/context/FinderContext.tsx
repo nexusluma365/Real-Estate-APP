@@ -5,6 +5,9 @@ import { DEFAULT_FILTERS, type SearchFilters } from '../types/property';
 export type SectionId = 'top' | 'search' | 'second-chance' | 'how-it-works' | 'about' | 'featured' | 'contact';
 
 interface FinderState {
+  /** The area the visitor is looking at ("Charlotte, NC"), set by the search; other sections follow it. */
+  area: string | null;
+  setArea: (a: string | null) => void;
   filters: SearchFilters;
   setFilters: (f: SearchFilters | ((prev: SearchFilters) => SearchFilters)) => void;
   secondChanceMode: boolean;
@@ -41,6 +44,7 @@ function scrollToId(id: SectionId, focusSearch?: boolean) {
 
 export function FinderProvider({ children }: { children: ReactNode }) {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
+  const [area, setArea] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -67,6 +71,8 @@ export function FinderProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<FinderState>(
     () => ({
+      area,
+      setArea,
       filters,
       setFilters,
       secondChanceMode: filters.secondChance !== 'any',
@@ -74,7 +80,7 @@ export function FinderProvider({ children }: { children: ReactNode }) {
       clearSecondChance,
       goTo,
     }),
-    [filters, activateSecondChance, clearSecondChance, goTo],
+    [area, filters, activateSecondChance, clearSecondChance, goTo],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

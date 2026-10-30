@@ -7,9 +7,9 @@ const BASE = '/api';
 export interface PremiumStatus { active: boolean; status?: string | null; current_period_end?: string | null; cancel_at_period_end?: boolean; grace_until?: string | null; had_premium?: boolean }
 export type Classification = 'standard' | 'verified_second_chance' | 'unknown' | 'unavailable';
 export type RRListing = (
-  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; beds: number | null; baths: number | null; verified_at: string | null }
+  | { locked: true; listing_id: string; classification: 'verified_second_chance'; city: string; state: string; rent_cents: number | null; rent_max_cents?: number | null; beds: number | null; baths: number | null; verified_at: string | null }
   | {
-      locked: false; listing_id: string; classification: Classification; name: string; address: string | null; city: string; state: string; rent_cents: number | null;
+      locked: false; listing_id: string; classification: Classification; name: string; address: string | null; city: string; state: string; rent_cents: number | null; rent_max_cents?: number | null;
       beds: number | null; baths: number | null; description: string | null; phone: string | null; website: string | null; photo_url: string | null;
       screening_note: string | null; source_name: string; source_url: string; verified_at: string | null;
     }
@@ -93,6 +93,9 @@ export function track(event: string, props: { cta_location?: string; product?: s
 }
 
 export const money = (cents: number | null) => (cents == null ? null : `$${Math.round(cents / 100).toLocaleString('en-US')}`);
+/** "$1,250" or "$1,250–$1,600" when the source gives a range. */
+export const rentRange = (l: { rent_cents: number | null; rent_max_cents?: number | null }) =>
+  l.rent_cents == null ? null : l.rent_max_cents && l.rent_max_cents > l.rent_cents ? `${money(l.rent_cents)}–${money(l.rent_max_cents)}` : money(l.rent_cents);
 export const bedsLabel = (b: number | null) => (b == null ? null : b === 0 ? 'Studio' : `${b} bed${b === 1 ? '' : 's'}`);
 export const bathsLabel = (b: number | null) => (b == null ? null : `${b} bath${b === 1 ? '' : 's'}`);
 
