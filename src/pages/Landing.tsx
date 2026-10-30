@@ -94,7 +94,7 @@ function HeroCtas({ variant }: { variant: string }) {
           Get the Book
         </CtaLink>
       </div>
-      <p className="bk-buy-note"><Icon name="home" />Search free · Book ships to you</p>
+      <p className="bk-buy-note"><Icon name="home" />Browse free · Premium listing access is a paid subscription · Book ships to you</p>
       <p className="bk-buy-alt">
         Want the dispute letters and videos too?{' '}
         <CtaLink to={BUNDLE_TO} className="bk-link" props={{ cta_location: 'hero_bundle', product: 'creditready', variant }}>
@@ -134,7 +134,7 @@ function Assurance({ className = '' }: { className?: string }) {
 /** "What we promise / what we won't" — trust through candor. */
 const PROMISE: { icon: IconName; title: string; body: string }[] = [
   { icon: 'shield', title: 'Straight answers', body: 'No approval guarantees, no “delete anything” claims. Just what screening may look at and how to prepare for it.' },
-  { icon: 'card', title: 'One price, once', body: 'A one-time purchase. No subscription, no monthly fees, no surprise charges.' },
+  { icon: 'card', title: 'One price, once', body: 'The book is a one-time purchase. Finder Premium is a separate, optional monthly subscription with pricing shown before checkout.' },
   {
     icon: 'check',
     title: GUARANTEE_DAYS > 0 ? `${GUARANTEE_DAYS} days to decide` : 'Real support',
@@ -244,13 +244,13 @@ export default function Landing({ intent }: { intent?: Intent }) {
               <BookVisual size="hero" eager />
             </div>
             <div className="bk-hero-copy">
-              <p className="bk-ribbon">The Rental Approval Playbook</p>
-              <h1 id="hero-h" className="bk-title">Get Approved for the Home You <span>Want.</span></h1>
+              <p className="bk-ribbon">Find apartments · Prepare before you apply</p>
+              <h1 id="hero-h" className="bk-title">Find a Smarter Path to Your <span>Next Home.</span></h1>
               <p className="bk-hero-sub">
                 {intent ? intent.hero.headline.filter(Boolean).join(' ') : <>Bad credit? Collections? Past rental problems? <span>You still have options.</span></>}
               </p>
               <p className="bk-hero-body">
-                Find rental opportunities, learn what property managers may look for, and prepare before you apply.
+                Search available rental listings, review published screening information when provided, and learn how to prepare before you apply. Listing eligibility and availability vary by property.
               </p>
               <p className="bk-hero-em">Know what they may see. Fix what you can. Apply better prepared.</p>
               <HeroCtas variant={variant} />

@@ -37,8 +37,8 @@ export const PRODUCTS: Record<ProductId, Product> = {
   // The RentReady Digital Bundle. Keeps the `creditready` id so existing orders, entitlements and the upsell still work.
   creditready: {
     id: 'creditready',
-    name: 'RentReady Digital Bundle',
-    shortName: 'Digital Bundle',
+    name: 'RentReady Book + Digital Tools Bundle',
+    shortName: 'Book + Digital Tools',
     priceCents: 7999,
     priceLabel: '$79.99',
     promise: 'The book plus the tools to act on it.',
@@ -79,7 +79,7 @@ export const PRODUCTS: Record<ProductId, Product> = {
   // book, so nothing ships — the upgrade adds the letters and the video guide. Grants `creditready` on the server.
   upgrade: {
     id: 'upgrade',
-    name: 'Upgrade to the RentReady Digital Bundle',
+    name: 'Upgrade to the RentReady Book + Digital Tools Bundle',
     shortName: 'Bundle upgrade',
     priceCents: 3200,
     priceLabel: '$32',

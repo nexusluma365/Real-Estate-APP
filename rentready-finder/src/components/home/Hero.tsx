@@ -31,7 +31,7 @@ export function Hero() {
             transition={{ duration: 0.6, ease, delay: 0.1 }}
             className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-[12px] font-semibold tracking-[0.04em] text-white/85 backdrop-blur-md"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-gold" /> Apartment discovery · Second-chance friendly
+            <span className="h-1.5 w-1.5 rounded-full bg-gold" /> Apartment search · Screening information where available
           </motion.p>
           <motion.h1
             id="hero-title"
@@ -48,7 +48,7 @@ export function Hero() {
             transition={{ duration: 0.7, ease, delay: 0.3 }}
             className="mt-4 max-w-[520px] text-[16px] leading-[1.6] text-white/80 sm:text-[17.5px]"
           >
-            Explore available rentals and discover premium second-chance opportunities.
+            Search apartments near you. Explore listings and review screening information where available before you apply.
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.4 }} className="mt-6">
             <Button size="lg" variant="glass" onClick={() => findSecondChance('hero')} icon={<KeyIcon size={18} />}>

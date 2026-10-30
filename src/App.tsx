@@ -7,6 +7,7 @@ import { RequireProduct } from './components/Guards';
 import { Loader } from './components/ui';
 import { INTENTS } from './config/intents';
 import Landing from './pages/Landing';
+import SecondChanceSearch from './pages/SecondChanceSearch';
 import { ConsentBanner } from './components/ConsentBanner';
 import { ExitOffer } from './components/Funnel';
 
@@ -38,6 +39,7 @@ export default function App() {
             <Routes>
               {/* Step 1 — Awareness (+ Google Ads message-match pages) */}
               <Route path="/" element={<Landing />} />
+              <Route path="/second-chance-apartments" element={<SecondChanceSearch />} />
               {INTENTS.map((i) => (
                 <Route key={i.slug} path={`/${i.slug}`} element={<Landing intent={i} />} />
               ))}

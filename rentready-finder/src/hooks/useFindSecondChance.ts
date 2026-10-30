@@ -15,7 +15,7 @@ export function useFindSecondChance() {
     activateSecondChance();
     track('second_chance_click', { cta_location: location });
     if (!loading && !premium.active) {
-      openOffer('See every verified second-chance apartment in full — name, address, contact details and the screening policy its source publishes.', `second_chance_${location}`);
+      openOffer('Review available premium listing details and any screening policy information provided by the listing source. Always confirm eligibility and availability with the property.', `second_chance_${location}`);
     }
   }, [activateSecondChance, premium.active, loading, openOffer]);
 }

@@ -43,8 +43,11 @@ function scrollToId(id: SectionId, focusSearch?: boolean) {
 }
 
 export function FinderProvider({ children }: { children: ReactNode }) {
-  const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
-  const [area, setArea] = useState<string | null>(null);
+  const [filters, setFilters] = useState<SearchFilters>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'second-chance' ? { ...DEFAULT_FILTERS, secondChance: 'verified' } : DEFAULT_FILTERS;
+  });
+  const [area, setArea] = useState<string | null>(() => new URLSearchParams(window.location.search).get('q')?.slice(0, 120) || null);
   const navigate = useNavigate();
   const location = useLocation();
 
