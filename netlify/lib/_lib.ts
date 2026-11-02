@@ -121,6 +121,8 @@ const safeEqual = (a: string, b: string) => {
 export interface Session {
   lead_id: string;
   customer_id?: string;
+  /** Proved by a sign-in link. Lead-only sessions from /api/leads are not (anyone can type any email). */
+  verified?: boolean;
   exp: number;
 }
 

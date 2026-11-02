@@ -1,4 +1,5 @@
 import { api } from './api';
+import { isMock } from './env';
 import { write } from './storage';
 
 /** RentReady Premium + account (server decides everything from the HttpOnly session; see netlify/lib/api/member.ts). */
@@ -17,11 +18,19 @@ export const PREMIUM_PRICE = '$19.99';
 export const PREMIUM_INTRO = '$5';
 
 export const fetchMember = () => api<MemberData>('/member');
+
+/** Membership terms this visitor would get at checkout (server config — see netlify/lib/api/premium/offer.ts). */
+export interface PremiumOffer { active: boolean; price_cents: number; trial_days: number; due_today_cents: number; grace_days: number }
+export async function fetchPremiumOffer(): Promise<PremiumOffer> {
+  // Mock mode has no server; mirror netlify/lib/premium.ts so the page can be designed and clicked through.
+  if (isMock) return { active: false, price_cents: 1999, trial_days: 7, due_today_cents: 0, grace_days: 7 };
+  return api<PremiumOffer>('/premium/offer');
+}
 export const memberAction = (b: Record<string, unknown>) => api<{ ok: boolean }>('/member', { json: b });
 
 /** Stripe-hosted subscription checkout; returns to `returnTo` on this site afterwards. */
-export async function startPremium(returnTo: string) {
-  const r = await api<{ url: string }>('/premium/checkout', { json: { return_to: returnTo } });
+export async function startPremium(returnTo: string, offer?: 'trial') {
+  const r = await api<{ url: string }>('/premium/checkout', { json: { return_to: returnTo, offer } });
   window.location.assign(r.url);
 }
 

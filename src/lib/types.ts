@@ -38,6 +38,10 @@ export interface Entitlements {
   products: ProductId[];
   /** A session cookie exists (customer or member). */
   signed_in?: boolean;
+  /** The session was proved by a payment or a sign-in link (not just a typed email). */
+  verified?: boolean;
+  /** Verified sessions only: the place from the latest apartment-match questionnaire. */
+  last_search?: { place: string } | null;
   /** RentReady Premium membership (server-decided; absent in mock mode). */
   premium?: { active: boolean; had_premium?: boolean; status?: string | null; current_period_end?: string | null; cancel_at_period_end?: boolean };
   /** Server-issued. In mock mode this is a local simulation flag. */

@@ -99,9 +99,17 @@ export async function shippedEmail(env: Env, to: Recipient, d: { carrier?: strin
 }
 
 export async function accessLinkEmail(env: Env, to: Recipient, link: string) {
-  const body = p(to.first_name ? `Hi ${esc(to.first_name)},` : 'Hi,') + p('Use this button to open your RentReady access page. It works once and expires in 30 minutes.') + button(link, 'Open my RentReady access') +
+  const body = p(to.first_name ? `Hi ${esc(to.first_name)},` : 'Hi,') + p('Use this button to sign in to RentReady. It works once and expires in 30 minutes.') + button(link, 'Sign in to RentReady') +
     p('<span style="font-size:14px;color:#4f596b">Didn’t ask for this? You can ignore this email.</span>');
-  return sendEmail(env, to.email, 'Your RentReady sign-in link', layout(env, 'Your sign-in link', body), `Open your RentReady access (works once, expires in 30 minutes): ${link}`);
+  return sendEmail(env, to.email, 'Your RentReady sign-in link', layout(env, 'Your sign-in link', body), `Sign in to RentReady (works once, expires in 30 minutes): ${link}`);
+}
+
+/** The search link the apartment-match questionnaire promises ("Where can we send your search link?"). */
+export async function searchLinkEmail(env: Env, to: Recipient, place: string) {
+  const link = `${siteOrigin(env)}/finder/?q=${encodeURIComponent(place)}`;
+  const body = p(to.first_name ? `Hi ${esc(to.first_name)},` : 'Hi,') + p(`Here’s your apartment search for <strong>${esc(place)}</strong>. Open it any time to pick up where you left off.`) +
+    button(link, 'Open my apartment search') + p('<span style="font-size:14px;color:#4f596b">Searching is free. RentReady never runs a credit check.</span>');
+  return sendEmail(env, to.email, 'Your RentReady apartment search', layout(env, 'Your apartment search', body), `Your apartment search for ${place}: ${link}\n\nSearching is free. RentReady never runs a credit check.`);
 }
 
 const day = (iso?: unknown) => (typeof iso === 'string' && iso ? new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null);
@@ -116,7 +124,9 @@ async function premiumEmail(env: Env, to: Recipient, event: string, d: Record<st
     event === 'premium_started' ? {
       subject: 'Welcome to RentReady Premium', heading: 'Your membership is active',
       lines: [`You now have RentReady Premium: second-chance listing details, saved apartments and searches, and new-listing alerts.`,
-        `Billing: your first month${d.current_period_end ? ` runs to ${day(d.current_period_end)}` : ''}. After that it renews at $19.99 per month until you cancel. You can cancel any time from your account — you keep access until the end of the period you paid for.`],
+        d.trial
+          ? `Billing: you haven’t been charged. Your free trial${d.current_period_end ? ` runs to ${day(d.current_period_end)}` : ''}; after that it renews at $19.99 per month until you cancel. Cancel before the trial ends and you won’t be charged.`
+          : `Billing: your first month${d.current_period_end ? ` runs to ${day(d.current_period_end)}` : ''}. After that it renews at $19.99 per month until you cancel. You can cancel any time from your account — you keep access until the end of the period you paid for.`],
       cta: [finder, 'Find apartments'],
     } : event === 'premium_renewed' ? {
       subject: 'Your RentReady Premium receipt', heading: 'Membership renewed',
@@ -153,5 +163,6 @@ export async function sendTransactional(env: Env, to: Recipient, event: string, 
   if (event === 'order_shipped') return shippedEmail(env, to, data as Parameters<typeof shippedEmail>[2]);
   if (event === 'access_link_requested') return accessLinkEmail(env, to, String(data.link));
   if (event.startsWith('premium_') || event === 'listing_alert') return premiumEmail(env, to, event, data);
+  if (event === 'search_saved' && typeof data.place === 'string') return searchLinkEmail(env, to, data.place);
   return false;
 }

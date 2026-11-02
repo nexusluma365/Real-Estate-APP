@@ -22,6 +22,7 @@ export type LifecycleEvent =
   | 'assessment_complete'
   | 'product_accessed'
   | 'gameplan_completed'
+  | 'search_saved'
   // server-only (listed so the mock outbox can show the whole journey)
   | 'purchase_completed'
   | 'checkout_abandoned'

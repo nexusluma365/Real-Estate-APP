@@ -48,14 +48,14 @@ export function BundleImage({ className = '', sizes = '(min-width: 900px) 640px,
   return (
     <span className={`rr-bundle ${className}`}>
       <picture className="rr-bundle-img">
-      <source srcSet={`${bundleWebpSm} 800w, ${bundleWebp} 1503w`} sizes={sizes} type="image/webp" />
+      <source srcSet={`${bundleWebpSm} 800w, ${bundleWebp} 1670w`} sizes={sizes} type="image/webp" />
       <img
         src={bundlePng}
-        width={1503}
-        height={999}
+        width={1670}
+        height={941}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        alt="The RentReady Digital Bundle: the Before They Say No™ book, 20 Essential Credit Dispute Letter templates, and the step-by-step video guide on laptop, phone and tablet"
+        alt="The RentReady Digital Bundle: the Before They Say No™ book, 20 credit dispute letters, and the step-by-step credit dispute video training on laptop, phone and tablet"
       />
       </picture>
     </span>
@@ -235,7 +235,7 @@ export function BuyFaqList({ items }: { items: FaqItem[] }) {
 
 const EXIT_DELAY = 1000 * 30;
 /** The offer's destination, checkout and everything after purchase never show it. */
-const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin', '/account', '/premium'];
+const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/welcome', '/assessment', '/gameplan', '/access', '/admin', '/account', '/premium', '/find-my-apartment'];
 
 /**
  * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, once per page load: every refresh,

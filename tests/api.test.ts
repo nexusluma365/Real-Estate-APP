@@ -426,6 +426,10 @@ test('premium: locked listings, $5 checkout, activation, unlocked details, savin
   assert.equal((await call('GET', '/api/listings/detail?id=lst_elm')).data.listing.locked, true);
   assert.equal((await call('POST', '/api/member', { action: 'save', ref: 'listing:lst_oak', label: 'Oak' })).status, 401);
 
+  // The offer shown before checkout comes from the same config checkout charges.
+  const offer = (await call('GET', '/api/premium/offer')).data;
+  assert.deepEqual(offer, { active: false, price_cents: 1999, trial_days: 7, due_today_cents: 0, grace_days: 7 });
+
   // Checkout: hosted subscription, $5 intro via once-only coupon, terms in the submit text, safe return path.
   const co = await call('POST', '/api/premium/checkout', { return_to: '/finder/?q=Charlotte%2C%20NC' });
   assert.equal(co.status, 200);
@@ -436,6 +440,15 @@ test('premium: locked listings, $5 checkout, activation, unlocked details, savin
   assert.equal(cs.params['discounts[0][coupon]'], 'rentready_premium_intro');
   assert.match(cs.params['custom_text[submit][message]'], /\$5\.00 today.*\$19\.99 every month until you cancel/);
   assert.match(cs.params.success_url, /\/api\/premium\/return\?session_id=\{CHECKOUT_SESSION_ID\}&to=%2Ffinder%2F%3Fq%3DCharlotte/);
+  // "$0 down" (apartment-match paywall): a free trial instead of the $5 coupon, card collected, terms in the submit text.
+  const zero = await call('POST', '/api/premium/checkout', { return_to: '/finder/?mode=second-chance&q=Charlotte%2C%20NC', offer: 'trial' });
+  assert.equal(zero.data.trial, true);
+  assert.equal(zero.data.intro_cents, 0);
+  const zcs = checkoutSessions.get(zero.data.url.split('/').pop())!;
+  assert.equal(zcs.params['subscription_data[trial_period_days]'], '7');
+  assert.equal(zcs.params.payment_method_collection, 'always');
+  assert.ok(!('discounts[0][coupon]' in zcs.params), 'no $5 coupon on a trial');
+  assert.match(zcs.params['custom_text[submit][message]'], /\$0\.00 today.*7-day free trial.*\$19\.99 every month until you cancel/);
   const evil = await call('POST', '/api/premium/checkout', { return_to: '//evil.example/steal' });
   assert.match(checkoutSessions.get(evil.data.url.split('/').pop())!.params.success_url, /to=%2Ffinder%2F$/, 'open redirect refused');
 
@@ -531,6 +544,11 @@ test('premium: locked listings, $5 checkout, activation, unlocked details, savin
   const again = await call('POST', '/api/premium/checkout', { return_to: '/account' });
   assert.equal(again.data.intro, false);
   assert.ok(!('discounts[0][coupon]' in checkoutSessions.get(again.data.url.split('/').pop())!.params));
+  // …and no second free trial either — the offer says so before checkout.
+  assert.deepEqual((await call('GET', '/api/premium/offer')).data, { active: false, price_cents: 1999, trial_days: 0, due_today_cents: 1999, grace_days: 7 });
+  const againZero = await call('POST', '/api/premium/checkout', { return_to: '/account', offer: 'trial' });
+  assert.equal(againZero.data.trial, false);
+  assert.ok(!('subscription_data[trial_period_days]' in checkoutSessions.get(againZero.data.url.split('/').pop())!.params));
 });
 
 test('without the Premium tables (migration not applied), buyers still get their products and the Finder still loads', async () => {
@@ -730,4 +748,55 @@ test('second-chance fallback reaches other states (labelled), and locked cards g
   assert.match(mediaCalls[mediaCalls.length - 1], /places\/PEACH\/photos\/abc\/media\?maxWidthPx=48/);
   assert.equal((await call('GET', '/api/listings/preview?id=lst_elm')).status, 404, 'non-Google photos get no preview');
   assert.equal((await call('GET', '/api/listings/preview?id=../../x')).status, 400);
+});
+
+test('apartment match: the search link is emailed once per place per day; rental-history answers are never accepted', async () => {
+  cookie = '';
+  assert.equal((await call('POST', '/api/lifecycle', { event: 'search_saved', data: { place: 'Charlotte, NC' } })).status, 400, 'needs a lead session');
+  await call('POST', '/api/leads', { first_name: 'Riley', email: 'riley@example.com', lead_source: 'match' });
+  assert.equal((await call('POST', '/api/lifecycle', { event: 'search_saved', data: {} })).status, 400, 'needs a place');
+  const before = emails.length;
+  const r = await call('POST', '/api/lifecycle', { event: 'search_saved', data: { source: 'match', place: 'Charlotte, NC', hurdles: 'eviction' } });
+  assert.equal(r.data.duplicate, false);
+  assert.equal((await call('POST', '/api/lifecycle', { event: 'search_saved', data: { source: 'match', place: 'charlotte, nc' } })).data.duplicate, true, 'no second email');
+  const sent = emails.slice(before).filter((e) => e.subject === 'Your RentReady apartment search');
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /\/finder\/\?q=Charlotte%2C%20NC/);
+  const stored = (await client.execute("SELECT data FROM rr_lifecycle_events e JOIN rr_leads l ON l.lead_id = e.lead_id WHERE l.email = 'riley@example.com' AND e.event = 'search_saved'")).rows[0].data as string;
+  assert.doesNotMatch(stored, /eviction|hurdles/, 'only whitelisted fields are stored');
+});
+
+test('apartment match sign-in: a questionnaire-only lead gets a link, and only the verified session sees the saved search', async () => {
+  // Riley (previous test) finished the questionnaire but never bought anything.
+  cookie = '';
+  const before = emails.length;
+  await call('POST', '/api/access/link', { email: 'riley@example.com', next: '/find-my-apartment' });
+  const mail = emails.slice(before).find((e) => e.subject === 'Your RentReady sign-in link');
+  assert.ok(mail, 'sign-in link emailed to a questionnaire-only lead');
+  // A lead with no saved search (and no purchase) still gets nothing.
+  await call('POST', '/api/leads', { first_name: 'Casey', email: 'casey@example.com', lead_source: 'start' });
+  cookie = '';
+  const n = emails.length;
+  assert.deepEqual((await call('POST', '/api/access/link', { email: 'casey@example.com' })).data, { sent: true });
+  assert.equal(emails.length, n);
+
+  // Typing Riley's email into a lead form gives a session, but not Riley's name or saved search.
+  await call('POST', '/api/leads', { first_name: 'Mallory', email: 'riley@example.com', lead_source: 'match' });
+  const typed = (await call('GET', '/api/entitlements')).data;
+  assert.equal(typed.verified, false);
+  assert.ok(!('last_search' in typed) && !('first_name' in typed));
+
+  // Following the emailed link signs Riley in (no Stripe customer needed) and lands back on the questionnaire.
+  cookie = '';
+  const link = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s"]+)/.exec(mail!.text)![1].replace(/&amp;/g, '&');
+  const v = await call('GET', link.slice(ORIGIN.length));
+  assert.equal(v.res.headers.get('Location'), `${ORIGIN}/find-my-apartment`);
+  const ent = (await call('GET', '/api/entitlements')).data;
+  assert.equal(ent.verified, true);
+  assert.deepEqual(ent.last_search, { place: 'Charlotte, NC' });
+  assert.deepEqual(ent.products, []);
+  assert.equal((await call('GET', '/api/member')).data.email, 'riley@example.com');
+  // Single use.
+  cookie = '';
+  assert.match((await call('GET', link.slice(ORIGIN.length))).res.headers.get('Location') || '', /link=expired/);
 });

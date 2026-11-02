@@ -204,7 +204,7 @@ function SignInForm({ next }: { next: string }) {
     }
   }
   if (sent === 'sent') {
-    return <div style={{ marginTop: 20 }}><Alert kind="ok">If that email has a RentReady membership or purchase, a sign-in link is on its way. It works once and expires in 30 minutes.</Alert></div>;
+    return <div style={{ marginTop: 20 }}><Alert kind="ok">If that email has a RentReady membership, purchase or saved apartment search, a sign-in link is on its way. It works once and expires in 30 minutes.</Alert></div>;
   }
   return (
     <form className="form" onSubmit={submit} noValidate style={{ marginTop: 20 }}>

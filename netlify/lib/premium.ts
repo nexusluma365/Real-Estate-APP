@@ -2,6 +2,7 @@ import { recordLifecycle, setSession, stripe, type Env } from './_lib';
 
 /**
  * RentReady Premium: $5 for the first month, then $19.99/month until canceled (Stripe Billing).
+ * "$0 down" offer (the apartment-match questionnaire): a free trial instead of the $5 month — card collected, nothing charged today.
  * Stripe is the source of truth; rr_subscriptions mirrors it from webhooks and the checkout return.
  * Published access policy (shown in the offer and in emails):
  * - active / trialing → access
@@ -14,6 +15,7 @@ export const PREMIUM = {
   priceLookupKey: 'rentready_premium_monthly',
   introCouponId: 'rentready_premium_intro',
   graceDays: 7,
+  trialDays: 7,
 } as const;
 
 export interface SubRow { subscription_id: string; customer_id: string; lead_id: string | null; status: string; current_period_end: string | null; cancel_at_period_end: number; canceled_at: string | null; intro_used: number }
@@ -113,7 +115,7 @@ export async function activateFromCheckout(env: Env, sessionId: string): Promise
   await upsertSubscription(env, cs.subscription, leadId);
   const lead = await env.DB!.prepare('SELECT stripe_customer_id FROM rr_leads WHERE lead_id = ?').bind(leadId).first<{ stripe_customer_id: string | null }>();
   if (!lead?.stripe_customer_id) await env.DB!.prepare('UPDATE rr_leads SET stripe_customer_id = ? WHERE lead_id = ?').bind(cs.customer, leadId).run();
-  await recordLifecycle(env, leadId, 'premium_started', { subscription_id: cs.subscription.id, current_period_end: periodEnd(cs.subscription) }, cs.subscription.id);
+  await recordLifecycle(env, leadId, 'premium_started', { subscription_id: cs.subscription.id, current_period_end: periodEnd(cs.subscription), trial: cs.subscription.status === 'trialing' }, cs.subscription.id);
   // Keep the customer id that owns any book/Bundle purchases, so the session sees everything this person bought.
   const customerId = lead?.stripe_customer_id || cs.customer;
   return { cookie: await setSession(env, { lead_id: leadId, customer_id: customerId }), active: accessFrom({ status: cs.subscription.status, current_period_end: periodEnd(cs.subscription) }).active };

@@ -82,14 +82,14 @@ function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · s
   );
 }
 
-/** Hero: apartment seekers go to the Finder; people preparing to apply get the book. */
+/** Hero: apartment seekers go through the apartment-match questionnaire; people preparing to apply get the book. */
 function HeroCtas({ variant }: { variant: string }) {
   return (
     <div className="bk-buy">
       <div className="bk-hero-ctas">
-        <a className="btn bk-btn" href="/finder/" onClick={() => track('primary_cta_click', { cta_location: 'hero_finder', variant })}>
+        <CtaLink to="/find-my-apartment" className="btn bk-btn" props={{ cta_location: 'hero_finder', variant }}>
           Find Apartments <Arrow />
-        </a>
+        </CtaLink>
         <CtaLink to={BOOK_TO} className="btn bk-btn-outline" props={{ cta_location: 'hero', product: 'guide', variant }}>
           Get the Book
         </CtaLink>

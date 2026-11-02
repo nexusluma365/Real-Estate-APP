@@ -43,7 +43,15 @@ export type FunnelEvent =
   | 'free_resource_view'
   | 'free_resource_requested'
   | 'upgrade_offer_view'
-  | 'upgrade_purchase_success';
+  | 'upgrade_purchase_success'
+  | 'match_view'
+  | 'match_started'
+  | 'match_step'
+  | 'match_abandoned'
+  | 'match_signin_requested'
+  | 'match_signin_skip'
+  | 'match_completed'
+  | 'paywall_view';
 
 export interface EventProps {
   product?: ProductId | 'bundle' | 'premium';

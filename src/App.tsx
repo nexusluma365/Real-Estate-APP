@@ -25,6 +25,7 @@ const Checklist = lazy(() => import('./pages/Checklist'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Premium = lazy(() => import('./pages/Premium'));
 const Account = lazy(() => import('./pages/Account'));
+const ApartmentMatch = lazy(() => import('./pages/ApartmentMatch'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -40,6 +41,8 @@ export default function App() {
               {/* Step 1 — Awareness (+ Google Ads message-match pages) */}
               <Route path="/" element={<Landing />} />
               <Route path="/second-chance-apartments" element={<SecondChanceSearch />} />
+              {/* "Find Apartments" CTA → apartment-match questionnaire → lead → $0-down Premium paywall */}
+              <Route path="/find-my-apartment" element={<ApartmentMatch />} />
               {INTENTS.map((i) => (
                 <Route key={i.slug} path={`/${i.slug}`} element={<Landing intent={i} />} />
               ))}
