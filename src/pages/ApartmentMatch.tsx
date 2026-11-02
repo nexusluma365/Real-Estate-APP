@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { Link, useNavigate } from 'react-router-dom';
 import { Seo } from '../components/Seo';
 import { Spinner } from '../components/ui';
-import { captureLead, restoreSession } from '../lib/leadService';
+import { captureLead, recordMatch, restoreSession } from '../lib/leadService';
 import { reportAdsConversion, track, type EventProps, type FunnelEvent } from '../lib/analytics';
 import { emitLifecycle } from '../lib/lifecycle';
 import { ApiError } from '../lib/api';
@@ -23,9 +23,9 @@ import { useFunnel } from '../state/FunnelContext';
  *
  * Every visit starts fresh: answers are kept in memory only, so a refresh or a new tab begins again at the greeting.
  *
- * Privacy: answers never leave the page. Only the search area does — as the Finder
- * query and in the search-link email. Rental-concern answers are never sent anywhere: not to analytics, ad platforms,
- * the lead record or the server.
+ * Answers: a finished questionnaire is recorded as one row in the owner's Google Sheet (POST /api/match → Apps Script,
+ * see google-sheets/), once the visitor's name and email are known. The search area also becomes the Finder query and
+ * goes in the search-link email. Answers are never sent to analytics, ad platforms or the email service.
  */
 type Glyph = keyof typeof GLYPHS;
 type OneId = 'move' | 'budget' | 'beds';
@@ -78,6 +78,12 @@ function trackOnce(key: string, event: FunnelEvent, props?: EventProps) {
   write('match.tracked', [...seen, key], 'session');
   track(event, props);
   return true;
+}
+
+/** Sends a finished questionnaire to the Google Sheet (server-side). Only complete answer sets are sent. */
+function recordAnswers(a: Answers) {
+  if (!a.loc || !a.move || !a.budget || !a.beds || !a.hurdles?.length) return Promise.resolve(false);
+  return recordMatch({ place: a.loc.q, move: a.move, budget: a.budget, beds: a.beds, hurdles: a.hurdles });
 }
 
 function bridgeLines(a: Answers): string[] {
@@ -149,11 +155,12 @@ export default function ApartmentMatch() {
     window.location.replace(listingsUrl(entitlements.last_search?.place || answers.loc?.q, !!entitlements.premium?.active));
   }, [verified, entitlements.last_search, entitlements.premium]);
 
-  /** Emails the search link (and remembers the search for sign-in) when the lead step was skipped. */
+  /** When the lead step was skipped: records the answers and emails the search link (also remembered for sign-in). */
   async function saveSearch(a: Answers) {
     if (!a.loc) return;
     // The browser remembers the lead but the session cookie may be gone; never replace a signed-in session, though.
     if (!entitlements.signed_in && lead && !(await restoreSession().catch(() => null))) return;
+    void recordAnswers(a);
     void emitLifecycle('search_saved', { source: 'match', place: a.loc.q });
   }
 
@@ -527,6 +534,7 @@ function LeadStep({ answers, headRef, onDone }: { answers: Answers; headRef: Ref
       setLead(l);
       if (trackOnce('lead', 'lead_captured', { cta_location: 'match', product: 'premium' })) reportAdsConversion('lead');
       void emitLifecycle('lead_captured', { source: 'match', product: 'premium' });
+      void recordAnswers(answers);
       if (answers.loc) void emitLifecycle('search_saved', { source: 'match', place: answers.loc.q });
       onDone();
     } catch (err) {

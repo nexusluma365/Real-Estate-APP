@@ -32,6 +32,10 @@ export interface Env {
   GOOGLE_MAPS_API_KEY?: string;
   /** OpenAI: reads property websites for published second-chance / flexible screening policies (quote-verified). */
   OPENAI_API_KEY?: string;
+  /** Google Apps Script web app that appends apartment-match questionnaire answers to a Google Sheet (google-sheets/README.md). */
+  GOOGLE_SHEETS_WEBHOOK_URL?: string;
+  /** Shared secret the Apps Script checks before writing a row. */
+  GOOGLE_SHEETS_WEBHOOK_SECRET?: string;
   OPENAI_MODEL?: string;
   /** Most property websites checked per day (cost cap). Default 200. */
   SCAN_DAILY_LIMIT?: string;

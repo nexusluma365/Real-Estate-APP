@@ -25,6 +25,8 @@ const toolkitKey = DIGITAL_KIT_FILE_KEY;
 const files = new Map<string, string>([[toolkitKey, 'PK-letters']]);
 const espCalls: { event: string; marketing_allowed: boolean }[] = [];
 const emails: { to: string; subject: string; html: string; text: string }[] = [];
+const sheetRows: { secret: string; row: Record<string, string> }[] = [];
+let sheetDown = false;
 const env: Env = {
   STRIPE_SECRET_KEY: 'sk_test_x',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_x',
@@ -38,6 +40,8 @@ const env: Env = {
   FROM_EMAIL: 'RentReady <support@send.rentready.test>',
   SUPPORT_EMAIL: 'support@rentready.test',
   GOOGLE_MAPS_API_KEY: 'g-test',
+  GOOGLE_SHEETS_WEBHOOK_URL: 'https://sheets.test/macros/s/abc/exec',
+  GOOGLE_SHEETS_WEBHOOK_SECRET: 'sheet_secret_value_123',
   DB: sqlDatabase(client),
   PRODUCT_FILES: {
     async createDownloadUrl(key) {
@@ -74,6 +78,13 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.host === 'esp.test') {
     espCalls.push(JSON.parse(String(init?.body)));
     return new Response('{}');
+  }
+  if (url.host === 'sheets.test') {
+    if (sheetDown) return new Response('<html>error</html>', { status: 500 });
+    const b = JSON.parse(String(init?.body));
+    if (b.secret !== 'sheet_secret_value_123') return new Response('{"ok":false,"error":"unauthorized"}');
+    sheetRows.push(b);
+    return new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } });
   }
   if (url.host === 'api.resend.com') {
     emails.push(JSON.parse(String(init?.body)));
@@ -799,4 +810,48 @@ test('apartment match sign-in: a questionnaire-only lead gets a link, and only t
   // Single use.
   cookie = '';
   assert.match((await call('GET', link.slice(ORIGIN.length))).res.headers.get('Location') || '', /link=expired/);
+});
+
+test('questionnaire answers are written to the Google Sheet as labels, once, and only for a lead session', async () => {
+  const answers = { place: 'Charlotte, NC', move: '30', budget: '1000', beds: '2', hurdles: ['credit', 'eviction'] };
+  cookie = '';
+  assert.equal((await call('POST', '/api/match', answers)).status, 401, 'needs the lead session');
+  await call('POST', '/api/leads', { first_name: '=HYPERLINK("x")', email: 'sheet@example.com', lead_source: 'match', email_consent: true });
+  assert.equal((await call('POST', '/api/match', { ...answers, move: 'tomorrow' })).status, 422, 'unknown answer values are rejected');
+  assert.equal((await call('POST', '/api/match', { ...answers, hurdles: [] })).status, 422);
+
+  const before = sheetRows.length;
+  const r = await call('POST', '/api/match', answers);
+  assert.deepEqual(r.data, { recorded: true });
+  const row = sheetRows[sheetRows.length - 1].row;
+  assert.equal(sheetRows.length, before + 1);
+  assert.equal(row.email, 'sheet@example.com');
+  assert.equal(row.first_name, `'=HYPERLINK("x")`, 'formula-looking text is kept as text');
+  assert.equal(row.marketing_opt_in, 'Yes');
+  assert.equal(row.location, 'Charlotte, NC');
+  assert.equal(row.move_timing, 'Within 30 days');
+  assert.equal(row.budget, '$1,000–$1,500');
+  assert.equal(row.bedrooms, '2 Bedrooms');
+  assert.equal(row.rental_concerns, 'Credit concerns, Past eviction');
+
+  // The same answers again (a refresh and redo) don't add a second row; different answers do.
+  assert.equal((await call('POST', '/api/match', answers)).data.duplicate, true);
+  assert.equal(sheetRows.length, before + 1);
+  // Never forwarded to the ESP.
+  assert.ok(!espCalls.some((c) => c.event === 'match_recorded'));
+
+  // Sheet outage: the visitor gets a soft failure and the same answers can be recorded later.
+  sheetDown = true;
+  const changed = { ...answers, beds: '3' };
+  assert.equal((await call('POST', '/api/match', changed)).status, 502);
+  sheetDown = false;
+  assert.deepEqual((await call('POST', '/api/match', changed)).data, { recorded: true });
+  assert.equal(sheetRows.length, before + 2);
+
+  // Not configured: nothing is sent, nothing breaks.
+  const saved = env.GOOGLE_SHEETS_WEBHOOK_URL;
+  env.GOOGLE_SHEETS_WEBHOOK_URL = undefined;
+  assert.equal((await call('POST', '/api/match', { ...answers, beds: 'studio' })).status, 202);
+  env.GOOGLE_SHEETS_WEBHOOK_URL = saved;
+  assert.equal((await call('GET', '/api/admin/health', undefined, { Authorization: `Bearer ${env.ADMIN_TOKEN}` })).data.settings.google_sheets, true);
 });

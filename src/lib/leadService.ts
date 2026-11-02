@@ -81,3 +81,24 @@ export async function restoreSession(): Promise<Lead | null> {
   });
 }
 
+
+/** A finished apartment-match questionnaire, as answer ids (the server turns them into labels). */
+export interface MatchAnswers { place: string; move: string; budget: string; beds: string; hurdles: string[] }
+
+/**
+ * Records the questionnaire to the owner's Google Sheet (POST /api/match, server-side; needs the lead session).
+ * Never throws: a recording problem must not interrupt the visitor. Mock mode keeps a local copy for the dev outbox.
+ */
+export async function recordMatch(answers: MatchAnswers): Promise<boolean> {
+  if (isMock) {
+    const box = read<(MatchAnswers & { at: string })[]>('mock.match', []);
+    write('mock.match', [...box, { ...answers, at: new Date().toISOString() }].slice(-20));
+    return true;
+  }
+  try {
+    const r = await api<{ recorded: boolean }>('/match', { json: answers });
+    return !!r.recorded;
+  } catch {
+    return false;
+  }
+}

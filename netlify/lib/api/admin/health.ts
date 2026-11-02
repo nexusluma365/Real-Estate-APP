@@ -17,6 +17,7 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
     product_files: !!env.PRODUCT_FILES,
     resend_email: !!(env.RESEND_API_KEY && env.FROM_EMAIL),
     video_guide_url: !!env.VIDEO_GUIDE_URL,
+    google_sheets: !!(env.GOOGLE_SHEETS_WEBHOOK_URL && env.GOOGLE_SHEETS_WEBHOOK_SECRET),
   };
   let database: string;
   try {

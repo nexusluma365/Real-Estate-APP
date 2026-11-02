@@ -10,6 +10,7 @@ const SECTIONS: [string, string[]][] = [
   ['What we collect', [
     'Contact details you give us: your first name and email address (for example when you start checkout, claim the free-book offer, download the checklist or join RentReady Premium).',
     'Order and membership records: what you bought or subscribed to, amounts, dates and status. Card details are entered on Stripe’s secure forms and never reach or are stored by RentReady.',
+    'Your answers to the apartment-match questionnaire (city or ZIP, move timing, budget, bedrooms, and any rental concerns you choose to share), saved with your name and email after you give them, so we can follow up about your search. These answers are never shared with advertising or analytics services.',
     'Shipping address for the physical book, collected and stored by Stripe and used only to ship your order.',
     'Your optional quiz and assessment answers, used only to tailor your plan inside your account. They are never shared with advertising platforms.',
     'Account activity: apartments and searches you save, apartments you recently viewed and your alert settings.',
@@ -25,8 +26,8 @@ const SECTIONS: [string, string[]][] = [
     'To measure and improve the site and our advertising using the aggregated events above.',
   ]],
   ['Who we share it with', [
-    'Service providers that run RentReady on our behalf: Stripe (payments and billing), Netlify (hosting), Supabase (database), Cloudflare (file downloads), Resend (email) and Google (apartment search and, if enabled, analytics/ads measurement).',
-    'We do not sell your personal information. We do not share your quiz answers, assessment or credit-related information with advertisers, landlords or property managers.',
+    'Service providers that run RentReady on our behalf: Stripe (payments and billing), Netlify (hosting), Supabase (database), Cloudflare (file downloads), Resend (email) and Google (apartment search and, if enabled, analytics/ads measurement, and Google Sheets for storing questionnaire answers).',
+    'We do not sell your personal information. We do not share your quiz or questionnaire answers, assessment or credit-related information with advertisers, landlords or property managers.',
   ]],
   ['Your choices', [
     `Unsubscribe from marketing emails using the link in any email. Turn listing alerts on or off in My account. Cancel RentReady Premium any time in My account.`,

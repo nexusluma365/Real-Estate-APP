@@ -28,6 +28,7 @@ import * as premiumCheckout from '../lib/api/premium/checkout';
 import * as premiumReturn from '../lib/api/premium/return';
 import * as premiumPortal from '../lib/api/premium/portal';
 import * as premiumOffer from '../lib/api/premium/offer';
+import * as match from '../lib/api/match';
 import * as listings from '../lib/api/listings/index';
 import * as listingDetail from '../lib/api/listings/detail';
 import * as listingPreview from '../lib/api/listings/preview';
@@ -68,6 +69,7 @@ const ROUTES: Record<string, Module> = {
   '/api/premium/return': premiumReturn,
   '/api/premium/portal': premiumPortal,
   '/api/premium/offer': premiumOffer,
+  '/api/match': match,
   '/api/listings': listings,
   '/api/listings/detail': listingDetail,
   '/api/listings/preview': listingPreview,
