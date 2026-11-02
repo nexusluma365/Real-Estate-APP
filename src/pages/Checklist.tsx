@@ -141,7 +141,7 @@ export default function Checklist() {
                   Get the Book — {PRODUCTS.guide.priceLabel} <span className="bk-arrow" aria-hidden="true">→</span>
                 </CtaLink>
                 <p className="bk-buy-alt">
-                  Or see the <CtaLink to="/#options" className="bk-link" props={{ cta_location: 'checklist_options' }}>Complete Bundle special offer</CtaLink> with dispute letters and a video guide.
+                  Or see the <CtaLink to="/creditready" className="bk-link" props={{ cta_location: 'checklist_options' }}>RentReady Digital Bundle</CtaLink> with dispute letters and a video guide.
                 </p>
               </div>
             </div>

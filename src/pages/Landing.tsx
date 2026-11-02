@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Seo } from '../components/Seo';
@@ -9,11 +9,11 @@ import type { Intent } from '../config/intents';
 import { env } from '../lib/env';
 import { captureAttribution } from '../lib/attribution';
 import { track } from '../lib/analytics';
-import { BuyFaqList, Options, QualifyQuiz, TrustBar } from '../components/Funnel';
+import { BuyFaqList, QualifyQuiz, TrustBar } from '../components/Funnel';
+import { SocialProof } from '../components/SocialProof';
 import { buyFaq, LANDING_FAQ } from '../config/faq';
 import { PRODUCTS } from '../config/products';
 import { SITE } from '../config/site';
-import type { Recommendation } from '../config/qualification';
 
 /**
  * Home page — "Before They Say No™" for high-intent Google Search traffic (worried about being denied).
@@ -217,7 +217,6 @@ export default function Landing({ intent }: { intent?: Intent }) {
   const root = useReveal();
   const variant = intent?.hero.id || VARIANT;
   useOnce(() => { captureAttribution(search, pathname, intent?.slug); track('landing_view', { variant }); });
-  const [rec, setRec] = useState<Recommendation | undefined>();
   const faq = useMemo(() => {
     const base = buyFaq({
       guidePrice: PRODUCTS.guide.priceLabel,
@@ -373,7 +372,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
               <h2 id="find-h" className="bk-h2">Find the right RentReady option <em>for where you are.</em></h2>
               <p className="bk-body">Three questions. We’ll recommend the one that fits your timeline and tell you why — or skip straight to the special offer.</p>
             </div>
-            <div data-reveal><QualifyQuiz onResult={setRec} /></div>
+            <div data-reveal><QualifyQuiz /></div>
           </div>
         </section>
 
@@ -487,17 +486,8 @@ export default function Landing({ intent }: { intent?: Intent }) {
           </div>
         </section>
 
-        {/* 7b — SPECIAL OFFER: the Complete Bundle (single card, price shown at checkout) */}
-        <section className="bk-sec bk-white" id="options" aria-labelledby="opt-h">
-          <div className="wrap">
-            <div className="bk-head center" data-reveal>
-              <span className="bk-label">Special offer</span>
-              <h2 id="opt-h" className="bk-h2">Get the Complete Bundle. <em>Everything in one place.</em></h2>
-              <p className="bk-body">The book that shows you what they may see, the letters to act on it, and the videos that walk you through it — together.</p>
-            </div>
-            <Options recommended={rec === 'checklist' ? undefined : rec} />
-          </div>
-        </section>
+        {/* 7b — SOCIAL PROOF: rotating stories (or labeled common concerns until real testimonials are approved) */}
+        <SocialProof />
 
         {/* 8 — THE BIG TRANSFORMATION */}
         <section className="bk-sec bk-dark bk-past" aria-labelledby="past-h">

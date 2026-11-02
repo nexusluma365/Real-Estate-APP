@@ -1,7 +1,7 @@
 import { Icon } from './Icon';
 import { Tag } from './ui';
 import type { Rating } from '../lib/types';
-import { TESTIMONIALS, SOCIAL_PROOF_ENABLED } from '../config/testimonials';
+import { publishedTestimonials } from '../config/testimonials';
 
 export interface ScenarioRow {
   label: string;
@@ -64,8 +64,8 @@ export function ComplianceBlock() {
 
 /** Renders nothing unless verified testimonials are supplied AND the feature flag is on. */
 export function Testimonials() {
-  const verified = TESTIMONIALS.filter((t) => t.verified && t.consentOnFile);
-  if (!SOCIAL_PROOF_ENABLED || verified.length === 0) return null;
+  const verified = publishedTestimonials();
+  if (verified.length === 0) return null;
   return (
     <section className="band" aria-label="Customer stories">
       <div className="wrap">

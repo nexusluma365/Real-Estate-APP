@@ -56,7 +56,7 @@ function LockedPage() {
             If you’ve purchased, open the access link we emailed you on this device. If you haven’t yet, see your options — the book or the RentReady Digital Bundle.
           </p>
           <div className="cta-row" style={{ justifyContent: 'center' }}>
-            <Link className="btn" to="/#options">See the options</Link>
+            <Link className="btn" to="/creditready">See the options</Link>
             <Link className="btn btn-outline" to="/access">I already purchased</Link>
           </div>
         </div>

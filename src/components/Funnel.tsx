@@ -7,7 +7,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import bundleWebp from '../assets/rentready-digital-bundle.webp';
 import bundleWebpSm from '../assets/rentready-digital-bundle-768.webp';
 import bundlePng from '../assets/rentready-digital-bundle.png';
-import { OPTION_COPY, PRODUCTS, dollars } from '../config/products';
 import { QUAL_QUESTIONS, explain, intentTier, recommend, type QualAnswers, type Recommendation } from '../config/qualification';
 import type { FaqItem } from '../config/faq';
 import { env } from '../lib/env';
@@ -74,7 +73,7 @@ const REC_LABEL: Record<Recommendation, string> = {
  * Three questions → a recommendation with a reason. Skippable at every step; never gates content.
  * The quiz result is the visitor's own — it is stored locally and only travels with a lead they submit.
  */
-export function QualifyQuiz({ onResult }: { onResult: (r: Recommendation) => void }) {
+export function QualifyQuiz({ onResult }: { onResult?: (r: Recommendation) => void }) {
   const { lead } = useFunnel();
   const [answers, setAnswers] = useState<QualAnswers>(() => getQualification());
   const done = !!(answers.stage && answers.concern && answers.help);
@@ -84,7 +83,7 @@ export function QualifyQuiz({ onResult }: { onResult: (r: Recommendation) => voi
   const q = QUAL_QUESTIONS[step];
 
   useEffect(() => {
-    if (done) onResult(recommend(answers).primary);
+    if (done) onResult?.(recommend(answers).primary);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,7 +101,7 @@ export function QualifyQuiz({ onResult }: { onResult: (r: Recommendation) => voi
       const tier = intentTier(next);
       track('qualification_completed', { intent_tier: tier, recommended: rec.primary });
       if (lead) void emitLifecycle('qualification_completed', { intent_tier: tier, recommended: rec.primary });
-      onResult(rec.primary);
+      onResult?.(rec.primary);
     }
     setStep(step + 1);
     requestAnimationFrame(() => headRef.current?.focus());
@@ -139,7 +138,7 @@ export function QualifyQuiz({ onResult }: { onResult: (r: Recommendation) => voi
           <CtaLink to={CHECKOUT_TO[primary]} className="btn bk-btn" props={{ cta_location: 'quiz_result', product: primary === 'checklist' ? undefined : primary, recommended: primary }}>
             {primary === 'checklist' ? 'Get the free checklist' : primary === 'guide' ? 'Get the Book' : 'Get the Digital Bundle'} <span className="bk-arrow" aria-hidden="true">→</span>
           </CtaLink>
-          <a className="bk-link" href="#options" onClick={() => track('primary_cta_click', { cta_location: 'quiz_compare' })}>See the special offer</a>
+          <CtaLink to="/creditready" className="bk-link" props={{ cta_location: 'quiz_compare' }}>See the Digital Bundle</CtaLink>
         </div>
         <button type="button" className="bk-quiz-restart" onClick={restart}>Start over</button>
       </div>
@@ -163,58 +162,13 @@ export function QualifyQuiz({ onResult }: { onResult: (r: Recommendation) => voi
       </div>
       <div className="bk-quiz-foot">
         {step > 0 ? <button type="button" className="bk-quiz-restart" onClick={() => setStep(step - 1)}>← Back</button> : <span />}
-        <a className="bk-quiz-skip" href="#options" onClick={() => track('qualification_skipped', { step: q.id })}>Skip — show me the special offer</a>
+        <CtaLink to="/creditready" className="bk-quiz-skip" event="qualification_skipped" props={{ step: q.id }}>Skip — show me the Digital Bundle</CtaLink>
       </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ options */
-
-/**
- * The special-offer section: one Complete Bundle card, no price on the page (the price is shown at checkout,
- * before payment). No deadline or countdown — there isn't a real one, so none is implied.
- */
-export function Options({ recommended }: { recommended?: Recommendation }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const P = PRODUCTS.creditready;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !('IntersectionObserver' in window)) return;
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return;
-      track('options_view', { recommended, variant: 'special_offer' });
-      track('product_view', { product: 'creditready', order_value: dollars(P.priceCents) });
-      io.disconnect();
-    }, { threshold: 0.35 });
-    io.observe(el);
-    return () => io.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div ref={ref}>
-      <article className="bk-opt bk-opt-featured bk-opt-solo" data-reveal aria-labelledby="opt-bundle">
-        <div className="bk-opt-art"><BundleImage sizes="(min-width: 900px) 860px, 100vw" /></div>
-        <span className="bk-opt-badge">Special offer</span>
-        <h3 id="opt-bundle">The Complete RentReady Bundle</h3>
-        <p className="bk-opt-sub">Everything you need to prepare — together, in one bundle.</p>
-        <ul>
-          {P.includes.map((t) => <li key={t}><Icon name="check" />{t}</li>)}
-        </ul>
-        <p className="bk-opt-delivery"><Icon name="home" />{OPTION_COPY.creditready.delivery}</p>
-        <CtaLink to={CHECKOUT_TO.creditready} className="btn bk-btn" props={{ cta_location: 'special_offer', product: 'creditready', recommended }}>
-          Get the Complete Bundle <span className="bk-arrow" aria-hidden="true">→</span>
-        </CtaLink>
-        <ul className="bk-solo-assure" aria-label="Purchase protection">
-          <li><Icon name="lock" />Secure checkout</li>
-          <li><Icon name="card" />One-time purchase</li>
-          {GUARANTEE_DAYS > 0 && <li><Icon name="shield" />{GUARANTEE_DAYS}-day money-back guarantee</li>}
-        </ul>
-      </article>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ objections */
 
