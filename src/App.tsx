@@ -26,6 +26,8 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Premium = lazy(() => import('./pages/Premium'));
 const Account = lazy(() => import('./pages/Account'));
 const ApartmentMatch = lazy(() => import('./pages/ApartmentMatch'));
+/** Dark placeholder while the questionnaire loads, so the light page loader never flashes between home and it. */
+const MatchLoading = <div className="am" role="status" aria-label="Loading"><div className="am-glow" aria-hidden="true" /></div>;
 const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -42,7 +44,7 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/second-chance-apartments" element={<SecondChanceSearch />} />
               {/* "Find Apartments" CTA → apartment-match questionnaire → lead → $0-down Premium paywall */}
-              <Route path="/find-my-apartment" element={<ApartmentMatch />} />
+              <Route path="/find-my-apartment" element={<Suspense fallback={MatchLoading}><ApartmentMatch /></Suspense>} />
               {INTENTS.map((i) => (
                 <Route key={i.slug} path={`/${i.slug}`} element={<Landing intent={i} />} />
               ))}

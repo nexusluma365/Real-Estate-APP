@@ -82,11 +82,24 @@ function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · s
   );
 }
 
+/** Fetches the questionnaire's code ahead of the tap (Vite shares the chunk with App's lazy route). */
+const preloadMatch = () => void import('./ApartmentMatch').catch(() => undefined);
+
 /** Hero: apartment seekers go through the apartment-match questionnaire; people preparing to apply get the book. */
 function HeroCtas({ variant }: { variant: string }) {
+  // Load the questionnaire once the page is idle, so "Find Apartments" opens it instantly.
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(preloadMatch);
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(preloadMatch, 1500);
+    return () => window.clearTimeout(t);
+  }, []);
   return (
     <div className="bk-buy">
-      <div className="bk-hero-ctas">
+      <div className="bk-hero-ctas" onPointerOver={preloadMatch} onFocus={preloadMatch}>
         <CtaLink to="/find-my-apartment" className="btn bk-btn" props={{ cta_location: 'hero_finder', variant }}>
           Find Apartments <Arrow />
         </CtaLink>

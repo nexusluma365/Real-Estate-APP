@@ -126,6 +126,19 @@ export default function ApartmentMatch() {
   const where = useRef({ phase, step });
   where.current = { phase, step };
 
+  // Dark page behind the questionnaire (no light edges on mobile overscroll), and a matching browser bar.
+  useEffect(() => {
+    const root = document.documentElement;
+    const bar = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const prevBar = bar?.content;
+    root.classList.add('am-page');
+    if (bar) bar.content = '#0a0a0b';
+    return () => {
+      root.classList.remove('am-page');
+      if (bar && prevBar) bar.content = prevBar;
+    };
+  }, []);
+
   useEffect(() => {
     trackOnce('view', 'match_view');
     // Abandonment: leaving after starting but before the lead step is done. Fires at most once per visit.
@@ -645,13 +658,13 @@ function SignInSheet({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------- premium offer
-/** What Premium unlocks: [bold title, description]. */
+/** Why renters choose Premium: [bold title, description]. */
 const UNLOCKS: [string, string][] = [
-  ['Find Apartments That May Fit Your Situation', 'Explore second-chance listings and properties with more flexible rental requirements.'],
-  ['Know Before You Apply', 'Review available screening information so you can make a smarter decision before paying application fees.'],
-  ['Discover More Rental Opportunities', 'Access additional property listings, photos, prices, locations, and contact details.'],
-  ['Never Miss a New Opportunity', 'Save your searches and get notified when new matching apartments become available.'],
-  ['Stay in Control', 'Manage your Premium membership online and cancel anytime.'],
+  ['Find Second-Chance Apartments', 'Discover properties that may consider renters with bad credit, past evictions, collections, or rental history challenges.'],
+  ['Search for Apartments That Fit Your Situation', 'Explore low-credit-friendly options instead of spending hours searching through listings that may not meet your needs.'],
+  ['Know Before You Spend Money Applying', 'See available rental requirements and screening information to help you decide where to apply.'],
+  ['Unlock Property Details & Contacts', 'Access additional apartment photos, rental prices, locations, and contact information so you can take the next step.'],
+  ['Get Notified When New Apartments Become Available', 'Save your searches and receive alerts when new matching rental opportunities are added.'],
 ];
 
 const longDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -710,23 +723,23 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
             </>
           ) : (
             <>
-              <h2 id="am-plan-h" className="am-plan-h">Stop Guessing Which Apartments Will Give You a Chance.</h2>
-              <p className="am-plan-hook">Bad credit? Past eviction? Been denied before? You may have more options than you think.</p>
-              <p className="am-plan-sub">Unlock access to additional apartment listings, including second-chance options, and see what properties may look for before you spend money applying.</p>
-              <p className="am-plan-label">Here’s what RentReady Premium unlocks:</p>
+              <h2 id="am-plan-h" className="am-plan-h">Bad Credit? Past Eviction? Still Looking for an Apartment That Will Give You a Chance?</h2>
+              <p className="am-plan-hook">Stop wasting time searching through apartments that may not fit your rental history. You deserve to know where your options are.</p>
+              <p className="am-plan-sub">RentReady Premium helps you find second-chance apartments, low-credit-friendly rental options, and properties with more flexible screening requirements — all in one place.</p>
+              <p className="am-plan-label">Here’s why renters choose RentReady Premium:</p>
               <ul className="am-checks">
                 {UNLOCKS.map(([title, text]) => (
                   <li key={title}><Svg glyph="check" /><span><strong>{title}</strong> — {text}</span></li>
                 ))}
               </ul>
-              <p className="am-plan-close">Your next home starts with knowing where to look.</p>
+              <p className="am-plan-close">Finding an apartment may be hard. Finding your options shouldn’t be.</p>
               {offerError ? (
                 <div className="am-terms am-terms-error" role="alert">
                   <p>We couldn’t load membership pricing.</p>
                   <button type="button" className="am-link" onClick={loadOffer}>Try again</button>
                 </div>
               ) : !offer ? (
-                <div className="am-terms" aria-busy="true"><p className="am-fine"><Spinner /> Loading membership terms…</p></div>
+                <div className="am-terms am-terms-loading" aria-busy="true"><p className="am-fine"><Spinner /> Loading membership terms…</p></div>
               ) : (
                 <div className="am-terms">
                   <dl>
@@ -753,7 +766,7 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
         ) : (
           <>
             <button type="button" className="am-btn" onClick={join} disabled={busy || !offer || isMock} aria-busy={busy}>
-              {busy ? <><Spinner /> Opening secure checkout…</> : 'Unlock My Apartment Options'}
+              {busy ? <><Spinner /> Opening secure checkout…</> : 'Unlock Second-Chance Apartments'}
             </button>
             {offer && (
               <p className="am-fine">
@@ -765,7 +778,7 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
           </>
         )}
         <p className="am-fine am-legal">
-          <em>No credit check to search. Approval and availability depend on each property.</em> <Link to="/premium#terms">Membership terms</Link>
+          <em>No credit check to search. Rental requirements vary by property. RentReady does not guarantee availability or approval.</em> <Link to="/premium#terms">Membership terms</Link>
         </p>
       </div>
     </main>
