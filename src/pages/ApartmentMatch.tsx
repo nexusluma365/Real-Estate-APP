@@ -13,12 +13,13 @@ import { fetchPremiumOffer, requestSignInLink, startPremium, type PremiumOffer }
 import { useFunnel } from '../state/FunnelContext';
 
 /**
- * /find-my-apartment — the "Find Apartments" CTA. A short animated greeting, five one-per-screen questions,
+ * /find-my-apartment — the "Find Apartments" CTA. A short animated greeting that runs straight into the questions
+ * (no button to press), five one-per-screen questions each answered then confirmed with a small Next,
  * a personal transition, lead capture (the search link is emailed via the `search_saved` lifecycle event), then the
  * RentReady Premium offer with its real terms from /api/premium/offer — and the free search always one tap away.
  *
- * Returning visitors can sign in (top corner) with an emailed link instead of answering again; signed-in visitors with a
- * saved search go straight to their results, and are never asked for their name and email again.
+ * Returning visitors can sign in (top corner) with an emailed link instead of answering again. Anyone signed in (by that
+ * link or a purchase) goes straight to the apartment listings — their saved search when there is one.
  *
  * Privacy: answers live on this device (localStorage `rr.match`). Only the search area leaves it — as the Finder
  * query and in the search-link email. Rental-concern answers are never sent anywhere: not to analytics, ad platforms,
@@ -59,7 +60,9 @@ const EXCLUSIVE = new Set(['none', 'prefer']);
 const LABEL = Object.fromEntries(STEPS.flatMap((s) => (s.options || []).map(([v, l]) => [`${s.id}:${v}`, l])));
 const TOTAL = STEPS.length + 1; // + the lead step
 const INTRO = ['Hey there.', 'Looking for a place to call home?', 'Your next home could be closer than you think.', 'Let’s find apartments that fit your needs.', 'Just a few quick questions. Ready?'];
-const INTRO_MS = 1900;
+const INTRO_MS = 1700;
+/** How long the last greeting line stays before the first question appears on its own. */
+const INTRO_HOLD_MS = 1500;
 const BRIDGE_MS = 1300;
 const ZIP = /^\d{5}$/;
 
@@ -140,25 +143,14 @@ export default function ApartmentMatch() {
     window.scrollTo(0, 0);
   }, [phase, step]);
 
-  // Signed in (sign-in link or a purchase) with a finished questionnaire → straight to their search. Once per visit,
-  // so Back still lets them change answers.
+  // Signed in (the emailed sign-in link lands here, or an earlier purchase) → straight to the apartment listings,
+  // on their saved search when there is one. The Finder is a separate app, so this is a full page load.
   useEffect(() => {
     if (skipped.current || !verified) return;
     skipped.current = true;
-    const local = loadAnswers();
-    const server = entitlements.last_search?.place;
-    if (!STEPS.every((s) => answered(local, s)) && !server) return;
-    if (!local.loc && server) {
-      const next = { ...local, loc: locFromPlace(server) };
-      setAnswers(next);
-      write('match', next);
-    }
-    setSignIn(false);
-    if (phase === 'intro' || phase === 'q' || phase === 'lead') {
-      trackOnce('signin_skip', 'match_signin_skip');
-      setPhase('paywall');
-    }
-  }, [verified, entitlements.last_search, phase]);
+    trackOnce('signin_skip', 'match_signin_skip');
+    window.location.replace(listingsUrl(entitlements.last_search?.place || loadAnswers().loc?.q, !!entitlements.premium?.active));
+  }, [verified, entitlements.last_search, entitlements.premium]);
 
   /** Emails the search link (and remembers the search for sign-in) when the lead step was skipped. */
   async function saveSearch(a: Answers) {
@@ -220,7 +212,7 @@ export default function ApartmentMatch() {
           <span style={{ transform: `scaleX(${progress})` }} />
         </div>
         {!verified && phase !== 'paywall' ? (
-          <button type="button" className="am-signin" onClick={() => setSignIn(true)} aria-haspopup="dialog">Sign in</button>
+          <button type="button" className="am-signin" onClick={() => setSignIn(true)} aria-haspopup="dialog">Sign In</button>
         ) : <span />}
         <Link className="am-icon-btn" to="/" aria-label="Close">
           <Svg glyph="close" />
@@ -229,12 +221,17 @@ export default function ApartmentMatch() {
       {signIn && <SignInSheet onClose={() => setSignIn(false)} />}
 
       <div className="am-main" aria-hidden={signIn || undefined}>
-      {phase === 'intro' && <Intro onStart={start} />}
-      {phase === 'q' && STEPS[step].kind === 'loc' && <LocationStep key="loc" answers={answers} headRef={headRef} onAnswer={(loc) => advance({ ...answers, loc })} />}
-      {phase === 'q' && STEPS[step].kind !== 'loc' && <Question key={step} step={STEPS[step]} index={step} answers={answers} headRef={headRef} onAnswer={advance} />}
-      {phase === 'bridge' && <Bridge lines={bridgeLines(answers)} onDone={afterBridge} />}
-      {phase === 'lead' && <LeadStep answers={answers} headRef={headRef} onDone={() => setPhase('paywall')} />}
-      {phase === 'paywall' && <Paywall answers={answers} headRef={headRef} />}
+      {verified ? (
+        <main className="am-stage"><div className="am-body am-center"><p className="am-line am-line-stay am-sweep" aria-live="polite">Taking you to your apartments…</p></div></main>
+      ) : phase === 'intro' ? (
+        // Wait to know whether they're signed in, so a member doesn't watch the greeting before being sent on.
+        entitlements.status !== 'loading' && <Intro onStart={start} />
+      ) : null}
+      {!verified && phase === 'q' && STEPS[step].kind === 'loc' && <LocationStep key="loc" answers={answers} headRef={headRef} onAnswer={(loc) => advance({ ...answers, loc })} />}
+      {!verified && phase === 'q' && STEPS[step].kind !== 'loc' && <Question key={step} step={STEPS[step]} index={step} answers={answers} headRef={headRef} onAnswer={advance} />}
+      {!verified && phase === 'bridge' && <Bridge lines={bridgeLines(answers)} onDone={afterBridge} />}
+      {!verified && phase === 'lead' && <LeadStep answers={answers} headRef={headRef} onDone={() => setPhase('paywall')} />}
+      {!verified && phase === 'paywall' && <Paywall answers={answers} headRef={headRef} />}
       </div>
     </div>
   );
@@ -242,29 +239,29 @@ export default function ApartmentMatch() {
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-/** Greeting lines fade in and out; the last one stays. The button works from the first second. */
+/** Greeting lines fade in and out, then the first question appears on its own. Tap anywhere (or Skip) to start now. */
 function Intro({ onStart }: { onStart: () => void }) {
   const [i, setI] = useState(() => (reducedMotion() ? INTRO.length - 1 : 0));
+  const go = useRef(onStart);
+  go.current = onStart;
   const last = i === INTRO.length - 1;
   useEffect(() => {
-    if (last) return;
-    const t = window.setTimeout(() => setI(i + 1), INTRO_MS);
+    const t = window.setTimeout(() => (last ? go.current() : setI(i + 1)), last ? INTRO_HOLD_MS : INTRO_MS);
     return () => window.clearTimeout(t);
   }, [i, last]);
   return (
-    <main className="am-stage">
+    <main className="am-stage" onClick={() => go.current()}>
       <div className="am-body am-center">
         <p key={i} className={`am-line am-sweep${last ? ' am-line-stay' : ''}`} style={{ ['--am-dur' as string]: `${INTRO_MS}ms` }} aria-live="polite">{INTRO[i]}</p>
       </div>
       <div className="am-foot am-foot-intro">
-        <button type="button" className="am-btn" onClick={onStart}>Let’s Find My Apartment</button>
         <p className="am-fine">No credit check. Takes about a minute.</p>
       </div>
     </main>
   );
 }
 
-/** The personal transition after the last question: about four seconds, or tap to continue now. */
+/** The personal transition after the last question: about four seconds, then on by itself (tap to move on now). */
 function Bridge({ lines, onDone }: { lines: string[]; onDone: () => void }) {
   const [i, setI] = useState(() => (reducedMotion() ? lines.length - 1 : 0));
   const done = useRef(onDone);
@@ -279,10 +276,19 @@ function Bridge({ lines, onDone }: { lines: string[]; onDone: () => void }) {
       <div className="am-body am-center">
         <p key={i} className={`am-line am-sweep${last ? ' am-line-stay' : ''}`} style={{ ['--am-dur' as string]: `${BRIDGE_MS}ms` }} aria-live="polite">{lines[i]}</p>
       </div>
-      <div className="am-foot">
-        <button type="button" className="am-link" onClick={(e) => { e.stopPropagation(); done.current(); }}>Continue</button>
-      </div>
     </main>
+  );
+}
+
+/** The small "Next" that confirms each answer. */
+function NextButton({ disabled, busy, busyLabel = 'Checking', note }: { disabled?: boolean; busy?: boolean; busyLabel?: string; note?: ReactNode }) {
+  return (
+    <div className="am-foot am-foot-next">
+      {note && <p className="am-fine">{note}</p>}
+      <button className="am-next" type="submit" disabled={disabled || busy} aria-busy={busy}>
+        {busy ? <><Spinner /> {busyLabel}</> : <>Next <Svg glyph="next" /></>}
+      </button>
+    </div>
   );
 }
 
@@ -317,11 +323,13 @@ function fromSuggestion(s: Suggestion): Loc {
   return { q: display, label: s.primaryText, display };
 }
 
-/** A search area saved on the server (`last_search.place`, which is a Loc's `q`) back into a Loc. */
-function locFromPlace(q: string): Loc {
-  const parts = q.split(',').map((x) => x.trim()).filter(Boolean);
-  if (ZIP.test(parts[0] || '')) return parts.length > 1 ? { q, label: parts[1], display: `${parts[0]} · ${parts.slice(1).join(', ')}` } : { q, label: `ZIP ${parts[0]}`, display: `ZIP ${parts[0]}` };
-  return { q, label: parts[0] || q, display: q };
+/** The Finder, on this search area when we know it; members open on verified second-chance listings. */
+function listingsUrl(place: string | undefined, premium: boolean) {
+  const p = new URLSearchParams();
+  if (premium) p.set('mode', 'second-chance');
+  if (place) p.set('q', place);
+  const q = p.toString().replace(/\+/g, '%20');
+  return `/finder/${q ? `?${q}` : ''}`;
 }
 
 /** When suggestions are unavailable: a 5-digit ZIP stays a ZIP (never shown as a city); otherwise it must look like a place name. */
@@ -440,9 +448,7 @@ function LocationStep({ answers, headRef, onAnswer }: { answers: Answers; headRe
           {error && <p id="am-loc-err" className="am-error" role="alert">{error}</p>}
         </div>
       </div>
-      <div className="am-foot">
-        <button className="am-btn" type="submit" disabled={busy || !text.trim()} aria-busy={busy}>{busy ? <><Spinner /> Checking</> : 'Continue'}</button>
-      </div>
+      <NextButton disabled={!text.trim()} busy={busy} />
     </form>
   );
 }
@@ -451,16 +457,6 @@ function LocationStep({ answers, headRef, onAnswer }: { answers: Answers; headRe
 function Question({ step, index, answers, headRef, onAnswer }: { step: Step; index: number; answers: Answers; headRef: RefObject<HTMLHeadingElement>; onAnswer: (a: Answers) => void }) {
   const [picked, setPicked] = useState<string[]>(answers.hurdles || []);
   const [chosen, setChosen] = useState<string | undefined>(step.kind === 'one' ? answers[step.id as OneId] : undefined);
-  const leaving = useRef<number>();
-  // Back (or Close) during the confirmation beat must cancel the pending advance.
-  useEffect(() => () => window.clearTimeout(leaving.current), []);
-
-  function choose(v: string) {
-    if (leaving.current) return;
-    setChosen(v);
-    // A beat to see the selection land before the next question.
-    leaving.current = window.setTimeout(() => onAnswer({ ...answers, [step.id]: v }), 320);
-  }
 
   function toggle(v: string) {
     setPicked((p) => (EXCLUSIVE.has(v) ? (p.includes(v) ? [] : [v]) : p.includes(v) ? p.filter((x) => x !== v) : [...p.filter((x) => !EXCLUSIVE.has(x)), v]));
@@ -468,6 +464,7 @@ function Question({ step, index, answers, headRef, onAnswer }: { step: Step; ind
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (step.kind === 'one') return chosen && onAnswer({ ...answers, [step.id]: chosen });
     if (picked.length) onAnswer({ ...answers, hurdles: picked });
   }
 
@@ -484,7 +481,7 @@ function Question({ step, index, answers, headRef, onAnswer }: { step: Step; ind
               <button
                 key={v} type="button" className="am-opt" style={{ ['--i' as string]: n }}
                 role={step.kind === 'one' ? 'radio' : undefined} aria-checked={step.kind === 'one' ? on : undefined} aria-pressed={step.kind === 'many' ? on : undefined}
-                onClick={() => (step.kind === 'one' ? choose(v) : toggle(v))}
+                onClick={() => (step.kind === 'one' ? setChosen(v) : toggle(v))}
               >
                 <Svg glyph={glyph} />
                 <span>{label}</span>
@@ -494,12 +491,10 @@ function Question({ step, index, answers, headRef, onAnswer }: { step: Step; ind
           })}
         </div>
       </div>
-      {step.kind === 'many' && (
-        <div className="am-foot">
-          <button className="am-btn" type="submit" disabled={!picked.length}>Find My Apartments</button>
-          <p className="am-fine"><Svg glyph="lock" /> Your answers are private and won’t affect your credit.</p>
-        </div>
-      )}
+      <NextButton
+        disabled={step.kind === 'one' ? !chosen : !picked.length}
+        note={step.kind === 'many' && <><Svg glyph="lock" /> Your answers are private and won’t affect your credit.</>}
+      />
     </form>
   );
 }
@@ -567,10 +562,7 @@ function LeadStep({ answers, headRef, onDone }: { answers: Answers; headRef: Ref
           <span>{optInLabel}</span>
         </label>
       </div>
-      <div className="am-foot">
-        <button className="am-btn" type="submit" disabled={busy} aria-busy={busy}>{busy ? <><Spinner /> Saving your search</> : 'Continue to My Apartments'}</button>
-        <p className="am-fine">No credit check. No application fee to search. We never sell your email.</p>
-      </div>
+      <NextButton busy={busy} busyLabel="Saving" note="No credit check. No application fee to search. We never sell your email." />
     </form>
   );
 }
@@ -621,7 +613,7 @@ function SignInSheet({ onClose }: { onClose: () => void }) {
         {state === 'sent' ? (
           <div aria-live="polite">
             <h2 id="am-si-h" className="am-sheet-h">Check your email</h2>
-            <p className="am-sheet-sub">If <strong>{email.trim()}</strong> has a saved RentReady search, we just sent a sign-in link. It works once and expires in 30 minutes.</p>
+            <p className="am-sheet-sub">If <strong>{email.trim()}</strong> has a RentReady account, we just sent a sign-in link. Open it to go straight to your apartment listings. It works once and expires in 30 minutes.</p>
             {isMock && <p className="am-fine">Development mode — no email is sent.</p>}
             <div className="am-sheet-actions">
               <button type="button" className="am-btn" onClick={onClose}>Back to questions</button>
@@ -631,7 +623,7 @@ function SignInSheet({ onClose }: { onClose: () => void }) {
         ) : (
           <form onSubmit={submit} noValidate>
             <h2 id="am-si-h" className="am-sheet-h">Welcome back</h2>
-            <p className="am-sheet-sub">Already answered these questions? Enter your email and we’ll send you a link to skip right to your search. No password needed.</p>
+            <p className="am-sheet-sub">Already have an account? Enter your email and we’ll send you a link that takes you straight to your apartment listings. No password needed.</p>
             <div className="am-field">
               <label htmlFor="am-si-em">Email Address</label>
               <input ref={inputRef} id="am-si-em" className="am-input" type="email" inputMode="email" autoComplete="email" maxLength={254} value={email}
@@ -653,6 +645,15 @@ function SignInSheet({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------- premium offer
+/** What Premium unlocks: [bold title, description]. */
+const UNLOCKS: [string, string][] = [
+  ['Find Apartments That May Fit Your Situation', 'Explore second-chance listings and properties with more flexible rental requirements.'],
+  ['Know Before You Apply', 'Review available screening information so you can make a smarter decision before paying application fees.'],
+  ['Discover More Rental Opportunities', 'Access additional property listings, photos, prices, locations, and contact details.'],
+  ['Never Miss a New Opportunity', 'Save your searches and get notified when new matching apartments become available.'],
+  ['Stay in Control', 'Manage your Premium membership online and cancel anytime.'],
+];
+
 const longDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
 function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HTMLHeadingElement> }) {
@@ -709,15 +710,16 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
             </>
           ) : (
             <>
-              <h2 id="am-plan-h" className="am-plan-h">Want to explore more apartment options?</h2>
-              <p className="am-plan-sub">Unlock additional listings, including second-chance options with published screening information when available.</p>
+              <h2 id="am-plan-h" className="am-plan-h">Stop Guessing Which Apartments Will Give You a Chance.</h2>
+              <p className="am-plan-hook">Bad credit? Past eviction? Been denied before? You may have more options than you think.</p>
+              <p className="am-plan-sub">Unlock access to additional apartment listings, including second-chance options, and see what properties may look for before you spend money applying.</p>
+              <p className="am-plan-label">Here’s what RentReady Premium unlocks:</p>
               <ul className="am-checks">
-                <li><Svg glyph="check" />Explore additional listings, including verified second-chance apartments</li>
-                <li><Svg glyph="check" />See property details and contact information</li>
-                <li><Svg glyph="check" />Review published screening information, where available</li>
-                <li><Svg glyph="check" />Save listings and searches, and get emails about new matches</li>
-                <li><Svg glyph="check" />Manage or cancel your membership online</li>
+                {UNLOCKS.map(([title, text]) => (
+                  <li key={title}><Svg glyph="check" /><span><strong>{title}</strong> — {text}</span></li>
+                ))}
               </ul>
+              <p className="am-plan-close">Your next home starts with knowing where to look.</p>
               {offerError ? (
                 <div className="am-terms am-terms-error" role="alert">
                   <p>We couldn’t load membership pricing.</p>
@@ -751,7 +753,7 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
         ) : (
           <>
             <button type="button" className="am-btn" onClick={join} disabled={busy || !offer || isMock} aria-busy={busy}>
-              {busy ? <><Spinner /> Opening secure checkout…</> : 'Unlock Premium Listings'}
+              {busy ? <><Spinner /> Opening secure checkout…</> : 'Unlock My Apartment Options'}
             </button>
             {offer && (
               <p className="am-fine">
@@ -763,7 +765,7 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
           </>
         )}
         <p className="am-fine am-legal">
-          RentReady shows listings and what their sources publish about screening. Every application is decided by the property — we can’t guarantee availability or approval. <Link to="/premium#terms">Membership terms</Link>
+          <em>No credit check to search. Approval and availability depend on each property.</em> <Link to="/premium#terms">Membership terms</Link>
         </p>
       </div>
     </main>
@@ -773,6 +775,7 @@ function Paywall({ answers, headRef }: { answers: Answers; headRef: RefObject<HT
 const GLYPHS = {
   back: <path d="M15 5l-7 7 7 7" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  next: <path d="M5 12h14M13 6l6 6-6 6" />,
   check: <path d="M4.5 12.5l4.5 4.5L19.5 6.5" />,
   lock: <><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V8a4 4 0 018 0v2.5" /></>,
   pin: <><path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0113 0c0 4.8-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></>,
