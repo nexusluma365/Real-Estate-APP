@@ -7,7 +7,7 @@ import { reportAdsConversion, track, type EventProps, type FunnelEvent } from '.
 import { emitLifecycle } from '../lib/lifecycle';
 import { ApiError } from '../lib/api';
 import { isMock } from '../lib/env';
-import { read, write } from '../lib/storage';
+import { read, remove, write } from '../lib/storage';
 import { money, sanitizeText, validateEmail, validateFirstName } from '../lib/validation';
 import { fetchPremiumOffer, requestSignInLink, startPremium, type PremiumOffer } from '../lib/memberService';
 import { useFunnel } from '../state/FunnelContext';
@@ -21,7 +21,9 @@ import { useFunnel } from '../state/FunnelContext';
  * Returning visitors can sign in (top corner) with an emailed link instead of answering again. Anyone signed in (by that
  * link or a purchase) goes straight to the apartment listings — their saved search when there is one.
  *
- * Privacy: answers live on this device (localStorage `rr.match`). Only the search area leaves it — as the Finder
+ * Every visit starts fresh: answers are kept in memory only, so a refresh or a new tab begins again at the greeting.
+ *
+ * Privacy: answers never leave the page. Only the search area does — as the Finder
  * query and in the search-link email. Rental-concern answers are never sent anywhere: not to analytics, ad platforms,
  * the lead record or the server.
  */
@@ -68,26 +70,6 @@ const ZIP = /^\d{5}$/;
 
 type Phase = 'intro' | 'q' | 'bridge' | 'lead' | 'paywall';
 
-/** Saved progress, keeping only values this version of the questionnaire understands. */
-function loadAnswers(): Answers {
-  const raw = read<Record<string, unknown>>('match', {});
-  const a: Answers = {};
-  const loc = raw.loc as Partial<Loc> | undefined;
-  if (loc && typeof loc.q === 'string' && loc.q.trim() && typeof loc.label === 'string' && typeof loc.display === 'string') {
-    a.loc = { q: loc.q.slice(0, 120), label: loc.label.slice(0, 60), display: loc.display.slice(0, 120) };
-  }
-  for (const s of STEPS) {
-    const v = raw[s.id];
-    if (s.kind === 'one' && typeof v === 'string' && s.options!.some(([o]) => o === v)) a[s.id as OneId] = v;
-  }
-  const hurdles = STEPS[STEPS.length - 1].options!.map(([v]) => v);
-  if (Array.isArray(raw.hurdles)) {
-    const h = raw.hurdles.filter((v): v is string => typeof v === 'string' && hurdles.includes(v));
-    if (h.length && (h.length === 1 || !h.some((v) => EXCLUSIVE.has(v)))) a.hurdles = h;
-  }
-  return a;
-}
-const answered = (a: Answers, s: Step) => (s.kind === 'many' ? !!a.hurdles?.length : !!a[s.id as 'loc' | OneId]);
 
 /** Analytics that must count once per visit (refreshes and Back never double count). Never pass answers here. */
 function trackOnce(key: string, event: FunnelEvent, props?: EventProps) {
@@ -112,16 +94,12 @@ export default function ApartmentMatch() {
   const navigate = useNavigate();
   const { lead, entitlements } = useFunnel();
   const verified = !!entitlements.verified;
-  const [answers, setAnswers] = useState<Answers>(loadAnswers);
+  const [answers, setAnswers] = useState<Answers>({});
   const [signIn, setSignIn] = useState(false);
   const skipped = useRef(false);
-  const [step, setStep] = useState(() => Math.max(0, STEPS.findIndex((s) => !answered(loadAnswers(), s))));
-  const [phase, setPhase] = useState<Phase>(() => {
-    const a = loadAnswers();
-    if (STEPS.every((s) => answered(a, s))) return lead ? 'paywall' : 'lead';
-    // Returning visitors go straight back to their questions.
-    return a.loc || read('match.intro', false) ? 'q' : 'intro';
-  });
+  // Always from the top: the greeting, then question 1. Nothing is restored from an earlier visit.
+  const [step, setStep] = useState(0);
+  const [phase, setPhase] = useState<Phase>('intro');
   const headRef = useRef<HTMLHeadingElement>(null);
   const where = useRef({ phase, step });
   where.current = { phase, step };
@@ -137,6 +115,12 @@ export default function ApartmentMatch() {
       root.classList.remove('am-page');
       if (bar && prevBar) bar.content = prevBar;
     };
+  }, []);
+
+  useEffect(() => {
+    // Progress saved by earlier versions of this page (it used to resume) — clear it so nothing lingers on the device.
+    remove('match');
+    remove('match.intro');
   }, []);
 
   useEffect(() => {
@@ -162,7 +146,7 @@ export default function ApartmentMatch() {
     if (skipped.current || !verified) return;
     skipped.current = true;
     trackOnce('signin_skip', 'match_signin_skip');
-    window.location.replace(listingsUrl(entitlements.last_search?.place || loadAnswers().loc?.q, !!entitlements.premium?.active));
+    window.location.replace(listingsUrl(entitlements.last_search?.place || answers.loc?.q, !!entitlements.premium?.active));
   }, [verified, entitlements.last_search, entitlements.premium]);
 
   /** Emails the search link (and remembers the search for sign-in) when the lead step was skipped. */
@@ -182,7 +166,6 @@ export default function ApartmentMatch() {
   }
 
   function start() {
-    write('match.intro', true);
     trackOnce('started', 'match_started');
     setPhase('q');
   }
@@ -192,7 +175,6 @@ export default function ApartmentMatch() {
     trackOnce('started', 'match_started');
     trackOnce(`step:${s.id}`, 'match_step', { step: s.id });
     setAnswers(next);
-    write('match', next);
     if (step < STEPS.length - 1) return setStep(step + 1);
     trackOnce('completed', 'match_completed');
     setPhase('bridge');
