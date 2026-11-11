@@ -39,7 +39,7 @@ export const EMAIL_FLOWS: { id: string; trigger: LifecycleEvent; delay: string; 
   { id: 'start_reading', trigger: 'purchase_completed', delay: '1 day', subject: 'Start here: the 20-minute first step', goal: 'Open the product', exit: 'product_accessed' },
   { id: 'assessment_nudge', trigger: 'purchase_completed', delay: '4 days', subject: 'Your game plan takes about five minutes', goal: 'Complete the assessment (Digital Bundle owners)', exit: 'assessment_complete' },
   { id: 'before_you_apply', trigger: 'gameplan_completed', delay: '2 days', subject: 'Before you apply, ask these questions', goal: 'Use the plan' },
-  { id: 'upgrade_offer', trigger: 'purchase_completed', delay: '10 days', subject: 'Add the dispute letters and video guide for $32', goal: 'Book-only owners — single, soft upgrade note' },
+  { id: 'upgrade_offer', trigger: 'purchase_completed', delay: '10 days', subject: 'Add the dispute letters and video guide for $40', goal: 'Book-only owners — single, soft upgrade note' },
   { id: 'upsell_decline_followup', trigger: 'upsell_declined', delay: '5 days', subject: 'See your application from the other side of the desk', goal: 'Single, soft Playbook reminder' },
   { id: 'upsell_failed', trigger: 'upsell_failed', delay: 'immediate', subject: 'Your Playbook payment didn’t go through', goal: 'Offer retry, no pressure' },
   // Recovery (stop immediately on purchase_completed)

@@ -13,7 +13,7 @@ email and analytics still need real credentials and a live test-mode run (see §
 | Mock-mode funnel UI (landing, finder, options, checkout, checklist, upsell, welcome, access) | **VERIFIED** (rendered) | Rendered at 1440px and a true 390px width; post-purchase pages rendered with seeded guide and Kit entitlements. Clicks were **not** automated (no browser driver available). Click through once by hand: `npm run dev` |
 | Stripe PaymentIntents, Payment/Address Elements, verify, upsell charge | **CONFIGURATION REQUIRED** | Needs `VITE_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `SUPABASE_DB_URL`, `SESSION_SECRET`. Not run against Stripe test mode |
 | Stripe webhook (entitlements, payment_failed, refunds) | **CONFIGURATION REQUIRED** | Logic unit-tested with signed payloads; needs `STRIPE_WEBHOOK_SECRET` + endpoint in Stripe |
-| Book → Digital Bundle upgrade ($32) | **CONFIGURATION REQUIRED** | Server-enforced eligibility; tested in mock + unit tests |
+| Book → Digital Bundle upgrade ($40) | **CONFIGURATION REQUIRED** | Server-enforced eligibility; tested in mock + unit tests |
 | Lead capture + qualification storage | **CONFIGURATION REQUIRED** | Needs a Supabase PostgreSQL project with `schema.sql` applied |
 | Lifecycle → ESP | **CONFIGURATION REQUIRED** | `ESP_WEBHOOK_URL`, `ESP_WEBHOOK_SECRET`; build flows from `EMAIL_SEQUENCES.md`. **Until configured, no email is sent**, including the receipt/access email the site mentions |
 | Abandoned-checkout detection | **CONFIGURATION REQUIRED** | Netlify Scheduled Function (every 15 min) — needs only the database |
@@ -51,9 +51,9 @@ email and analytics still need real credentials and a live test-mode run (see §
 - [ ] Test keys first: `pk_test_…` / `sk_test_…`
 - [ ] Webhook → `https://<domain>/api/webhooks/stripe`: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`
 - [ ] Test cards: 4242… (success), 4000 0000 0000 9995 (decline), 4000 0027 6000 3184 (3DS)
-- [ ] Book $47.99 → shipping address on the PI → `/welcome` · Digital Bundle $79.99 → shipping address on the PI → upsell → letters/video open
+- [ ] Book $39.99 + $9.99 shipping (Stripe charges $49.98) → shipping address on the PI → `/welcome` · Digital Bundle $79.99 + $9.99 shipping (Stripe charges $89.98) → shipping address on the PI → upsell → letters/video open
 - [ ] Upsell accept ($100 off-session), decline, 3DS "Confirm with my bank"
-- [ ] Book owner → `/checkout?product=upgrade` charges $32, asks for no address, grants the Bundle; `/checkout` never charges them $79.99
+- [ ] Book owner → `/checkout?product=upgrade` charges $40, asks for no address, grants the Bundle; `/checkout` never charges them $79.99
 - [ ] Double-click Pay → one charge · reload `/welcome` → one purchase event
 - [ ] Full refund in Dashboard → access revoked + `refund_processed` · partial refund → access kept
 - [ ] Switch to live keys only after all of the above

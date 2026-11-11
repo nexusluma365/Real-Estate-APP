@@ -5,7 +5,7 @@ import { CtaLink, useOnce } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { DigitalKitDownload } from '../components/DigitalKitDownload';
 import { BundleImage } from '../components/Funnel';
-import { BUNDLE_TOTAL_CENTS, dollars, PRODUCTS } from '../config/products';
+import { BUNDLE_TOTAL_CENTS, dollars, PRODUCTS, totalCents } from '../config/products';
 import { track } from '../lib/analytics';
 import { loadAssessment } from '../lib/assessmentStore';
 import { useFunnel } from '../state/FunnelContext';
@@ -23,7 +23,7 @@ export default function Welcome() {
 
 function KitWelcome({ full, firstName, email }: { full: boolean; firstName: string; email?: string }) {
   const assessmentDone = !!loadAssessment().completedAt;
-  useOnce(() => track('thankyou_view', { product: full ? 'bundle' : 'creditready', order_value: dollars(full ? BUNDLE_TOTAL_CENTS : PRODUCTS.creditready.priceCents) }));
+  useOnce(() => track('thankyou_view', { product: full ? 'bundle' : 'creditready', order_value: dollars(full ? BUNDLE_TOTAL_CENTS : totalCents(PRODUCTS.creditready)) }));
 
   const items = full
     ? [
@@ -102,7 +102,7 @@ function KitWelcome({ full, firstName, email }: { full: boolean; firstName: stri
 
 function GuideWelcome({ firstName, email }: { firstName: string; email?: string }) {
   useOnce(() => {
-    track('thankyou_view', { product: 'guide', order_value: dollars(PRODUCTS.guide.priceCents) });
+    track('thankyou_view', { product: 'guide', order_value: dollars(totalCents(PRODUCTS.guide)) });
     track('upgrade_offer_view', { product: 'upgrade', order_value: dollars(PRODUCTS.upgrade.priceCents) });
   });
   return (

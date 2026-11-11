@@ -2,8 +2,8 @@
 
 > **Updated 2026-10-28.** The current money path is
 > `/` (trust bar → finder → options with prices → objections) → `/checkout?product=guide|creditready|upgrade`
-> (name + email captured inline) → Kit: `/complete-your-system` → `/welcome` · Book: `/welcome` (credited $32 upgrade to the Digital Bundle) → `/access`.
-> **Products (2026-10-28 rev. 2):** Before They Say No™ physical book $47.99 · RentReady Digital Bundle $79.99 (book + 20 Word dispute letters + video guide) · Playbook $100 (one-click after the Bundle). The $179.99 Kit is retired; the `creditready` id now means the Digital Bundle.
+> (name + email captured inline) → Kit: `/complete-your-system` → `/welcome` · Book: `/welcome` (credited $40 upgrade to the Digital Bundle) → `/access`.
+> **Products (2026-10-28 rev. 2):** Before They Say No™ physical book $39.99 + $9.99 shipping (rev. 2026-11-11) · RentReady Digital Bundle $79.99 + $9.99 shipping (book + 20 Word dispute letters + video guide) · Playbook $100 (one-click after the Bundle). The $179.99 Kit is retired; the `creditready` id now means the Digital Bundle.
 > Not-ready visitors: exit offer / final band → `/checklist` (free; optional opt-in). Purchases are reported once via
 > `analytics.trackPurchase()` with the verified amount. The step tables below describe the original
 > `/start → /learn → /creditready` path, which still works. See `CHANGELOG.md` for every event and route added.

@@ -9,6 +9,8 @@ export interface Product {
   promise: string;
   /** Includes a physical item, so checkout collects a shipping address. */
   ships?: boolean;
+  /** Shipping charged on top of priceCents at checkout (must match SHIPPING in netlify/lib/_lib.ts). */
+  shippingCents?: number;
   /** What the buyer gets, in plain language */
   includes: string[];
 }
@@ -43,6 +45,7 @@ export const PRODUCTS: Record<ProductId, Product> = {
     priceLabel: '$79.99',
     promise: 'The book plus the tools to act on it.',
     ships: true,
+    shippingCents: 999,
     includes: [
       'Physical copy of Before They Say No™, mailed to you',
       '20 Essential Credit Dispute Letter templates — easy to edit in Microsoft Word',
@@ -53,10 +56,11 @@ export const PRODUCTS: Record<ProductId, Product> = {
     id: 'guide',
     name: 'Before They Say No™',
     shortName: 'The Book',
-    priceCents: 4799,
-    priceLabel: '$47.99',
+    priceCents: 3999,
+    priceLabel: '$39.99',
     promise: 'The Rental Approval Playbook — the physical book, mailed to you.',
     ships: true,
+    shippingCents: 999,
     includes: ['Physical copy of Before They Say No™ — The Rental Approval Playbook, mailed to you'],
   },
   playbook: {
@@ -75,15 +79,15 @@ export const PRODUCTS: Record<ProductId, Product> = {
       'Property-specific application game plan worksheet',
     ],
   },
-  // Book owners → Digital Bundle. Their $47.99 counts in full ($79.99 − $47.99 = $32). They already have the
+  // Book owners → Digital Bundle. Their $39.99 book price counts in full ($79.99 − $39.99 = $40; shipping isn't credited). They already have the
   // book, so nothing ships — the upgrade adds the letters and the video guide. Grants `creditready` on the server.
   upgrade: {
     id: 'upgrade',
     name: 'Upgrade to the RentReady Book + Digital Tools Bundle',
     shortName: 'Bundle upgrade',
-    priceCents: 3200,
-    priceLabel: '$32',
-    promise: 'Your $47.99 book purchase counts in full toward the Digital Bundle.',
+    priceCents: 4000,
+    priceLabel: '$40',
+    promise: 'Your $39.99 book purchase counts in full toward the Digital Bundle.',
     includes: [
       '20 Essential Credit Dispute Letter templates — easy to edit in Microsoft Word',
       'Step-by-step video guide showing how to dispute negative items',
@@ -105,9 +109,15 @@ export const OPTION_COPY: Record<'guide' | 'creditready', { bestFor: string; del
   },
 };
 
-export const UPGRADE_CREDIT_CENTS = 4799;
+export const UPGRADE_CREDIT_CENTS = 3999;
 
-export const BUNDLE_TOTAL_CENTS = PRODUCTS.creditready.priceCents + PRODUCTS.playbook.priceCents;
+/** Shipping shown next to a product price, e.g. "+ $9.99 shipping" (empty when shipping is included). */
+export const shippingLabel = (p: Product) => (p.shippingCents ? `+ $${(p.shippingCents / 100).toFixed(2)} shipping` : '');
+/** What the buyer is actually charged: price + shipping (matches chargeCents() on the server). */
+export const totalCents = (p: Product) => p.priceCents + (p.shippingCents ?? 0);
+export const totalLabel = (p: Product) => (p.shippingCents ? `$${(totalCents(p) / 100).toFixed(2)}` : p.priceLabel);
+
+export const BUNDLE_TOTAL_CENTS = PRODUCTS.creditready.priceCents + (PRODUCTS.creditready.shippingCents ?? 0) + PRODUCTS.playbook.priceCents;
 
 /** Analytics/ads values are reported in dollars. */
 export const dollars = (cents: number) => cents / 100;

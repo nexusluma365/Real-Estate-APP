@@ -1,4 +1,4 @@
-import { body, fail, getSession, isProduct, json, notConfigured, ownedProducts, PRICES, purchaseAllowed, stripe, type Ctx } from '../../_lib';
+import { body, chargeCents, fail, getSession, isProduct, json, notConfigured, ownedProducts, PRICES, purchaseAllowed, SHIPPING, stripe, type Ctx } from '../../_lib';
 
 /** The book ships (alone, or in the Bundle): Stripe's Address Element attaches the shipping address to the PaymentIntent. */
 const DESCRIPTIONS = {
@@ -25,7 +25,8 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
     'POST',
     'payment_intents',
     {
-      amount: String(PRICES[product]),
+      // Product price + shipping (the book-only order pays $9.99 shipping). Itemised in metadata for receipts/admin.
+      amount: String(chargeCents(product)),
       currency: 'usd',
       customer: s.customer_id,
       // Only Bundle purchases (full or upgrade) lead to the one-click upsell, so only they save the PaymentMethod.
@@ -33,6 +34,8 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
       'automatic_payment_methods[enabled]': 'true',
       'metadata[product]': product,
       'metadata[lead_id]': s.lead_id,
+      'metadata[subtotal_cents]': String(PRICES[product]),
+      'metadata[shipping_cents]': String(SHIPPING[product] ?? 0),
       description: DESCRIPTIONS[product],
     },
     request.headers.get('Idempotency-Key') || undefined,

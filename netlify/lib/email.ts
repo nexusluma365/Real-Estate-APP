@@ -1,5 +1,5 @@
 import { RESOURCES } from '../../src/config/resources';
-import type { Env, ProductId } from './_lib';
+import { SHIPPING, type Env, type ProductId } from './_lib';
 
 /**
  * Transactional email sent directly through Resend (RESEND_API_KEY + FROM_EMAIL): purchase receipts (with a link to
@@ -61,10 +61,11 @@ export async function receiptEmail(env: Env, to: Recipient, d: { product: Produc
   const accessUrl = `${siteOrigin(env)}/access`;
   const ships = SHIPS.includes(d.product);
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const shippingCents = SHIPPING[d.product] ?? 0;
 
   let body = p(hi) + p(`Here’s your receipt${digital ? ' and how to get your downloads' : ''}.`);
   body += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 22px;border:1px solid #e7dfcf;border-radius:12px;font-size:15px">
-<tr><td style="padding:14px 16px;border-bottom:1px solid #e7dfcf">${esc(NAMES[d.product])}</td><td align="right" style="padding:14px 16px;border-bottom:1px solid #e7dfcf;font-weight:700">${money(d.amount_cents)}</td></tr>
+<tr><td style="padding:14px 16px;border-bottom:1px solid #e7dfcf">${esc(NAMES[d.product])}${shippingCents ? `<br><span style="font-size:13px;color:#4f596b">Includes ${money(shippingCents)} shipping</span>` : ''}</td><td align="right" style="padding:14px 16px;border-bottom:1px solid #e7dfcf;font-weight:700">${money(d.amount_cents)}</td></tr>
 <tr><td style="padding:10px 16px;color:#4f596b">Order ${esc(d.order_id)}<br>${date}</td><td align="right" style="padding:10px 16px;color:#4f596b">Paid · USD<br>One-time, no subscription</td></tr></table>`;
   if (digital) {
     body += `<h2 style="margin:0 0 10px;font-size:18px">Your digital files</h2>`;
@@ -79,7 +80,7 @@ export async function receiptEmail(env: Env, to: Recipient, d: { product: Produc
   const text = [
     to.first_name ? `Hi ${to.first_name},` : 'Hi,',
     '',
-    `Thank you for your order: ${NAMES[d.product]} — ${money(d.amount_cents)} (order ${d.order_id}, ${date}).`,
+    `Thank you for your order: ${NAMES[d.product]} — ${money(d.amount_cents)}${shippingCents ? ` (includes ${money(shippingCents)} shipping)` : ''} (order ${d.order_id}, ${date}).`,
     ...(digital ? ['', `Your digital files: sign in with this email at ${accessUrl}. Each download link works for 1 minute; click Download again any time for a fresh one.`] : []),
     ...(ships ? ['', 'Your physical copy of Before They Say No™ is being prepared for shipping. We’ll email you again as soon as it ships.'] : []),
     '',

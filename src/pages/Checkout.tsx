@@ -7,7 +7,7 @@ import { BookVisual } from '../components/BookVisual';
 import { Icon } from '../components/Icon';
 import { LeadForm } from '../components/LeadForm';
 import { BundleImage } from '../components/Funnel';
-import { dollars, PRODUCTS } from '../config/products';
+import { dollars, PRODUCTS, shippingLabel, totalCents, totalLabel } from '../config/products';
 import { buyFaq } from '../config/faq';
 import { SITE } from '../config/site';
 import { isMock, env } from '../lib/env';
@@ -31,8 +31,9 @@ import { ApiError } from '../lib/api';
 import { restoreSession } from '../lib/leadService';
 
 /**
- * Front-door checkout. Both the book ($47.99) and the Digital Bundle ($79.99) include the physical book, so both
- * collect a shipping address. Book owners see only the upgrade ($32 — their $47.99 counts; nothing ships).
+ * Front-door checkout. Both the book ($39.99 + $9.99 shipping) and the Digital Bundle ($79.99, shipping included)
+ * include the physical book, so both collect a shipping address. Book owners see only the upgrade ($40 — their $39.99
+ * counts; nothing ships).
  * /checkout?product=guide|creditready|upgrade preselects; the buyer can switch before paying.
  * No lead yet? Step 1 (name + email) happens right here, so nobody is bounced to another page.
  */
@@ -65,7 +66,7 @@ export default function Checkout() {
   // Book owners never pay full price for the Bundle, and never re-buy the book.
   const choice: Choice = ownsGuide ? 'upgrade' : picked === 'upgrade' ? 'creditready' : picked;
   const P = PRODUCTS[choice];
-  const value = dollars(P.priceCents);
+  const value = dollars(totalCents(P));
   const [status, setStatus] = useState<CheckoutStatus>('preparing');
   const [message, setMessage] = useState('');
   const [mockOutcome, setMockOutcome] = useState<MockOutcome>('success');
@@ -79,7 +80,7 @@ export default function Checkout() {
   const inFlight = useRef(false);
   const faq = useMemo(
     () =>
-      buyFaq({ guidePrice: PRODUCTS.guide.priceLabel, bundlePrice: PRODUCTS.creditready.priceLabel, upgradePrice: PRODUCTS.upgrade.priceLabel, refundDays: env.moneyBackDays, deliveryNote: env.physicalDeliveryNote, supportEmail: SITE.supportEmail })
+      buyFaq({ guidePrice: `${PRODUCTS.guide.priceLabel} ${shippingLabel(PRODUCTS.guide)}`, bundlePrice: `${PRODUCTS.creditready.priceLabel} ${shippingLabel(PRODUCTS.creditready)}`, upgradePrice: PRODUCTS.upgrade.priceLabel, refundDays: env.moneyBackDays, deliveryNote: env.physicalDeliveryNote, supportEmail: SITE.supportEmail })
         .filter((f) => CHECKOUT_FAQ_IDS.includes(f.id)),
     [],
   );
@@ -174,7 +175,7 @@ export default function Checkout() {
     if (choice !== 'guide') await savePaymentMethodForUpsell(paymentIntentId);
     await refreshEntitlements();
     // Reported once per transaction, with the verified amount.
-    trackPurchase(choice === 'upgrade' ? 'upgrade' : 'front', choice, v.order?.amount_cents ?? P.priceCents, v.order?.order_id);
+    trackPurchase(choice === 'upgrade' ? 'upgrade' : 'front', choice, v.order?.amount_cents ?? totalCents(P), v.order?.order_id);
     resetAttemptKey(ATTEMPT_SCOPE[choice]);
     setStatus('success');
     // Bundle buyers (full or upgrade) see the optional Playbook; book buyers go straight to their welcome.
@@ -324,15 +325,23 @@ export default function Checkout() {
                   <label className={choice === 'creditready' ? 'on' : ''}>
                     <input type="radio" name="product" checked={choice === 'creditready'} onChange={() => choose('creditready')} />
                     <span><strong>Digital Bundle <em className="format-tag">Book + tools</em></strong><small>Book + 20 dispute letters + video guide</small></span>
-                    <b>{PRODUCTS.creditready.priceLabel}</b>
+                    <b>{PRODUCTS.creditready.priceLabel}<small style={{ display: 'block', fontWeight: 400, fontSize: '0.78rem' }}>{shippingLabel(PRODUCTS.creditready)}</small></b>
                   </label>
                   <label className={choice === 'guide' ? 'on' : ''}>
                     <input type="radio" name="product" checked={choice === 'guide'} onChange={() => choose('guide')} />
                     <span><strong>The book</strong><small>Physical copy of Before They Say No™</small></span>
-                    <b>{PRODUCTS.guide.priceLabel}</b>
+                    <b>{PRODUCTS.guide.priceLabel}<small style={{ display: 'block', fontWeight: 400, fontSize: '0.78rem' }}>{shippingLabel(PRODUCTS.guide)}</small></b>
                   </label>
                 </fieldset>
               )}
+
+              {P.shippingCents ? (
+                <dl className="fine" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', margin: 0 }}>
+                  <dt>{P.shortName}</dt><dd style={{ margin: 0, textAlign: 'right' }}>{P.priceLabel}</dd>
+                  <dt>Shipping</dt><dd style={{ margin: 0, textAlign: 'right' }}>${(P.shippingCents / 100).toFixed(2)}</dd>
+                  <dt style={{ fontWeight: 700 }}>Total today</dt><dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{totalLabel(P)}</dd>
+                </dl>
+              ) : null}
 
               {P.ships && (
                 <div className="field">
@@ -387,7 +396,7 @@ export default function Checkout() {
               )}
 
               <button className="btn btn-block" type="submit" disabled={!ready || busy} aria-busy={busy}>
-                {status === 'processing' ? <><Spinner /> Processing payment</> : status === 'verifying' || status === 'success' ? <><Spinner /> Confirming your order</> : `Complete my ${P.priceLabel} order`}
+                {status === 'processing' ? <><Spinner /> Processing payment</> : status === 'verifying' || status === 'success' ? <><Spinner /> Confirming your order</> : `Complete my ${totalLabel(P)} order`}
               </button>
               <CheckoutAssurance />
 

@@ -1,4 +1,4 @@
-import { grantEntitlement, isProduct, json, notConfigured, PRICES, recordLifecycle, stripe, verifyStripeSignature, type Ctx, type Env } from '../../_lib';
+import { chargeCents, grantEntitlement, isProduct, json, notConfigured, recordLifecycle, stripe, verifyStripeSignature, type Ctx, type Env } from '../../_lib';
 import { activateFromCheckout, leadForCustomer, upsertSubscription, type StripeSub } from '../../premium';
 
 /**
@@ -92,7 +92,7 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
     const leadId = o.metadata?.lead_id;
     if (event.type === 'payment_intent.succeeded') {
       const product = o.metadata.product;
-      if (isProduct(product) && o.amount === PRICES[product] && o.currency === 'usd') {
+      if (isProduct(product) && o.amount === chargeCents(product) && o.currency === 'usd') {
         await grantEntitlement(env, o.customer, product, o.id, o.amount, leadId);
         // One confirmation per PaymentIntent (ref = pi id) → receipt (Resend) + ESP and stops recovery flows.
         if (leadId) await recordLifecycle(env, leadId, 'purchase_completed', { product, amount_cents: o.amount, order_id: o.id, customer_id: o.customer }, o.id);

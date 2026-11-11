@@ -5,7 +5,7 @@ import { Checklist, CtaLink, Faq, Journey, StickyCta, useOnce } from '../compone
 import { BundleImage } from '../components/Funnel';
 import { Icon } from '../components/Icon';
 import { ComplianceBlock, Testimonials } from '../components/Content';
-import { BUNDLE_PARTS, dollars, PRODUCTS } from '../config/products';
+import { BUNDLE_PARTS, dollars, PRODUCTS, shippingLabel } from '../config/products';
 import { buyFaq, OBJECTIONS } from '../config/faq';
 import { SITE } from '../config/site';
 import { env } from '../lib/env';
@@ -15,7 +15,7 @@ const P = PRODUCTS.creditready;
 const CTA = `Get the Digital Bundle — ${P.priceLabel}`;
 const TO = '/checkout?product=creditready';
 const FAQ = [
-  ...buyFaq({ guidePrice: PRODUCTS.guide.priceLabel, bundlePrice: P.priceLabel, upgradePrice: PRODUCTS.upgrade.priceLabel, refundDays: env.moneyBackDays, deliveryNote: env.physicalDeliveryNote, supportEmail: SITE.supportEmail })
+  ...buyFaq({ guidePrice: `${PRODUCTS.guide.priceLabel} ${shippingLabel(PRODUCTS.guide)}`, bundlePrice: `${P.priceLabel} ${shippingLabel(P)}`, upgradePrice: PRODUCTS.upgrade.priceLabel, refundDays: env.moneyBackDays, deliveryNote: env.physicalDeliveryNote, supportEmail: SITE.supportEmail })
     .filter((f) => ['which-one', 'applying-soon', 'physical', 'refund', 'subscription'].includes(f.id)),
   ...OBJECTIONS,
 ];
@@ -130,7 +130,7 @@ export default function CreditReady() {
             <h2 id="price-h" style={{ fontSize: 'var(--step-3)' }}>{P.name}</h2>
             <div className="price-line">
               <span className="price">{P.priceLabel}</span>
-              <span className="price-meta">one time</span>
+              <span className="price-meta">one time {shippingLabel(P)}</span>
             </div>
             <p className="muted">No subscription. No monthly fees. Letters and videos unlock instantly; your book ships.</p>
             <div style={{ margin: '24px 0' }}>
@@ -143,7 +143,7 @@ export default function CreditReady() {
               </p>
             )}
             <p className="fine" style={{ marginTop: 10, textAlign: 'center' }}>
-              Just want the book? <CtaLink to="/checkout?product=guide" className="text-link" props={{ cta_location: 'price_card_guide', product: 'guide' }}>Get Before They Say No™ — {PRODUCTS.guide.priceLabel}</CtaLink>. Your purchase counts in full if you upgrade later.
+              Just want the book? <CtaLink to="/checkout?product=guide" className="text-link" props={{ cta_location: 'price_card_guide', product: 'guide' }}>Get Before They Say No™ — {PRODUCTS.guide.priceLabel} {shippingLabel(PRODUCTS.guide)}</CtaLink>. Your purchase counts in full if you upgrade later.
             </p>
             <p className="fine" style={{ marginTop: 14 }}>
               Educational resource. Does not guarantee apartment approval, credit score changes or removal of any information.

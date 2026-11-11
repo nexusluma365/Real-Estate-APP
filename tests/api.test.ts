@@ -252,7 +252,7 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.equal((await call('POST', '/api/payments/customer', { lead_id: lead.data.lead_id })).data.customer_id, 'cus_test_1');
   assert.equal((await call('POST', '/api/payments/intent', { product: 'upgrade' })).status, 409, 'upgrade needs the book');
   const book = await call('POST', '/api/payments/intent', { product: 'guide' });
-  assert.equal(book.data.amount_cents, 4799);
+  assert.equal(book.data.amount_cents, 4998, 'book $39.99 + $9.99 shipping');
 
   // verify refuses unpaid, grants paid
   assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: book.data.payment_intent_id, product: 'guide' })).data.verified, false);
@@ -260,11 +260,11 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: book.data.payment_intent_id, product: 'guide' })).data.verified, true);
   assert.deepEqual((await call('GET', '/api/entitlements')).data.products, ['guide']);
 
-  // book owners can't buy the Bundle at full price or the book again; upgrade is $32
+  // book owners can't buy the Bundle at full price or the book again; upgrade is $40
   assert.equal((await call('POST', '/api/payments/intent', { product: 'creditready' })).status, 409);
   assert.equal((await call('POST', '/api/payments/intent', { product: 'guide' })).status, 409);
   const up = await call('POST', '/api/payments/intent', { product: 'upgrade' });
-  assert.equal(up.data.amount_cents, 3200);
+  assert.equal(up.data.amount_cents, 4000);
   assert.equal(pis.get(up.data.payment_intent_id)!.metadata && (pis.get(up.data.payment_intent_id) as any).metadata.product, 'upgrade');
   assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403, 'no Bundle files before paying');
 
@@ -280,7 +280,7 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   const receipts = emails.filter((e) => e.subject.includes('receipt'));
   assert.equal(receipts.length, 1, 'one receipt email');
   assert.equal(receipts[0].to, 'jordan@example.com');
-  assert.match(receipts[0].text, /\$32\.00/);
+  assert.match(receipts[0].text, /\$40\.00/);
   assert.match(receipts[0].text, /https:\/\/rentready\.test\/access/, 'receipt links to the access page');
   assert.match(receipts[0].text, /1 minute/);
   assert.doesNotMatch(receipts[0].text + receipts[0].html, /\/api\/files/, 'no direct file links in email');
@@ -307,7 +307,7 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   assert.ok((await call('GET', '/api/entitlements')).data.products.includes('playbook'));
 
   // full refund of the upgrade revokes the Bundle (book stays)
-  await webhook({ id: 'evt_rf', type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_test_1', amount: 3200, amount_refunded: 3200, refunded: true, currency: 'usd', metadata: {}, payment_intent: up.data.payment_intent_id } } });
+  await webhook({ id: 'evt_rf', type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_test_1', amount: 4000, amount_refunded: 4000, refunded: true, currency: 'usd', metadata: {}, payment_intent: up.data.payment_intent_id } } });
   const after = (await call('GET', '/api/entitlements')).data.products;
   assert.ok(!after.includes('creditready') && after.includes('guide'));
   assert.equal(espCalls.filter((c) => c.event === 'refund_processed').length, 1);
@@ -343,7 +343,7 @@ test('unsubscribe sync + admin metrics are token-protected and add up', async ()
   assert.equal(m.status, 200);
   assert.equal(m.data.leads, 2);
   const gross = m.data.products.reduce((s: number, p: any) => s + p.gross, 0);
-  assert.equal(gross, 4799 + 3200 + 10000);
+  assert.equal(gross, 4998 + 4000 + 10000);
   assert.equal(m.data.abandoned, 1);
 });
 

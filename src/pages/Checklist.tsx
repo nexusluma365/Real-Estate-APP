@@ -6,7 +6,7 @@ import { BookVisual } from '../components/BookVisual';
 import { LeadForm } from '../components/LeadForm';
 import { Alert, CtaLink, useOnce } from '../components/ui';
 import { Icon } from '../components/Icon';
-import { PRODUCTS } from '../config/products';
+import { PRODUCTS, shippingLabel } from '../config/products';
 import { captureAttribution } from '../lib/attribution';
 import { track } from '../lib/analytics';
 import { emitLifecycle } from '../lib/lifecycle';
@@ -138,7 +138,7 @@ export default function Checklist() {
               </p>
               <div className="bk-buy">
                 <CtaLink to="/checkout?product=guide" className="btn bk-btn" props={{ cta_location: 'checklist', product: 'guide' }}>
-                  Get the Book — {PRODUCTS.guide.priceLabel} <span className="bk-arrow" aria-hidden="true">→</span>
+                  Get the Book — {PRODUCTS.guide.priceLabel} <small style={{ fontWeight: 400 }}>{shippingLabel(PRODUCTS.guide)}</small> <span className="bk-arrow" aria-hidden="true">→</span>
                 </CtaLink>
                 <p className="bk-buy-alt">
                   Or see the <CtaLink to="/creditready" className="bk-link" props={{ cta_location: 'checklist_options' }}>RentReady Digital Bundle</CtaLink> with dispute letters and a video guide.

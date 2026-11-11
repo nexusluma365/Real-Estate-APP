@@ -1,7 +1,7 @@
 # RentReady — werentreadygo.com
 
-Rental-application readiness funnel. Products: **Before They Say No™** (physical book, $47.99) and the
-**RentReady Digital Bundle** ($79.99 — book + 20 Word dispute letters + step-by-step video guide), with a $32 upgrade
+Rental-application readiness funnel. Products: **Before They Say No™** (physical book, $39.99 + $9.99 shipping) and the
+**RentReady Digital Bundle** ($79.99 + $9.99 shipping — book + 20 Word dispute letters + step-by-step video guide), with a $40 upgrade
 for book owners and the optional **Property Manager Playbook** ($100, one click after the Bundle).
 
 Stack: React + Vite front end · Netlify Functions API (`/api/*`) · Supabase PostgreSQL · private Cloudflare R2 downloads · Stripe.

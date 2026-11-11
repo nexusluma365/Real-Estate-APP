@@ -12,10 +12,10 @@ export const BOOK_ART = {
   webpSmall: bookWebpSm,
   fallback: bookPng,
   width: 986,
-  height: 1596,
+  height: 1595,
   /** false = the art is a photograph with its own background, so it gets a framed "hero shot" treatment. */
   cutout: true,
-  alt: 'Before They Say No™ — The Rental Approval Playbook, by RentReady',
+  alt: 'Know Before They Say No™ — The Rental Approval Playbook, by RentReady',
 };
 
 type Size = 'hero' | 'feature' | 'mid' | 'thumb';

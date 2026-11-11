@@ -53,10 +53,10 @@ Customer.io, etc.) triggered by the events RentReady POSTs to `ESP_WEBHOOK_URL`.
 > lists the rest. → https://werentreadygo.com/gameplan#sec-questions
 
 ### upgrade_offer — +10 days, book-only buyers (single send)
-**Subject:** Add the dispute letters and video guide for $32
+**Subject:** Add the dispute letters and video guide for $40
 > If you want the tools to act on what you’re reading, the RentReady Digital Bundle adds 20 Essential Credit
 > Dispute Letter templates (edit them in Microsoft Word) and a step-by-step video guide on disputing negative items.
-> Your $47.99 book purchase counts in full, so it’s $32, and nothing extra ships. No pressure, and this is the
+> Your $39.99 book purchase counts in full, so it’s $40, and nothing extra ships. No pressure, and this is the
 > only time we’ll mention it.
 > → https://werentreadygo.com/checkout?product=upgrade
 
@@ -124,7 +124,7 @@ Customer.io, etc.) triggered by the events RentReady POSTs to `ESP_WEBHOOK_URL`.
 
 ### nurture_2 — +5 days (marketing; exit: `purchase_completed`)
 **Subject:** Know before they know
-> When you’re ready for the full picture, Before They Say No™ ($47.99, a physical book mailed to you) explains what a property may see,
+> When you’re ready for the full picture, Before They Say No™ ($39.99 + $9.99 shipping, a physical book mailed to you) explains what a property may see,
 > what may be hurting your chances, and how to prepare. → https://werentreadygo.com/#options
 
 ---

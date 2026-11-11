@@ -12,7 +12,7 @@ import { track } from '../lib/analytics';
 import { BuyFaqList, QualifyQuiz, TrustBar } from '../components/Funnel';
 import { SocialProof } from '../components/SocialProof';
 import { buyFaq, LANDING_FAQ } from '../config/faq';
-import { PRODUCTS } from '../config/products';
+import { PRODUCTS, shippingLabel } from '../config/products';
 import { SITE } from '../config/site';
 
 /**
@@ -219,8 +219,8 @@ export default function Landing({ intent }: { intent?: Intent }) {
   useOnce(() => { captureAttribution(search, pathname, intent?.slug); track('landing_view', { variant }); });
   const faq = useMemo(() => {
     const base = buyFaq({
-      guidePrice: PRODUCTS.guide.priceLabel,
-      bundlePrice: PRODUCTS.creditready.priceLabel,
+      guidePrice: `${PRODUCTS.guide.priceLabel} ${shippingLabel(PRODUCTS.guide)}`,
+      bundlePrice: `${PRODUCTS.creditready.priceLabel} ${shippingLabel(PRODUCTS.creditready)}`,
       upgradePrice: PRODUCTS.upgrade.priceLabel,
       refundDays: GUARANTEE_DAYS,
       deliveryNote: env.physicalDeliveryNote,

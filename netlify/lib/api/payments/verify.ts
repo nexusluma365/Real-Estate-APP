@@ -1,4 +1,4 @@
-import { body, fail, getSession, grantEntitlement, isProduct, json, notConfigured, ownedProducts, PRICES, stripe, type Ctx } from '../../_lib';
+import { body, chargeCents, fail, getSession, grantEntitlement, isProduct, json, notConfigured, ownedProducts, stripe, type Ctx } from '../../_lib';
 
 /**
  * POST /api/payments/verify — verifyPaymentServerSide().
@@ -12,7 +12,7 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   const b = await body<{ payment_intent_id?: string; product?: string }>(request);
   if (!b.payment_intent_id || !/^pi_[A-Za-z0-9]+$/.test(b.payment_intent_id) || !isProduct(b.product)) return fail(400, 'Invalid request.');
   const pi = await stripe<{ id: string; status: string; amount: number; currency: string; customer: string; metadata: { product?: string } }>(env, 'GET', `payment_intents/${b.payment_intent_id}`);
-  const valid = pi.status === 'succeeded' && pi.customer === s.customer_id && pi.currency === 'usd' && pi.amount === PRICES[b.product] && pi.metadata.product === b.product;
+  const valid = pi.status === 'succeeded' && pi.customer === s.customer_id && pi.currency === 'usd' && pi.amount === chargeCents(b.product) && pi.metadata.product === b.product;
   if (!valid) return json({ verified: false, products: await ownedProducts(env, s.customer_id) });
   await grantEntitlement(env, s.customer_id, b.product, pi.id, pi.amount, s.lead_id);
   return json({

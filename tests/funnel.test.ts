@@ -13,7 +13,7 @@ const gtagCalls: unknown[][] = [];
 Object.assign(globalThis, { window: globalThis, localStorage: storage, sessionStorage: storage, location: { pathname: '/checkout' } });
 (globalThis as unknown as { gtag: (...a: unknown[]) => void }).gtag = (...a: unknown[]) => void gtagCalls.push(a);
 
-import { hmacHex, purchaseAllowed, PRICES, verifyStripeSignature, type Env } from '../netlify/lib/_lib';
+import { chargeCents, hmacHex, purchaseAllowed, PRICES, SHIPPING, verifyStripeSignature, type Env } from '../netlify/lib/_lib';
 import { onRequestPost as webhook } from '../netlify/lib/api/webhooks/stripe';
 import { trackPurchase } from '../src/lib/analytics';
 import { intentTier, recommend } from '../src/config/qualification';
@@ -26,9 +26,15 @@ test('server prices match the catalogue and the upgrade credits the guide in ful
   assert.equal(PRICES.creditready, PRODUCTS.creditready.priceCents);
   assert.equal(PRICES.playbook, PRODUCTS.playbook.priceCents);
   assert.equal(PRICES.upgrade, PRICES.creditready - PRICES.guide);
-  assert.equal(PRICES.upgrade, 3200);
+  assert.equal(PRICES.upgrade, 4000);
+  assert.equal(SHIPPING.guide, 999, 'book ships for $9.99');
+  assert.equal(SHIPPING.guide, PRODUCTS.guide.shippingCents);
+  assert.equal(chargeCents('guide'), 4998, 'book order charges $39.99 + $9.99');
+  assert.equal(SHIPPING.creditready, PRODUCTS.creditready.shippingCents);
+  assert.equal(chargeCents('creditready'), 8998, 'Bundle charges $79.99 + $9.99');
+  assert.equal(chargeCents('upgrade'), 4000, 'upgrade ships nothing');
   assert.equal(PRICES.creditready, 7999, 'Digital Bundle $79.99');
-  assert.equal(PRICES.guide, 4799, 'book $47.99');
+  assert.equal(PRICES.guide, 3999, 'book $39.99');
 });
 
 test('purchaseAllowed never sells something already owned', () => {
@@ -112,7 +118,7 @@ test('stripe signature: valid accepted, tampered / wrong secret / stale rejected
 test('webhook: bad signature → 400 and nothing granted', async () => {
   const DB = fakeDb();
   const env = { STRIPE_WEBHOOK_SECRET: SECRET, DB } as unknown as Env;
-  const res = await webhook({ request: await signed(pi('a', 'guide', 4799), 'whsec_wrong'), env, params: {} });
+  const res = await webhook({ request: await signed(pi('a', 'guide', 4998), 'whsec_wrong'), env, params: {} });
   assert.equal(res.status, 400);
   assert.equal(DB.t.entitlements.length, 0);
 });
@@ -120,7 +126,7 @@ test('webhook: bad signature → 400 and nothing granted', async () => {
 test('webhook: purchase grants entitlement once, records one purchase_completed, ignores replays', async () => {
   const DB = fakeDb();
   const env = { STRIPE_WEBHOOK_SECRET: SECRET, DB } as unknown as Env;
-  const evt = pi('b', 'guide', 4799);
+  const evt = pi('b', 'guide', 4998);
   assert.equal((await webhook({ request: await signed(evt), env, params: {} })).status, 200);
   const replay = await (await webhook({ request: await signed(evt), env, params: {} })).json();
   assert.equal((replay as { duplicate?: boolean }).duplicate, true);
@@ -139,21 +145,21 @@ test('webhook: wrong amount for product is NOT granted', async () => {
 test('webhook: upgrade order grants the Digital Bundle entitlement; full refund revokes it', async () => {
   const DB = fakeDb();
   const env = { STRIPE_WEBHOOK_SECRET: SECRET, DB } as unknown as Env;
-  await webhook({ request: await signed(pi('d', 'upgrade', 3200)), env, params: {} });
+  await webhook({ request: await signed(pi('d', 'upgrade', 4000)), env, params: {} });
   assert.deepEqual(DB.t.orders.map((o) => o.product), ['upgrade']);
   assert.deepEqual(DB.t.entitlements.map((e) => [e.product, e.revoked_at]), [['creditready', null]]);
-  const refund = { id: 'evt_r', type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_1', amount: 3200, amount_refunded: 3200, refunded: true, currency: 'usd', metadata: {}, payment_intent: 'pi_d' } } };
+  const refund = { id: 'evt_r', type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_1', amount: 4000, amount_refunded: 4000, refunded: true, currency: 'usd', metadata: {}, payment_intent: 'pi_d' } } };
   await webhook({ request: await signed(refund), env, params: {} });
   assert.ok(DB.t.entitlements[0].revoked_at, 'entitlement revoked');
-  assert.equal(DB.t.orders[0].refunded_cents, 3200);
+  assert.equal(DB.t.orders[0].refunded_cents, 4000);
   assert.equal(DB.t.lifecycle_events.filter((e) => e.event === 'refund_processed').length, 1);
 });
 
 test('webhook: partial refund keeps access', async () => {
   const DB = fakeDb();
   const env = { STRIPE_WEBHOOK_SECRET: SECRET, DB } as unknown as Env;
-  await webhook({ request: await signed(pi('e', 'creditready', 7999)), env, params: {} });
-  const refund = { id: 'evt_pr', type: 'charge.refunded', data: { object: { id: 'ch_2', customer: 'cus_1', amount: 7999, amount_refunded: 1000, refunded: false, currency: 'usd', metadata: {}, payment_intent: 'pi_e' } } };
+  await webhook({ request: await signed(pi('e', 'creditready', 8998)), env, params: {} });
+  const refund = { id: 'evt_pr', type: 'charge.refunded', data: { object: { id: 'ch_2', customer: 'cus_1', amount: 8998, amount_refunded: 1000, refunded: false, currency: 'usd', metadata: {}, payment_intent: 'pi_e' } } };
   await webhook({ request: await signed(refund), env, params: {} });
   assert.equal(DB.t.entitlements[0].revoked_at, null);
 });
@@ -161,18 +167,18 @@ test('webhook: partial refund keeps access', async () => {
 // ---------------------------------------------------------------- analytics
 test('trackPurchase reports the verified amount and never double-counts a transaction', () => {
   gtagCalls.length = 0;
-  assert.equal(trackPurchase('front', 'guide', 4799, 'pi_tx1'), true);
-  assert.equal(trackPurchase('front', 'guide', 4799, 'pi_tx1'), false, 'reload / back button must not re-report');
+  assert.equal(trackPurchase('front', 'guide', 4998, 'pi_tx1'), true);
+  assert.equal(trackPurchase('front', 'guide', 4998, 'pi_tx1'), false, 'reload / back button must not re-report');
   const purchases = gtagCalls.filter((c) => c[0] === 'event' && c[1] === 'purchase');
   assert.equal(purchases.length, 1);
   const p = purchases[0][2] as { value: number; currency: string; transaction_id: string };
-  assert.equal(p.value, 47.99);
+  assert.equal(p.value, 49.98);
   assert.equal(p.currency, 'USD');
   assert.equal(p.transaction_id, 'pi_tx1');
-  trackPurchase('front', 'creditready', 7999, 'pi_tx2');
+  trackPurchase('front', 'creditready', 8998, 'pi_tx2');
   trackPurchase('upsell', 'playbook', 10000, 'pi_tx3');
   const values = gtagCalls.filter((c) => c[1] === 'purchase').map((c) => (c[2] as { value: number }).value);
-  assert.deepEqual(values, [47.99, 79.99, 100]);
+  assert.deepEqual(values, [49.98, 89.98, 100]);
 });
 
 test('analytics payloads never contain quiz answers, email or name', () => {
@@ -199,12 +205,12 @@ test('recommendation routing', () => {
 
 // ---------------------------------------------------------------- copy accuracy
 test('objection answers follow config (refund window, prices)', () => {
-  const base = { guidePrice: '$47.99', bundlePrice: '$79.99', upgradePrice: '$32', deliveryNote: '', supportEmail: 's@x.com' };
+  const base = { guidePrice: '$39.99 + $9.99 shipping', bundlePrice: '$79.99 + $9.99 shipping', upgradePrice: '$40', deliveryNote: '', supportEmail: 's@x.com' };
   const on = buyFaq({ ...base, refundDays: 30 });
   assert.match(on.find((f) => f.id === 'refund')!.a, /within 30 days/);
   const off = buyFaq({ ...base, refundDays: 0 });
   assert.doesNotMatch(off.find((f) => f.id === 'refund')!.a, /days of purchase/);
-  assert.match(on.find((f) => f.id === 'which-one')!.a, /\$47\.99[\s\S]*\$79\.99[\s\S]*\$32/);
+  assert.match(on.find((f) => f.id === 'which-one')!.a, /\$39\.99 \+ \$9\.99 shipping[\s\S]*\$79\.99[\s\S]*\$40/);
   assert.match(on.find((f) => f.id === 'physical')!.a, /physical book/);
   assert.ok(on.every((f) => !/guarantee (you|your) (approval|will be approved)/i.test(f.a)));
 });

@@ -3,7 +3,7 @@
  *
  * Architecture (production):
  *   1. createCustomer()          → server creates/reuses Stripe Customer for the lead
- *   2. createPaymentIntent()     → server creates PI (book $47.99 | Digital Bundle $79.99 | upgrade $32);
+ *   2. createPaymentIntent()     → server creates PI (book $39.99 + $9.99 shipping | Digital Bundle $79.99 | upgrade $40);
  *                                  Bundle + upgrade use setup_future_usage='off_session' for the optional one-click Playbook
  *   3. Stripe Payment Element    → card entered inside Stripe iframe (never in our DOM/state/storage)
  *   4. confirmPayment()          → stripe.confirmPayment (client, publishable key only)
@@ -19,7 +19,7 @@ import { api, ApiError, wait } from './api';
 import { isMock } from './env';
 import { read, uid, write } from './storage';
 import type { MockOutcome, Order, ProductId } from './types';
-import { PRODUCTS } from '../config/products';
+import { PRODUCTS, totalCents } from '../config/products';
 import { grantMockEntitlement } from './entitlementService';
 import { emitLifecycle } from './lifecycle';
 
@@ -72,7 +72,7 @@ export async function createPaymentIntent(args: {
 }): Promise<PaymentIntentRef> {
   if (isMock) {
     await wait(350);
-    return { payment_intent_id: uid('mock_pi'), client_secret: 'mock_secret_not_real', amount_cents: PRODUCTS[args.product].priceCents };
+    return { payment_intent_id: uid('mock_pi'), client_secret: 'mock_secret_not_real', amount_cents: totalCents(PRODUCTS[args.product]) };
   }
   // Server decides the amount from the product id — the client never sends a price.
   return api<PaymentIntentRef>('/payments/intent', {
@@ -123,7 +123,7 @@ export async function verifyPaymentServerSide(paymentIntentId: string, product: 
     const order: Order = {
       order_id: uid('mock_ord'),
       product,
-      amount_cents: PRODUCTS[product].priceCents,
+      amount_cents: totalCents(PRODUCTS[product]),
       payment_intent_id: paymentIntentId,
       created_at: new Date().toISOString(),
     };

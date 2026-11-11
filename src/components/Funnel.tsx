@@ -47,11 +47,11 @@ export function BundleImage({ className = '', sizes = '(min-width: 900px) 640px,
   return (
     <span className={`rr-bundle ${className}`}>
       <picture className="rr-bundle-img">
-      <source srcSet={`${bundleWebpSm} 800w, ${bundleWebp} 1670w`} sizes={sizes} type="image/webp" />
+      <source srcSet={`${bundleWebpSm} 800w, ${bundleWebp} 1536w`} sizes={sizes} type="image/webp" />
       <img
         src={bundlePng}
-        width={1670}
-        height={941}
+        width={1536}
+        height={1000}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
         alt="The RentReady Digital Bundle: the Before They Say No™ book, 20 credit dispute letters, and the step-by-step credit dispute video training on laptop, phone and tablet"

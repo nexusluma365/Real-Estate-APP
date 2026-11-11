@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-11 — book $39.99; $9.99 shipping on the book and the Digital Bundle
+- **Before They Say No™** (physical book only) is now **$39.99**, plus **$9.99 shipping** charged on the same Stripe
+  PaymentIntent (total $49.98). Server: `PRICES.guide = 3999`, `SHIPPING.guide = 999`, and `chargeCents()` is the amount
+  every check uses (create intent, `/api/payments/verify`, webhook). The PI's metadata records `subtotal_cents` and
+  `shipping_cents`.
+- The **Digital Bundle stays $79.99 and also pays $9.99 shipping** (total $89.98). The upgrade ships nothing, so no shipping.
+- **Upgrade book → Bundle is now $40** ($79.99 − $39.99). The book price is credited; shipping is not.
+- Checkout shows "+ $9.99 shipping" by both options, a Book / Shipping / Total breakdown, and "Complete my $49.98
+  order". Landing FAQ, /creditready and the checklist show "+ $9.99 shipping" next to the prices.
+- Receipt email notes "Includes $9.99 shipping". Purchase analytics report the amount charged ($49.98).
+
 ## 2026-10-30 (rev. 13) — second-chance listings everywhere, blurred photos
 - When a city has no second-chance listings, verified ones from elsewhere in the state — then other states — are shown
   (flagged nearby; every card shows its city). Nothing is ever invented: with no verified listings anywhere, the scan

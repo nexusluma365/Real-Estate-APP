@@ -58,8 +58,12 @@ declare global {
 export type Ctx = { request: Request; env: Env; params: Record<string, string> };
 
 /** Prices live on the server. The client only ever sends a product id. */
-export const PRICES = { creditready: 7999, playbook: 10000, guide: 4799, upgrade: 3200 } as const;
+export const PRICES = { creditready: 7999, playbook: 10000, guide: 3999, upgrade: 4000 } as const;
 export type ProductId = keyof typeof PRICES;
+/** Shipping charged on top of the product price. Anything that ships the book (the book, the Digital Bundle) pays $9.99; the upgrade ships nothing. */
+export const SHIPPING: Partial<Record<ProductId, number>> = { guide: 999, creditready: 999 };
+/** What Stripe actually charges: product price + shipping. Every amount check (intent, verify, webhook) uses this. */
+export const chargeCents = (p: ProductId): number => PRICES[p] + (SHIPPING[p] ?? 0);
 export const isProduct = (p: unknown): p is ProductId => typeof p === 'string' && Object.prototype.hasOwnProperty.call(PRICES, p);
 /** An `upgrade` order (book → Digital Bundle) grants the Digital Bundle (`creditready`) entitlement. */
 export const entitlementFor = (p: ProductId): ProductId => (p === 'upgrade' ? 'creditready' : p);
