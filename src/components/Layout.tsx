@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
 import { Icon } from './Icon';
-import { SiteMenu } from './SiteMenu';
+import { AFFILIATE_URL, SiteMenu } from './SiteMenu';
 import { SITE } from '../config/site';
 import { INTENTS } from '../config/intents';
 import { isMock } from '../lib/env';
@@ -98,6 +98,7 @@ function Footer({ minimal }: { minimal: boolean }) {
                 ))}
                 <li><Link to="/access">Customer access</Link></li>
                 <li><a href={`mailto:${SITE.supportEmail}`}>Contact support</a></li>
+                <li><a className="footer-affiliate" href={AFFILIATE_URL}>Become an Affiliate</a></li>
               </ul>
             </div>
           </div>
@@ -125,6 +126,7 @@ function BookFooter() {
             {SITE.privacyUrl && <a href={SITE.privacyUrl}>Privacy</a>}
             {SITE.termsUrl && <a href={SITE.termsUrl}>Terms</a>}
             <a href={`mailto:${SITE.supportEmail}`}>Contact</a>
+            <a className="footer-affiliate" href={AFFILIATE_URL}>Become an Affiliate</a>
             <Link to="/access">My access</Link>
           </nav>
         </div>

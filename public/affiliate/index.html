@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Affiliate</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Share RentReady and earn up to 60% per sale. Start at up to 38% and unlock more as you grow. Free to join. Sales tracked through ClickBank.">
+<meta property="og:title" content="Share the Offer. Earn Up to 60% Per Sale.">
+<meta property="og:description" content="The official Nexus Luma × RentReady affiliate program. Free to join, tracked through ClickBank.">
+<meta name="theme-color" content="#0B0B10">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap">
+<style>
+:root{--ink:#1D1D1F;--black:#000;--muted:#515154;--soft:#6E6E73;--cream:#FAF8F3;--sand:#F2E3C3;--gold:#E2C68E;--bronze:#7A5E2E;--night:#0B0B10;--depth:1}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--cream);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Inter,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:var(--ink);overflow-x:clip}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto}
+.sec{padding:110px clamp(16px,4vw,28px);scroll-margin-top:70px}
+.center{display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.26em;color:var(--bronze);text-transform:uppercase}
+.dark .eyebrow{color:var(--gold)}
+.h2{margin:0;font-size:clamp(34px,4.6vw,62px);font-weight:800;letter-spacing:-.045em;line-height:1.02;color:#000;text-wrap:balance;max-width:920px}
+.dark .h2{color:#fff;text-shadow:0 10px 40px rgba(0,0,0,.5)}
+.lede{font-size:clamp(17px,1.4vw,19px);line-height:1.6;color:var(--muted);max-width:680px;text-wrap:pretty}
+.dark .lede{color:rgba(255,255,255,.84)}
+.grid{width:100%;display:grid;gap:20px;text-align:left}
+.lift{transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+.lift:hover{transform:translateY(-6px)}
+.btn{display:inline-flex;align-items:center;gap:10px;font-size:15px;font-weight:700;letter-spacing:.06em;padding:19px 32px;border-radius:999px;min-height:48px;transition:transform .25s ease,background .25s ease,box-shadow .25s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn-dark{background:#000;color:#fff}.btn-dark:hover{background:#2C2C2F;box-shadow:0 14px 30px -10px rgba(0,0,0,.45)}
+.btn-light{background:#fff;color:#000}.btn-light:hover{background:var(--sand);box-shadow:0 14px 30px -10px rgba(0,0,0,.6)}
+.btn-gold{background:var(--gold);color:#000}.btn-gold:hover{background:#EDD5A6;box-shadow:0 14px 30px -10px rgba(0,0,0,.6)}
+.home-btn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;flex:none;color:var(--ink);background:#fff;transition:background .2s,border-color .2s}.home-btn:hover{background:var(--sand);border-color:rgba(0,0,0,.2)}.home-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.navlink{transition:color .2s}.navlink:hover{color:#000}
+.card{background:#fff;border-radius:26px;padding:30px 28px;box-shadow:0 30px 60px -32px rgba(30,22,10,.35)}
+.card-dark{background:#141416;color:#fff;border-radius:26px;padding:30px 28px;box-shadow:0 30px 60px -32px rgba(0,0,0,.6)}
+.icon{flex:none;width:52px;height:52px;border-radius:16px;background:#141416;display:flex;align-items:center;justify-content:center}
+.icon svg{width:24px;height:24px;fill:none;stroke:#D4B57A;stroke-width:1.6}
+.icon.light{background:var(--sand)}.icon.light svg{stroke:#000}
+.glass{-webkit-backdrop-filter:blur(12px) saturate(140%);backdrop-filter:blur(12px) saturate(140%)}
+.solid{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.dcard{background:rgba(18,18,24,.55);border:1px solid rgba(255,255,255,.16);border-radius:26px;padding:32px 28px;box-shadow:0 18px 50px -24px rgba(0,0,0,.5);color:#fff}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;background:#F2E9D6;color:var(--bronze)}
+.check{display:flex;gap:14px;align-items:flex-start;font-size:17px;line-height:1.45}
+.check svg{flex:none;width:22px;height:22px;margin-top:1px;fill:none;stroke-width:2.2}
+.fine{font-size:13px;line-height:1.6;color:var(--soft);max-width:720px}
+.dark .fine{color:rgba(255,255,255,.7)}
+@media (max-width:760px){.hide-sm{display:none!important}}
+@media (max-width:480px){.nl-badge{display:none!important}.wordmark{white-space:normal!important}}
+/* product commission cards */
+.pc{display:flex;flex-direction:column;gap:18px;text-align:left;padding:clamp(28px,3.4vw,40px)}
+.pc .price{font-size:15px;font-weight:600;color:var(--soft)}
+.pc .rate{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:16px 0;border-top:1px solid rgba(0,0,0,.08)}
+.pc .rate small{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--soft)}
+.pc .amt{font-size:clamp(40px,4.4vw,56px);font-weight:800;letter-spacing:-.05em;line-height:1}
+.card-dark.pc .rate{border-color:rgba(255,255,255,.12)}
+.card-dark.pc .rate small,.card-dark.pc .price{color:rgba(255,255,255,.66)}
+/* earnings table */
+.etab{width:100%;border-collapse:collapse;font-size:17px}
+.etab td{padding:14px 0;border-top:1px solid rgba(255,255,255,.12)}
+.etab td:last-child{text-align:right;font-weight:800;font-size:clamp(22px,2.2vw,28px);letter-spacing:-.03em}
+/* parallax */
+.scene{position:relative;overflow:clip;isolation:isolate}
+.scene-bg{position:absolute;left:0;right:0;top:-36%;bottom:-36%;will-change:transform;transform:translate3d(0,0,0);backface-visibility:hidden;contain:strict;pointer-events:none}
+.scene-mid{position:absolute;left:0;right:0;top:-14%;bottom:-14%;will-change:transform;transform:translate3d(0,0,0);backface-visibility:hidden;contain:strict;pointer-events:none}
+.scene-bg svg,.scene-mid svg{width:100%;height:100%;display:block}
+.scene .float{will-change:transform;backface-visibility:hidden}
+@media (max-width:760px){:root{--depth:.6}}
+.float{position:relative;isolation:isolate;display:flex}
+.float>*{flex:1 1 auto;min-width:0;position:relative;z-index:1}
+.float>.cast{position:absolute;z-index:0;flex:none;left:4%;right:4%;top:30%;bottom:-8%;border-radius:50%;pointer-events:none;background:radial-gradient(closest-side,rgba(0,0,0,.72),rgba(0,0,0,.42) 45%,rgba(0,0,0,0) 100%);will-change:transform,opacity;transform:translate3d(0,30px,0) scale(.97);opacity:.7}
+@keyframes drift{from{transform:translate3d(0,calc(-20% * var(--depth)),0)}to{transform:translate3d(0,calc(20% * var(--depth)),0)}}
+@keyframes driftMid{from{transform:translate3d(0,calc(-8% * var(--depth)),0)}to{transform:translate3d(0,calc(8% * var(--depth)),0)}}
+@keyframes rise{from{transform:translate3d(0,calc(56px * var(--depth)),0)}to{transform:translate3d(0,calc(-56px * var(--depth)),0)}}
+@keyframes cast{from{transform:translate3d(0,-10px,0) scale(.92);opacity:.5}to{transform:translate3d(0,70px,0) scale(1.02);opacity:.9}}
+@supports (animation-timeline: view()){
+.scene{view-timeline:--scene block}
+.scene-bg{animation:drift linear both;animation-timeline:--scene;animation-range:cover 0% cover 100%}
+.scene-mid{animation:driftMid linear both;animation-timeline:--scene;animation-range:cover 0% cover 100%}
+.scene .float{animation:rise linear both;animation-timeline:view();animation-range:cover 0% cover 100%}
+.float>.cast{animation:cast linear both;animation-timeline:view();animation-range:cover 0% cover 100%}
+}
+@media (max-width:900px),(pointer:coarse){.glass{-webkit-backdrop-filter:none;backdrop-filter:none}.dcard{background:rgba(18,18,24,.86)}}
+html.is-scrolling .lift{pointer-events:none}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.lift,.btn{transition:none}.scene-bg,.scene-mid,.scene .float,.float>.cast{animation:none!important;transform:none!important}}
+/* faq */
+details{background:#fff;border-radius:20px;padding:22px 26px;box-shadow:0 20px 44px -32px rgba(30,22,10,.35)}
+summary{cursor:pointer;font-size:18px;font-weight:700;letter-spacing:-.01em;list-style:none;display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-weight:500;font-size:24px;line-height:1;color:var(--bronze)}
+details[open] summary::after{content:"–"}
+details p{margin-top:12px;font-size:16px;line-height:1.6;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<header style="position:sticky;top:0;z-index:50;background:rgba(250,248,243,.97);border-bottom:1px solid rgba(0,0,0,.06)">
+<nav style="max-width:1240px;margin:0 auto;padding:14px clamp(16px,4vw,28px);display:flex;align-items:center;justify-content:space-between;gap:20px">
+<div style="display:flex;align-items:center;gap:14px;min-width:0">
+<a class="home-btn" href="/" aria-label="Back to RentReady home" title="Home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg></a>
+<a href="#top" style="display:flex;align-items:center;gap:12px;min-width:0" aria-label="Nexus Luma × RentReady home">
+<span class="nl-badge" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none">NL</span>
+<span style="display:flex;flex-direction:column;line-height:1.15"><span class="wordmark" style="font-size:clamp(11px,3vw,13px);font-weight:700;letter-spacing:.1em;white-space:nowrap">NEXUS LUMA × RENTREADY</span><span class="hide-sm" style="font-size:11px;color:var(--soft);letter-spacing:.06em">Official Affiliate Partner Program</span></span>
+</a>
+</div>
+<div style="display:flex;align-items:center;gap:28px">
+<div class="hide-sm" style="display:flex;gap:26px;font-size:13px;font-weight:500;color:#424245">
+<a class="navlink" href="#offer">Products</a>
+<a class="navlink" href="#earnings">Earnings</a>
+<a class="navlink" href="#how">How It Works</a>
+<a class="navlink" href="#audience">Who Should Join</a>
+<a class="navlink" href="#founder">About</a>
+</div>
+<a class="btn btn-dark" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener" style="font-size:13px;font-weight:600;letter-spacing:0;padding:11px 18px;min-height:44px;white-space:nowrap;flex:none">Get My Link</a>
+</div>
+</nav>
+</header>
+
+<!-- 1 · HERO -->
+<section id="top" class="scene" style="min-height:860px;padding:100px clamp(16px,4vw,28px) 200px;display:flex;align-items:center;background:var(--night)">
+<div aria-hidden="true" class="scene-bg">
+<svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<radialGradient id="skyA" cx="0.7" cy="0.22" r="0.75"><stop offset="0" stop-color="#C9A96E" stop-opacity="0.5"/><stop offset="0.5" stop-color="#2C2333" stop-opacity="0.45"/><stop offset="1" stop-color="#0B0B10" stop-opacity="0"/></radialGradient>
+<linearGradient id="litA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBE6B8"/><stop offset="1" stop-color="#C08F4C"/></linearGradient>
+<linearGradient id="poolA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FC4D8" stop-opacity="0.75"/><stop offset="1" stop-color="#1D4C5E" stop-opacity="0.35"/></linearGradient>
+</defs>
+<rect width="1440" height="900" fill="#0B0B10"/><rect width="1440" height="900" fill="url(#skyA)"/>
+<g fill="#F3E3C2"><circle cx="120" cy="90" r="1.6" opacity="0.6"/><circle cx="300" cy="60" r="1.2" opacity="0.5"/><circle cx="520" cy="120" r="1.4" opacity="0.45"/><circle cx="860" cy="70" r="1.2" opacity="0.6"/><circle cx="1210" cy="110" r="1.5" opacity="0.5"/><circle cx="1360" cy="50" r="1" opacity="0.6"/><circle cx="210" cy="180" r="1.1" opacity="0.4"/><circle cx="700" cy="40" r="1.3" opacity="0.5"/><circle cx="1010" cy="150" r="1" opacity="0.45"/></g>
+</svg>
+</div>
+<div aria-hidden="true" class="scene-mid">
+<svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+<g fill="#09090C"><circle cx="560" cy="560" r="90"/><circle cx="660" cy="520" r="70"/><circle cx="470" cy="590" r="70"/><circle cx="1390" cy="540" r="90"/><circle cx="1300" cy="580" r="60"/></g>
+<g transform="translate(600,40) scale(1.32)">
+<rect x="190" y="236" width="380" height="104" fill="#1C1C21" stroke="#C9A96E" stroke-opacity="0.35"/><rect x="210" y="254" width="340" height="68" fill="url(#litA)" opacity="0.85"/>
+<path d="M295 254V322M380 254V322M465 254V322" stroke="#1C1C21" stroke-width="5"/><rect x="172" y="222" width="420" height="14" fill="#2D2D32"/>
+<rect x="60" y="340" width="440" height="130" fill="#16161A" stroke="#C9A96E" stroke-opacity="0.3"/><rect x="80" y="362" width="310" height="90" fill="url(#litA)" opacity="0.95"/>
+<path d="M142 362V452M204 362V452M266 362V452M328 362V452" stroke="#16161A" stroke-width="5"/><rect x="408" y="362" width="72" height="108" fill="#2A251D"/>
+<rect x="46" y="330" width="170" height="10" fill="#2D2D32"/><rect x="556" y="340" width="8" height="130" fill="#2D2D32"/>
+</g>
+<rect x="0" y="660" width="1440" height="240" fill="#0A0A0D"/>
+<rect x="640" y="682" width="640" height="52" fill="url(#poolA)"/>
+<path d="M690 700H1060M730 714H1010M780 724H960" stroke="#E9F6FA" stroke-opacity="0.35"/><path d="M720 690H1200" stroke="#F1D9A6" stroke-opacity="0.25"/>
+</svg>
+</div>
+<div aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,6,10,.6) 0%,rgba(6,6,10,.2) 55%,rgba(6,6,10,0) 100%)"></div>
+<div style="position:relative;max-width:1240px;width:100%;margin:0 auto;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:32px">
+<div class="float" style="flex:0 1 720px;min-width:0"><span class="cast" aria-hidden="true"></span><div class="glass solid" style="background:rgba(250,248,243,.95);border:1px solid rgba(255,255,255,.7);border-radius:32px;padding:clamp(26px,4vw,56px);display:flex;flex-direction:column;gap:22px;box-shadow:0 18px 50px -24px rgba(0,0,0,.5)">
+<span class="eyebrow" style="letter-spacing:.18em">Official Nexus Luma × RentReady Affiliate Program</span>
+<h1 style="margin:0;display:flex;flex-direction:column;gap:12px">
+<span style="font-size:clamp(28px,3.4vw,46px);font-weight:600;letter-spacing:-.03em;line-height:1.05">Share the Offer.</span>
+<span style="font-size:clamp(44px,6vw,90px);font-weight:800;letter-spacing:-.055em;line-height:.94;color:#000;text-wrap:balance">Earn Up to <span style="background:linear-gradient(180deg,transparent 62%,var(--sand) 62%);padding:0 .04em">60%</span> Per Sale.</span>
+</h1>
+<p style="font-size:clamp(18px,1.5vw,21px);font-weight:700;letter-spacing:-.01em;line-height:1.35;color:#000;max-width:580px">Help people get ready for their next home. Get paid when they buy.</p>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:580px;font-size:clamp(16px,1.25vw,18px);line-height:1.6;color:#424245;text-wrap:pretty">
+<p>People want better credit and a place to call home. RentReady gives them the tools to take the next step.</p>
+<p>You share your special link. We handle the product and delivery. You earn a commission on each qualifying sale.</p>
+<p style="font-weight:600;color:#000">Start at up to 38%. Unlock up to 60% as you grow.</p>
+</div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px">
+<a class="btn btn-dark" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener">GET MY AFFILIATE LINK <span aria-hidden="true">→</span></a>
+<span style="font-size:14px;color:var(--muted);font-weight:500">Free to Join · No Inventory · No Product to Build</span>
+</div>
+<a href="#founder" style="align-self:flex-start;display:flex;align-items:center;gap:12px;background:#141416;color:#fff;border-radius:22px;padding:6px 18px 6px 6px;font-size:13px;font-weight:600;line-height:1.4">
+<img src="/affiliate/img/founder-avatar.jpg" alt="" width="38" height="38" style="flex:none;width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">
+<span>Built by a Former Leasing Agent · <span style="color:var(--gold)">Powered by Nexus Luma</span> · Sales Tracked Through ClickBank</span>
+</a>
+</div></div>
+<div class="float hide-sm"><span class="cast" aria-hidden="true"></span><div class="glass dcard" style="padding:24px 28px;display:flex;flex-direction:column;gap:4px;border-radius:22px">
+<span style="font-size:11px;letter-spacing:.22em;color:rgba(255,255,255,.78)">YOUR COMMISSION</span>
+<span style="font-size:64px;font-weight:800;letter-spacing:-.05em;line-height:1;color:var(--gold);margin-top:6px">60%</span>
+<span style="font-size:15px;font-weight:600">Top rate per sale</span>
+<span style="height:1px;background:rgba(255,255,255,.16);margin:10px 0"></span>
+<span style="font-size:15px;font-weight:600">Start at up to 38%</span>
+<span style="font-size:13px;color:rgba(255,255,255,.72)">Unlock more as you grow</span>
+</div></div>
+</div>
+</section>
+
+<!-- FACT STRIP -->
+<div style="position:relative;z-index:5;max-width:1180px;margin:-100px auto 0;padding:0 clamp(16px,4vw,28px)">
+<div style="background:#fff;border-radius:24px;box-shadow:0 50px 90px -30px rgba(10,8,4,.45);padding:32px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:26px 0">
+<div style="display:flex;gap:14px;padding:0 22px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9C7B44" stroke-width="1.5" aria-hidden="true"><path d="M19 5L5 19M7.5 9a2 2 0 100-4 2 2 0 000 4zM16.5 19a2 2 0 100-4 2 2 0 000 4z"/></svg><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:22px;font-weight:800;letter-spacing:-.03em;color:#000">38% → 60%</span><span style="font-size:13px;color:var(--soft);line-height:1.4">Start strong. Unlock more.</span></div></div>
+<div style="display:flex;gap:14px;padding:0 22px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9C7B44" stroke-width="1.5" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:22px;font-weight:800;letter-spacing:-.03em;color:#000">Up to $47.99</span><span style="font-size:13px;color:var(--soft);line-height:1.4">Per bundle sale at 60%</span></div></div>
+<div style="display:flex;gap:14px;padding:0 22px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9C7B44" stroke-width="1.5" aria-hidden="true"><path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"/></svg><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:22px;font-weight:800;letter-spacing:-.03em;color:#000">Evergreen Offer</span><span style="font-size:13px;color:var(--soft);line-height:1.4">People need homes all year</span></div></div>
+<div style="display:flex;gap:14px;padding:0 22px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9C7B44" stroke-width="1.5" aria-hidden="true"><path d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1"/></svg><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:22px;font-weight:800;letter-spacing:-.03em;color:#000">Free to Join</span><span style="font-size:13px;color:var(--soft);line-height:1.4">Sales tracked through ClickBank</span></div></div>
+</div>
+</div>
+
+<!-- 2 · PRODUCTS + WHAT YOU EARN -->
+<section id="offer" class="sec" style="padding-top:120px">
+<div class="wrap center">
+<span class="eyebrow">Compare before you choose</span>
+<h2 class="h2">Two Products. More Ways to Earn.</h2>
+<p class="lede">See how RentReady stacks up against a typical affiliate program on an $80 sale.</p>
+<div class="grid" style="margin-top:26px;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:24px;align-items:stretch">
+<!-- LEFT: typical program (no CTA) -->
+<div class="card pc" style="background:#F3F0E9;box-shadow:none;border:1px solid rgba(0,0,0,.06)">
+<span class="eyebrow" style="color:var(--soft)">A Typical Affiliate Program</span>
+<span class="price">Many retail programs on an ~$80 product</span>
+<p style="font-size:17px;line-height:1.55;color:var(--muted)">A small cut of each sale, on products your audience can buy almost anywhere.</p>
+<div>
+<div class="rate"><small>YOUR COMMISSION · 1–10%</small><span class="amt" style="color:#A8A29A;white-space:nowrap;font-size:clamp(30px,3.4vw,44px)">$0.80–$8</span></div>
+<div class="rate"><small>YOUR TOP COMMISSION</small><span class="amt" style="color:#A8A29A;font-size:clamp(26px,2.6vw,34px)">Same rate</span></div>
+</div>
+<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;color:var(--soft)">
+<li class="check" style="font-size:16px"><svg viewBox="0 0 24 24" stroke="#B0A99C" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Flat rate, even as you sell more</li>
+<li class="check" style="font-size:16px"><svg viewBox="0 0 24 24" stroke="#B0A99C" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Generic products sold everywhere</li>
+<li class="check" style="font-size:16px"><svg viewBox="0 0 24 24" stroke="#B0A99C" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>You figure out who to sell to</li>
+</ul>
+</div>
+<!-- RIGHT: RentReady (CTA) -->
+<div class="card-dark pc lift" style="border:1px solid rgba(226,198,142,.5);position:relative">
+<span style="position:absolute;top:-14px;left:clamp(28px,3.4vw,40px);background:var(--gold);color:#000;font-size:11px;font-weight:800;letter-spacing:.16em;padding:8px 14px;border-radius:999px">HIGHER EARNINGS PER SALE</span>
+<span class="eyebrow" style="color:var(--gold)">RentReady Affiliate Program</span>
+<span class="price">Complete Bundle · $79.99</span>
+<p style="font-size:17px;line-height:1.55;color:rgba(255,255,255,.8)">A premium package with the book and added tools to help people prepare for their next move.</p>
+<div>
+<div class="rate"><small>YOUR STARTING COMMISSION · 38%</small><span class="amt" style="color:#fff">$30.40</span></div>
+<div class="rate"><small>YOUR TOP COMMISSION · 60%</small><span class="amt" style="color:var(--gold)">$47.99</span></div>
+</div>
+<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">
+<li class="check" style="font-size:16px"><svg viewBox="0 0 24 24" stroke="#E2C68E" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Your rate grows as your sales grow</li>
+<li class="check" style="font-size:16px"><svg viewBox="0 0 24 24" stroke="#E2C68E" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Plus the Essential Guide ($39.99): earn $15.20 → $23.99 per sale</li>
+<li class="check" style="font-size:16px"><svg viewBox="0 0 24 24" stroke="#E2C68E" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Clear buyers: renters who want to get approved</li>
+</ul>
+<a class="btn btn-gold" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener" style="align-self:flex-start;margin-top:4px">PROMOTE RENTREADY <span aria-hidden="true">→</span></a>
+</div>
+</div>
+<p class="fine" style="margin-top:10px">RentReady earnings are approximate, based on listed retail prices before platform adjustments, refunds, or deductions. "Typical program" figures reflect common retail affiliate rates of about 1%–10%. Rates vary by program.</p>
+</div>
+</section>
+
+<!-- 3 · AFFILIATE PERKS -->
+<section id="perks" class="sec" style="background:#fff">
+<div class="wrap center">
+<span class="eyebrow">Your affiliate perks</span>
+<h2 class="h2">The More You Grow, the More You Can Unlock.</h2>
+<p class="lede">Start sharing today. Build your sales. Earn access to bigger rewards.</p>
+<div class="grid" style="margin-top:26px;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr))">
+<article class="lift" style="display:flex;flex-direction:column;gap:14px">
+<div style="position:relative;height:170px;border-radius:24px;background:linear-gradient(160deg,#1E1E22,#121214);display:flex;align-items:center;justify-content:center;box-shadow:0 30px 60px -30px rgba(0,0,0,.5)"><span aria-hidden="true" style="position:absolute;left:20px;top:14px;font-size:60px;font-weight:800;letter-spacing:-.05em;color:rgba(226,198,142,.18)">01</span><span style="font-size:52px;font-weight:800;letter-spacing:-.05em;color:var(--gold)">38%</span></div>
+<h3 style="margin:0;padding:0 6px;font-size:19px;font-weight:700;letter-spacing:-.01em">Earn Up to 38% to Start</h3>
+<p style="padding:0 6px;font-size:15px;line-height:1.55;color:var(--muted)">Get rewarded when someone buys through your link.</p>
+</article>
+<article class="lift" style="display:flex;flex-direction:column;gap:14px">
+<div style="position:relative;height:170px;border-radius:24px;background:linear-gradient(160deg,#1E1E22,#121214);display:flex;align-items:center;justify-content:center;box-shadow:0 30px 60px -30px rgba(0,0,0,.5)"><span aria-hidden="true" style="position:absolute;left:20px;top:14px;font-size:60px;font-weight:800;letter-spacing:-.05em;color:rgba(226,198,142,.18)">02</span><span style="font-size:52px;font-weight:800;letter-spacing:-.05em;color:var(--gold)">60%</span></div>
+<h3 style="margin:0;padding:0 6px;font-size:19px;font-weight:700;letter-spacing:-.01em">Unlock Up to 60%</h3>
+<p style="padding:0 6px;font-size:15px;line-height:1.55;color:var(--muted)">Reach higher sales levels and qualify for bigger commissions.</p>
+</article>
+<article class="lift" style="display:flex;flex-direction:column;gap:14px">
+<div style="position:relative;height:170px;border-radius:24px;background:linear-gradient(160deg,#1E1E22,#121214);display:flex;align-items:center;justify-content:center;box-shadow:0 30px 60px -30px rgba(0,0,0,.5)"><span aria-hidden="true" style="position:absolute;left:20px;top:14px;font-size:60px;font-weight:800;letter-spacing:-.05em;color:rgba(226,198,142,.18)">03</span><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#D4B57A" stroke-width="1" aria-hidden="true"><path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"/></svg></div>
+<h3 style="margin:0;padding:0 6px;font-size:19px;font-weight:700;letter-spacing:-.01em">Sell an Evergreen Offer</h3>
+<p style="padding:0 6px;font-size:15px;line-height:1.55;color:var(--muted)">People look for homes, credit help, and rental guidance all year long.</p>
+</article>
+<article class="lift" style="display:flex;flex-direction:column;gap:14px">
+<div style="position:relative;height:170px;border-radius:24px;background:linear-gradient(160deg,#1E1E22,#121214);display:flex;align-items:center;justify-content:center;box-shadow:0 30px 60px -30px rgba(0,0,0,.5)"><span aria-hidden="true" style="position:absolute;left:20px;top:14px;font-size:60px;font-weight:800;letter-spacing:-.05em;color:rgba(226,198,142,.18)">04</span><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#D4B57A" stroke-width="1" aria-hidden="true"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3zM4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5"/></svg></div>
+<h3 style="margin:0;padding:0 6px;font-size:19px;font-weight:700;letter-spacing:-.01em">We Handle the Product</h3>
+<p style="padding:0 6px;font-size:15px;line-height:1.55;color:var(--muted)">You focus on sharing. We handle the order and product delivery.</p>
+</article>
+</div>
+
+<div id="tiers" class="card" style="width:100%;margin-top:34px;text-align:left;padding:clamp(26px,4vw,48px);display:flex;flex-direction:column;gap:22px;background:var(--cream);scroll-margin-top:110px">
+<div aria-hidden="true" style="height:14px;border-radius:999px;background:linear-gradient(90deg,#D9CCB0 0%,#C9A96E 55%,#000 100%)"></div>
+<ol style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:18px">
+<li style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Start</span><span style="font-size:clamp(34px,3.6vw,48px);font-weight:800;letter-spacing:-.05em;line-height:1;color:#000">38%</span><span style="font-size:14px;color:var(--soft)">Your starting rate</span></li>
+<li style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Grow</span><span style="font-size:clamp(24px,2.4vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.05;color:var(--bronze)">Higher Commission Tiers</span><span style="font-size:14px;color:var(--soft)">Your rate steps up as your sales grow</span></li>
+<li style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Unlock</span><span style="font-size:clamp(34px,3.6vw,48px);font-weight:800;letter-spacing:-.05em;line-height:1;color:#000">Up to 60%</span><span style="font-size:14px;color:var(--soft)">Our top rate</span></li>
+</ol>
+<p class="fine" data-tier-rule>Higher rates apply only after you reach the sales levels set in the program terms.</p>
+</div>
+</div>
+</section>
+
+<!-- 4 · EARNINGS EXAMPLES -->
+<section id="earnings" class="scene dark sec" style="background:var(--night);color:#fff;padding:130px clamp(16px,4vw,28px)">
+<div aria-hidden="true" class="scene-bg" style="background:radial-gradient(70% 55% at 50% 20%,rgba(201,169,110,.42),rgba(44,35,51,.35) 50%,rgba(11,11,16,0) 100%)"></div>
+<div class="wrap center" style="position:relative;gap:18px">
+<span class="eyebrow">Let's talk money</span>
+<h2 class="h2">See What Your Sales Could Earn.</h2>
+<p class="lede">Here is what your commissions could look like with the $79.99 Complete Bundle.</p>
+<div class="grid" style="margin-top:24px;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:24px;max-width:920px">
+<div class="float"><span class="cast" aria-hidden="true"></span><div class="glass dcard lift" style="display:flex;flex-direction:column;gap:14px;padding:34px 30px">
+<span style="font-size:12px;font-weight:700;letter-spacing:.16em;color:rgba(255,255,255,.7)">AT A 38% COMMISSION</span>
+<span style="font-size:15px;color:rgba(255,255,255,.7)">$30.40 per sale</span>
+<table class="etab"><tbody>
+<tr><td>5 sales</td><td>$151.98</td></tr>
+<tr><td>10 sales</td><td>$303.96</td></tr>
+<tr><td>25 sales</td><td>$759.91</td></tr>
+<tr><td>50 sales</td><td>$1,519.81</td></tr>
+</tbody></table>
+</div></div>
+<div class="float"><span class="cast" aria-hidden="true"></span><div class="glass dcard lift" style="display:flex;flex-direction:column;gap:14px;padding:34px 30px;background:rgba(40,32,18,.6);border-color:rgba(226,198,142,.5)">
+<span style="font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--gold)">AT A 60% COMMISSION</span>
+<span style="font-size:15px;color:rgba(255,255,255,.7)">$47.99 per sale</span>
+<table class="etab" style="color:#fff"><tbody>
+<tr><td>5 sales</td><td style="color:var(--gold)">$239.97</td></tr>
+<tr><td>10 sales</td><td style="color:var(--gold)">$479.94</td></tr>
+<tr><td>25 sales</td><td style="color:var(--gold)">$1,199.85</td></tr>
+<tr><td>50 sales</td><td style="color:var(--gold)">$2,399.70</td></tr>
+</tbody></table>
+</div></div>
+</div>
+<p class="fine" style="margin-top:18px">These are examples only, not expected or guaranteed earnings. Examples use commission percentages applied to retail prices. Actual payouts depend on qualifying sales, applicable fees, refunds, and ClickBank terms. Results vary, and sales depend on your own promotion.</p>
+<a class="btn btn-light" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener" style="margin-top:10px">GET MY AFFILIATE LINK <span aria-hidden="true">→</span></a>
+</div>
+</section>
+
+<!-- 5 · HOW IT WORKS -->
+<section id="how" class="scene dark sec" style="background:var(--night);padding:130px clamp(16px,4vw,28px) 190px;color:#fff;border-top:1px solid rgba(226,198,142,.25)">
+<div aria-hidden="true" class="scene-bg" style="background:radial-gradient(70% 60% at 30% 25%,rgba(201,169,110,.45),rgba(44,35,51,.35) 50%,rgba(11,11,16,0) 100%)"></div>
+<div class="wrap" style="position:relative;display:flex;flex-direction:column;gap:44px">
+<div class="center" style="gap:14px">
+<span class="eyebrow">How it works</span>
+<h2 class="h2" style="font-size:clamp(40px,5.4vw,80px);letter-spacing:-.05em">Three Steps. One Simple Way to Earn.</h2>
+</div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr));gap:22px">
+<div class="float"><span class="cast" aria-hidden="true"></span><div class="glass dcard lift" style="display:flex;flex-direction:column;gap:16px">
+<span style="font-size:58px;font-weight:800;letter-spacing:-.05em;line-height:1;color:var(--gold)">01</span>
+<h3 style="margin:0;font-size:15px;font-weight:700;letter-spacing:.18em">JOIN FOR FREE</h3>
+<p style="font-size:16px;line-height:1.55;color:rgba(255,255,255,.84)">Sign up and get your personal affiliate link.</p>
+</div></div>
+<div class="float"><span class="cast" aria-hidden="true"></span><div class="glass dcard lift" style="display:flex;flex-direction:column;gap:16px">
+<span style="font-size:58px;font-weight:800;letter-spacing:-.05em;line-height:1;color:var(--gold)">02</span>
+<h3 style="margin:0;font-size:15px;font-weight:700;letter-spacing:.18em">SHARE YOUR LINK</h3>
+<p style="font-size:16px;line-height:1.55;color:rgba(255,255,255,.84)">Post on social media, make videos, or share with people who need RentReady.</p>
+</div></div>
+<div class="float"><span class="cast" aria-hidden="true"></span><div class="glass dcard lift" style="display:flex;flex-direction:column;gap:16px">
+<span style="font-size:58px;font-weight:800;letter-spacing:-.05em;line-height:1;color:var(--gold)">03</span>
+<h3 style="margin:0;font-size:15px;font-weight:700;letter-spacing:.18em">EARN FROM SALES</h3>
+<p style="font-size:16px;line-height:1.55;color:rgba(255,255,255,.84)">When someone buys through your link, you earn a commission on the qualifying sale.</p>
+</div></div>
+</div>
+<div class="center" style="gap:22px">
+<p style="font-size:18px;line-height:1.55;max-width:600px"><strong>We handle the product and delivery.</strong> <span style="color:rgba(255,255,255,.82)">You share your link and bring the sales.</span></p>
+<a class="btn btn-light" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener">GET MY AFFILIATE LINK <span aria-hidden="true">→</span></a>
+</div>
+</div>
+<svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none" style="position:absolute;left:0;bottom:-1px;width:100%;height:90px;display:block;z-index:2"><polygon points="0,10 100,0 100,10" fill="#FAF8F3"/></svg>
+</section>
+
+<!-- 6 · WHO SHOULD JOIN -->
+<section id="audience" class="sec" style="padding-top:90px">
+<div class="wrap center">
+<span class="eyebrow">Who should join</span>
+<h2 class="h2">Have an Audience? Let's Put It to Work.</h2>
+<p class="lede">If your followers care about money, credit, or finding a home, RentReady may be a great fit.</p>
+<div class="grid" style="margin-top:26px;grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr))">
+<div class="card lift" style="display:flex;flex-direction:column;gap:14px;padding:26px 22px"><span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span style="font-size:17px;font-weight:700">Credit &amp; finance creators</span></div>
+<div class="card lift" style="display:flex;flex-direction:column;gap:14px;padding:26px 22px"><span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"/></svg></span><span style="font-size:17px;font-weight:700">Real estate &amp; apartment influencers</span></div>
+<div class="card-dark lift" style="display:flex;flex-direction:column;gap:14px;padding:26px 22px"><span class="icon light"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span><span style="font-size:17px;font-weight:700">YouTubers &amp; TikTok creators</span></div>
+<div class="card lift" style="display:flex;flex-direction:column;gap:14px;padding:26px 22px"><span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18M7 12h6M7 15.5h10"/></svg></span><span style="font-size:17px;font-weight:700">Bloggers &amp; email marketers</span></div>
+<div class="card lift" style="display:flex;flex-direction:column;gap:14px;padding:26px 22px"><span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zM6 10.5V15c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5"/></svg></span><span style="font-size:17px;font-weight:700">Personal finance educators</span></div>
+</div>
+<span class="chip" style="margin-top:6px"><strong>Recommended:</strong>&nbsp;2,500+ combined social media followers</span>
+
+<div class="card-dark" style="width:100%;margin-top:28px;text-align:left;padding:clamp(28px,4vw,48px);display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px 28px">
+<div style="display:flex;flex-direction:column;gap:8px"><span class="eyebrow" style="color:var(--gold)">Who buys RentReady</span><h3 style="margin:0;font-size:clamp(26px,3vw,40px);font-weight:800;letter-spacing:-.04em;line-height:1.05">Your followers already need this.</h3></div>
+<p style="max-width:420px;font-size:15px;line-height:1.55;color:rgba(255,255,255,.75)">First-time renters. People fixing their credit. Renters who got turned down. Families who are moving. People who want to buy a home one day.</p>
+</div>
+<p class="eyebrow" style="color:rgba(255,255,255,.6);letter-spacing:.2em">Easy ways to start a post</p>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:14px">
+<p style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:20px 22px;font-size:17px;font-weight:600;line-height:1.45">“Got turned down for an apartment? Watch this before you apply again.”</p>
+<p style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:20px 22px;font-size:17px;font-weight:600;line-height:1.45">“A former leasing agent shares what landlords check first.”</p>
+<p style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:20px 22px;font-size:17px;font-weight:600;line-height:1.45">“Moving out for the first time? Do these 3 things before you apply.”</p>
+</div>
+</div>
+<a class="btn btn-dark" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener" style="margin-top:14px">START SHARING RENTREADY <span aria-hidden="true">→</span></a>
+</div>
+</section>
+
+<!-- 7 · TRUST / FOUNDER -->
+<section id="founder" class="sec" style="padding-top:30px">
+<div class="wrap" style="max-width:1040px">
+<div class="card" style="padding:0;overflow:clip;display:flex;flex-wrap:wrap">
+<div style="flex:1 1 280px;position:relative;min-height:380px"><img src="/affiliate/img/founder-portrait.jpg" alt="The founder of Nexus Luma talking with a client" width="720" height="900" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 18%"></div>
+<div style="flex:1 1 380px;min-width:0;padding:clamp(28px,4vw,52px);display:flex;flex-direction:column;gap:18px;justify-content:center">
+<div style="display:flex;align-items:center;gap:14px">
+<img src="/affiliate/img/founder-avatar.jpg" alt="" width="56" height="56" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);flex:none">
+<div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">About RentReady</span><span data-founder-name style="font-size:17px;font-weight:700"></span></div>
+</div>
+<h2 style="margin:0;font-size:clamp(28px,3.2vw,42px);font-weight:800;letter-spacing:-.04em;line-height:1.05;color:#000;text-wrap:balance">A Real Product. A Real Purpose.</h2>
+<p style="font-size:17px;line-height:1.65;color:var(--muted)">RentReady is an educational product from Nexus Luma. Our goal is simple: help people understand credit, rental applications, and the steps they can take before looking for their next home.</p>
+<p style="font-size:17px;line-height:1.65;color:var(--muted)">It was built by our founder, a former leasing agent who has helped <strong style="color:#000">more than 100 clients</strong> get ready to rent. Affiliates help us reach more people. In return, they can earn commissions from the sales they bring.</p>
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px">
+<span class="chip">Founder, Nexus Luma</span>
+<span class="chip">Former Leasing Agent</span>
+<span class="chip">100+ Clients Helped</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="sec" style="background:#fff">
+<div class="wrap center" style="max-width:820px">
+<span class="eyebrow">Quick answers</span>
+<h2 class="h2" style="font-size:clamp(32px,4vw,52px)">Questions Before You Join?</h2>
+<div style="width:100%;display:flex;flex-direction:column;gap:12px;text-align:left;margin-top:16px">
+<details><summary>Does it cost anything to join?</summary><p>No. Joining is free. You do not need to buy anything to promote RentReady.</p></details>
+<details><summary>What am I selling?</summary><p>Two products: the RentReady Essential Guide ($39.99) and the RentReady Complete Bundle ($79.99). Both help people learn about credit, rental checks, and getting ready to apply for a home.</p></details>
+<details><summary>Do I need to know about credit or real estate?</summary><p>No. The product does the teaching. You just share your link with people it can help.</p></details>
+<details><summary>Do I need 2,500 followers?</summary><p>We recommend 2,500+ combined followers, but it is not required.</p></details>
+<details><summary>How do I get paid?</summary><p>Sales made through your link are tracked through ClickBank. You are paid for qualifying sales under ClickBank's payment terms.</p></details>
+<details><summary>Am I guaranteed to make money?</summary><p>No. You earn when people buy through your link. Your results depend on how you promote your link and who you reach.</p></details>
+</div>
+</div>
+</section>
+
+<!-- 8 · FINAL CTA -->
+<section id="join" class="scene" style="background:#0F0E10;padding:150px clamp(16px,4vw,28px)">
+<div aria-hidden="true" class="scene-bg">
+<svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<radialGradient id="warm" cx="0.5" cy="0.3" r="0.7"><stop offset="0" stop-color="#E5C389" stop-opacity="0.55"/><stop offset="0.5" stop-color="#5A4426" stop-opacity="0.35"/><stop offset="1" stop-color="#0F0E10" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="1440" height="900" fill="#0F0E10"/><rect width="1440" height="900" fill="url(#warm)"/>
+</svg>
+</div>
+<div aria-hidden="true" class="scene-mid">
+<svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+<defs><linearGradient id="arch" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F4DDAE" stop-opacity="0.75"/><stop offset="1" stop-color="#A57B3E" stop-opacity="0.25"/></linearGradient></defs>
+<path d="M560 620V330A160 160 0 01880 330V620Z" fill="url(#arch)"/>
+<path d="M720 170V620M560 420H880M560 520H880" stroke="#0F0E10" stroke-width="6"/>
+<path d="M250 620V400A90 90 0 01430 400V620ZM1010 620V400A90 90 0 011190 400V620Z" fill="url(#arch)" opacity="0.45"/>
+<rect x="0" y="620" width="1440" height="280" fill="#141215"/>
+<path d="M520 600C460 680 300 780 60 830M920 600C980 680 1140 780 1380 830" stroke="#C9A96E" stroke-opacity="0.55" stroke-width="3" fill="none"/>
+</svg>
+</div>
+<div aria-hidden="true" style="position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 50%,rgba(0,0,0,.1),rgba(0,0,0,.6))"></div>
+<div class="float" style="max-width:820px;margin:0 auto"><span class="cast" aria-hidden="true"></span><div class="glass solid" style="background:rgba(250,248,243,.96);border-radius:34px;padding:clamp(34px,6vw,64px) clamp(22px,5vw,60px);display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center">
+<img src="/affiliate/img/founder-avatar.jpg" alt="" width="72" height="72" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--gold)">
+<span class="eyebrow">Ready when you are</span>
+<h2 style="margin:0;font-size:clamp(38px,5vw,68px);font-weight:800;letter-spacing:-.05em;line-height:.98;color:#000;text-wrap:balance">Your Next Sale Could Start With One Link.</h2>
+<p style="font-size:17px;line-height:1.6;color:var(--muted);max-width:560px">Join the RentReady Affiliate Program. Share a product that helps people prepare for their next home. Earn up to 60% on qualifying sales as you grow.</p>
+<a class="btn btn-dark" href="https://www.clickbank.com/" data-join target="_blank" rel="noopener" style="margin-top:6px;font-size:17px;font-weight:800;padding:23px 44px;box-shadow:0 20px 40px -16px rgba(0,0,0,.5)">GET MY AFFILIATE LINK <span aria-hidden="true">→</span></a>
+<span style="font-size:14px;font-weight:500;color:var(--soft)">Free to Join · Simple to Share · Powered by ClickBank</span>
+</div></div>
+</section>
+
+<!-- FOOTER -->
+<footer style="background:#0B0B0C;color:#fff;padding:72px clamp(16px,4vw,28px) 44px">
+<div class="wrap" style="display:flex;flex-direction:column;gap:36px">
+<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:28px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-size:16px;font-weight:700;letter-spacing:.16em">NEXUS LUMA × RENTREADY EDUCATION</span>
+<span style="font-size:14px;color:rgba(255,255,255,.7)">Official Affiliate Partner Program</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:12px 28px;font-size:14px;color:rgba(255,255,255,.82)">
+<a href="https://www.clickbank.com/" data-join target="_blank" rel="noopener">Join the Program</a>
+<a href="#">Privacy Policy</a>
+<a href="#">Affiliate Terms</a>
+<a href="#">Contact</a>
+</div>
+</div>
+<div style="height:1px;background:rgba(255,255,255,.1)"></div>
+<p style="font-size:13px;line-height:1.7;color:rgba(255,255,255,.66);max-width:880px">Earnings are not guaranteed. Affiliates are responsible for promoting their own links. Commissions depend on qualifying sales, applicable fees, refunds, and ClickBank terms. Higher commission rates apply only after the required sales levels are reached. RentReady is an educational product and does not guarantee rental approval, credit score changes, or a home purchase.</p>
+<span style="font-size:12px;color:rgba(255,255,255,.5)">Copyright © 2026 Nexus Luma LLC. All rights reserved.</span>
+</div>
+</footer>
+
+<!-- Script is external: the site CSP (public/_headers) blocks inline scripts. -->
+<script src="/affiliate/affiliate.js"></script>
+</body>
+</html>

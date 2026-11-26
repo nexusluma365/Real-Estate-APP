@@ -653,6 +653,9 @@ h1,h2,h3,h4 { font-weight:700; letter-spacing:-.045em; }
 .book-footer-links { display: flex; flex-wrap: wrap; gap: 10px 24px; }
 .book-footer-links a { color: #aab6cc; text-decoration: none; }
 .book-footer-links a:hover { color: #fff; }
+/* Affiliate program link: the one footer link with an accent */
+.site-footer a.footer-affiliate { color: var(--bk-gold, #d4af6a); font-weight: 600; text-decoration: underline; text-decoration-color: rgba(212,175,106,.45); text-underline-offset: 4px; }
+.site-footer a.footer-affiliate:hover { color: #efd69e; text-decoration-color: currentColor; }
 .site-footer-book .footer-legal { margin-top: 28px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.08); font-size: .8rem; color: #7f8aa0; }
 .book-footer-copy { margin-top: 8px; font-size: .8rem; color: #7f8aa0; }
 

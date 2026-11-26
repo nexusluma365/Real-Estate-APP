@@ -6,6 +6,8 @@ import { memberState, openBillingPortal, signOut, type MemberState } from '../li
 
 /** RentReady Finder is a separate app served by the same domain at /finder/ (see netlify.toml), so it's a full page load. */
 export const FINDER_URL = '/finder/';
+/** Affiliate program: a standalone static page (public/affiliate/), so also a full page load. */
+export const AFFILIATE_URL = '/affiliate/';
 
 type Item = { label: string; hint: string } & ({ section: string } | { href: string } | { home: true } | { action: 'signout' | 'billing' });
 
@@ -18,6 +20,7 @@ function menuItems(state: MemberState): Item[] {
     { label: 'Home', hint: 'Back to the start', home: true },
     { label: 'RentReady Finder', hint: 'Search apartments near you', href: FINDER_URL },
     { label: 'Get the Book', hint: 'Before They Say No™ — the rental approval playbook', section: 'get' },
+    { label: 'Affiliate', hint: 'Share RentReady and earn up to 60% per sale', href: AFFILIATE_URL },
   ];
   const account: Item = { label: 'My Account', hint: state === 'active' ? 'Premium · Active' : state === 'past_due' ? 'Premium · Payment due' : 'Saved apartments, purchases and membership', href: '/account' };
   const signOut: Item = { label: 'Sign Out', hint: 'Sign out on this device', action: 'signout' };

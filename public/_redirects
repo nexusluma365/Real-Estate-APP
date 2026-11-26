@@ -5,4 +5,7 @@
 /finder        /finder/index.html  200
 /finder/*      /finder/index.html  200
 
+# Affiliate program: a standalone static page in public/affiliate/.
+/affiliate     /affiliate/index.html  200
+
 /*    /index.html   200
