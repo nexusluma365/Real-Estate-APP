@@ -57,6 +57,9 @@ const env: Env = {
 
 // ---- simulated Stripe (stateful) + ESP
 const pis = new Map<string, Record<string, unknown>>();
+/** Like Stripe: an Idempotency-Key replays its first response, and is rejected if reused with different parameters. */
+const idemKeys = new Map<string, { body: string; response: unknown }>();
+const knownCustomers = new Set(['cus_test_1']);
 const checkoutSessions = new Map<string, { id: string; params: Record<string, string>; status: string; customer?: string; email?: string }>();
 const stripeSubscriptions = new Map<string, Record<string, unknown>>();
 let stripeSubscriptionFetchFailures = 0;
@@ -123,6 +126,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const j = (d: unknown) => new Response(JSON.stringify(d), { headers: { 'Content-Type': 'application/json' } });
   if (path === 'customers') return j({ id: 'cus_test_1' });
   if (path === 'payment_intents' && init?.method === 'POST') {
+    const key = (init.headers as Record<string, string> | undefined)?.['Idempotency-Key'];
+    const body = String(init.body || '');
+    if (key && idemKeys.has(key)) {
+      const prior = idemKeys.get(key)!;
+      if (prior.body !== body) return new Response(JSON.stringify({ error: { type: 'idempotency_error', message: 'Keys for idempotent requests can only be used with the same parameters they were first used with.' } }), { status: 400 });
+      return j(prior.response);
+    }
+    const cust = form.get('customer');
+    if (cust && !knownCustomers.has(cust)) return new Response(JSON.stringify({ error: { type: 'invalid_request_error', code: 'resource_missing', param: 'customer', message: `No such customer: '${cust}'` } }), { status: 400 });
     const id = `pi_test${++piSeq}`;
     const pi = {
       id, client_secret: `${id}_secret`, amount: Number(form.get('amount')), currency: form.get('currency'), customer: form.get('customer'),
@@ -130,6 +142,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       status: form.get('confirm') === 'true' ? 'succeeded' : 'requires_payment_method', payment_method: form.get('payment_method') || 'pm_card_visa',
     };
     pis.set(id, pi);
+    if (key) idemKeys.set(key, { body, response: pi });
     return j(pi);
   }
   const m = /^payment_intents\/(pi_\w+)$/.exec(path);
@@ -979,4 +992,40 @@ test('migration not applied yet: lead capture, checkout, payment confirmation an
   await send('POST', '/api/access/link', { email: 'pat-oldschema@example.com' });
   const link = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s"]+)/.exec(emails.slice(before).find((e) => e.subject === 'Your RentReady sign-in link')!.text)![1];
   assert.equal((await send('GET', link.slice(ORIGIN.length))).res.headers.get('Location'), `${ORIGIN}/access`);
+});
+
+test('checkout recovers from a reused attempt key and from a Stripe customer that no longer exists', async () => {
+  cookie = '';
+  await call('POST', '/api/leads', { first_name: 'Lee', email: 'lee@example.com', lead_source: 'checkout' });
+  await call('POST', '/api/payments/customer', {});
+  // The same browser attempt key was used before for an older order (e.g. the $49.98 book + shipping).
+  const legacyKey = 'gd_oldtabattempt123';
+  idemKeys.set(legacyKey, { body: 'amount=4998&currency=usd&old=1', response: {} });
+  // The fake Stripe gives every buyer the same customer; clear what earlier tests bought so this one runs in full.
+  await client.execute("UPDATE rr_entitlements SET revoked_at = '2026-01-01' WHERE customer_id = 'cus_test_1'");
+  const product = 'creditready';
+  assert.deepEqual((await call('GET', '/api/entitlements')).data.products, []);
+  const a = await call('POST', '/api/payments/intent', { product }, { 'Idempotency-Key': legacyKey });
+  assert.equal(a.status, 200, 'an old key never blocks a new order');
+  const again = await call('POST', '/api/payments/intent', { product }, { 'Idempotency-Key': legacyKey });
+  assert.equal(again.data.payment_intent_id, a.data.payment_intent_id, 'a double-click still returns the same payment');
+
+  // Saved customer from Stripe test mode (doesn't exist for the live key) → a new customer is created and used.
+  const leadId = (await client.execute("SELECT lead_id FROM rr_leads WHERE email = 'lee@example.com'")).rows[0].lead_id as string;
+  await client.execute({ sql: "UPDATE rr_leads SET stripe_customer_id = 'cus_from_test_mode' WHERE lead_id = ?", args: [leadId] });
+  cookie = '';
+  await call('POST', '/api/leads', { first_name: 'Lee', email: 'lee@example.com', lead_source: 'checkout' });
+  assert.equal((await call('POST', '/api/payments/customer', {})).data.customer_id, 'cus_from_test_mode');
+  const b = await call('POST', '/api/payments/intent', { product }, { 'Idempotency-Key': 'cr_fresh1' });
+  assert.equal(b.status, 200, 'stale customer replaced');
+  assert.equal((pis.get(b.data.payment_intent_id) as any).customer, 'cus_test_1');
+  assert.equal((await client.execute({ sql: 'SELECT stripe_customer_id FROM rr_leads WHERE lead_id = ?', args: [leadId] })).rows[0].stripe_customer_id, 'cus_test_1');
+  pay(b.data.payment_intent_id);
+  assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: b.data.payment_intent_id, product })).data.verified, true, 'session follows the new customer');
+
+  // Any other Stripe failure: a clear 502 with Stripe's code, not a crash.
+  knownCustomers.delete('cus_test_1');
+  const c = await call('POST', '/api/payments/intent', { product: 'guide' });
+  knownCustomers.add('cus_test_1');
+  assert.ok([409, 502].includes(c.status));
 });

@@ -142,6 +142,8 @@ export default function Checkout() {
         }
       } catch (e) {
         if (cancelled) return;
+        // Never retry with the key of a failed attempt: the next try (or reload) starts a fresh payment attempt.
+        resetAttemptKey(ATTEMPT_SCOPE[choice]);
         const cfg = e instanceof ApiError && e.code === 'not_configured';
         setStatus(cfg ? 'config_error' : 'network_error');
         setMessage(e instanceof ApiError || e instanceof Error ? e.message : 'We couldn’t start checkout.');

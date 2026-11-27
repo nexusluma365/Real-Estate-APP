@@ -42,7 +42,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     const d = (data || {}) as { error?: string; code?: string };
     // Server-side setup problems and crashes are logged for us, never shown to visitors in technical terms.
     if (d.code === 'not_configured' || res.status >= 500) {
-      console.error(`RentReady API ${path} → ${res.status}`, d.error || '');
+      console.error(`RentReady API ${path} → ${res.status}`, d.error || '', d.code ? `[${d.code}]` : '');
       throw new ApiError(`We’re having trouble on our side right now. Please try again in a few minutes${contact()}.`, res.status, d.code || 'server_error');
     }
     throw new ApiError(d.error || `Something went wrong (${res.status}). Please try again.`, res.status, d.code || 'api_error');
