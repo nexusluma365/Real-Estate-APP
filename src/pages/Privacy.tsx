@@ -11,7 +11,7 @@ const SECTIONS: [string, string[]][] = [
     'Contact details you give us: your first name and email address (for example when you start checkout, claim the free-book offer, download the checklist or join RentReady Premium).',
     'Order and membership records: what you bought or subscribed to, amounts, dates and status. Card details are entered on Stripe’s secure forms and never reach or are stored by RentReady.',
     'Your answers to the apartment-match questionnaire (city or ZIP, move timing, budget, bedrooms, and any rental concerns you choose to share), saved with your name and email after you give them, so we can follow up about your search. These answers are never shared with advertising or analytics services.',
-    'Shipping address for the physical book, collected and stored by Stripe and used only to ship your order.',
+    'For orders placed before RentReady became digital-only: the shipping address for the physical book, collected and stored by Stripe and used only to ship that order. Digital orders don’t collect an address.',
     'Your optional quiz and assessment answers, used only to tailor your plan inside your account. They are never shared with advertising platforms.',
     'Account activity: apartments and searches you save, apartments you recently viewed and your alert settings.',
     'Basic usage events (for example “search completed” or “checkout started”) with a random session id, the page and the ad campaign that brought you, so we can see what works. No names, emails or credit information are included.',
@@ -21,7 +21,7 @@ const SECTIONS: [string, string[]][] = [
     'Your precise location is used only if you tap “Use My Location” and your browser asks for and receives your permission. It is used for that search and is not stored.',
   ]],
   ['How we use it', [
-    'To provide what you asked for: orders, downloads, shipping updates, membership access, saved apartments and listing alerts.',
+    'To provide what you asked for: orders, digital delivery emails and downloads, membership access, saved apartments and listing alerts.',
     'To send transactional emails (receipts, sign-in links, membership and billing notices). Marketing emails are sent only if you agreed to them, and every one has an unsubscribe link.',
     'To measure and improve the site and our advertising using the aggregated events above.',
   ]],

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { FunnelProvider } from './state/FunnelContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ScrollToTop } from './components/Layout';
@@ -16,7 +16,6 @@ const Start = lazy(() => import('./pages/Start'));
 const Learn = lazy(() => import('./pages/Learn'));
 const CreditReady = lazy(() => import('./pages/CreditReady'));
 const Checkout = lazy(() => import('./pages/Checkout'));
-const Upsell = lazy(() => import('./pages/Upsell'));
 const Welcome = lazy(() => import('./pages/Welcome'));
 const Assessment = lazy(() => import('./pages/Assessment'));
 const Gameplan = lazy(() => import('./pages/Gameplan'));
@@ -58,8 +57,8 @@ export default function App() {
               <Route path="/checklist" element={<Checklist />} />
               {/* Step 5 — Checkout (collects name + email inline when there's no lead yet) */}
               <Route path="/checkout" element={<Checkout />} />
-              {/* Step 6 — Upsell / Congratulations / Onboarding (server-verified access) */}
-              <Route path="/complete-your-system" element={<RequireProduct product="creditready"><Upsell /></RequireProduct>} />
+              {/* Step 6 — Congratulations / Onboarding (server-verified access). The Playbook upsell is retired: old links go to /welcome. */}
+              <Route path="/complete-your-system" element={<Navigate to="/welcome" replace />} />
               <Route path="/welcome" element={<RequireProduct product={['creditready', 'guide']}><Welcome /></RequireProduct>} />
               <Route path="/assessment" element={<RequireProduct product="creditready"><Assessment /></RequireProduct>} />
               <Route path="/gameplan" element={<RequireProduct product="creditready"><Gameplan /></RequireProduct>} />

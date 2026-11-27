@@ -4,7 +4,6 @@ interface ImportMetaEnv {
   readonly VITE_FUNNEL_MODE?: 'mock' | 'production';
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_SITE_URL?: string;
-  readonly VITE_PHYSICAL_DELIVERY_NOTE?: string;
   readonly VITE_SUPPORT_EMAIL?: string;
   readonly VITE_STRIPE_PUBLISHABLE_KEY?: string;
   readonly VITE_HERO_VARIANT?: string;

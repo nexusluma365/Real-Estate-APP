@@ -7,7 +7,7 @@ import { BookVisual } from '../components/BookVisual';
 import { Icon } from '../components/Icon';
 import { LeadForm } from '../components/LeadForm';
 import { BundleImage } from '../components/Funnel';
-import { dollars, PRODUCTS, shippingLabel, totalCents, totalLabel } from '../config/products';
+import { dollars, PRODUCTS } from '../config/products';
 import { buyFaq } from '../config/faq';
 import { SITE } from '../config/site';
 import { isMock, env } from '../lib/env';
@@ -20,7 +20,6 @@ import {
   createCustomer,
   createPaymentIntent,
   resetAttemptKey,
-  savePaymentMethodForUpsell,
   verifyPaymentServerSide,
   type PaymentIntentRef,
 } from '../lib/paymentService';
@@ -31,15 +30,16 @@ import { ApiError } from '../lib/api';
 import { restoreSession } from '../lib/leadService';
 
 /**
- * Front-door checkout. Both the book ($39.99 + $9.99 shipping) and the Digital Bundle ($79.99, shipping included)
- * include the physical book, so both collect a shipping address. Book owners see only the upgrade ($40 — their $39.99
- * counts; nothing ships).
- * /checkout?product=guide|creditready|upgrade preselects; the buyer can switch before paying.
+ * Checkout for the two digital offers: the $39.99 Digital eBook and the $79.99 Complete Digital Bundle. Nothing ships,
+ * so no address and no shipping charge. After the server verifies the payment the buyer lands on /welcome with their
+ * downloads, and the webhook emails the package (netlify/lib/delivery.ts).
+ * /checkout?product=guide|creditready preselects (old ?product=upgrade links open the Bundle); the buyer can switch.
+ * eBook owners can only choose the Bundle; Bundle owners already have everything and go to /access.
  * No lead yet? Step 1 (name + email) happens right here, so nobody is bounced to another page.
  */
-type Choice = 'creditready' | 'guide' | 'upgrade';
-const ATTEMPT_SCOPE: Record<Choice, string> = { creditready: 'cr', guide: 'gd', upgrade: 'up' };
-/** Outcomes of reading the book. Hedged: we teach what may be reviewed; we don't promise decisions. */
+type Choice = 'creditready' | 'guide';
+const ATTEMPT_SCOPE: Record<Choice, string> = { creditready: 'cr', guide: 'gd' };
+/** Outcomes of reading the eBook. Hedged: we teach what may be reviewed; we don't promise decisions. */
 const KNOW = [
   'What property managers and screening companies may look at when you apply',
   'What could be hurting your approval chances — credit, collections or rental history',
@@ -50,7 +50,7 @@ const KNOW = [
 /** Bundle-only: letters + videos unlock right after checkout, so these really can start today. */
 const ACT = [
   'Pull your free credit reports and mark items you believe are inaccurate',
-  'Watch the step-by-step video guide on how the dispute process works',
+  'Watch the video guides on how the dispute process works',
   'Fill in your Microsoft Word dispute letters and send them yourself',
   'Get disputes moving now, before your application date',
 ];
@@ -62,25 +62,25 @@ export default function Checkout() {
   const { search } = useLocation();
   const ownsGuide = owns('guide');
   const requested = new URLSearchParams(search).get('product');
-  const [picked, setPicked] = useState<Choice>(() => (requested === 'guide' ? 'guide' : requested === 'upgrade' ? 'upgrade' : 'creditready'));
-  // Book owners never pay full price for the Bundle, and never re-buy the book.
-  const choice: Choice = ownsGuide ? 'upgrade' : picked === 'upgrade' ? 'creditready' : picked;
-  const P = PRODUCTS[choice];
-  const value = dollars(totalCents(P));
+  const [picked, setPicked] = useState<Choice>(() => (requested === 'guide' ? 'guide' : 'creditready'));
   const [status, setStatus] = useState<CheckoutStatus>('preparing');
+  // eBook owners never re-buy the eBook. Frozen once a payment is being confirmed: buying the eBook makes the buyer an
+  // eBook owner, and switching the product mid-confirmation would start a new payment and leave this page.
+  const confirming = status === 'verifying' || status === 'success';
+  const choice: Choice = ownsGuide && !confirming ? 'creditready' : picked;
+  const P = PRODUCTS[choice];
+  const value = dollars(P.priceCents);
   const [message, setMessage] = useState('');
   const [mockOutcome, setMockOutcome] = useState<MockOutcome>('success');
   const [elementComplete, setElementComplete] = useState(isMock);
-  const [addressComplete, setAddressComplete] = useState(isMock);
   const intent = useRef<PaymentIntentRef | null>(null);
   const stripe = useRef<StripeLike | null>(null);
   const elements = useRef<StripeElements | null>(null);
   const mountRef = useRef<HTMLDivElement>(null);
-  const addressRef = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
   const faq = useMemo(
     () =>
-      buyFaq({ guidePrice: `${PRODUCTS.guide.priceLabel} ${shippingLabel(PRODUCTS.guide)}`, bundlePrice: `${PRODUCTS.creditready.priceLabel} ${shippingLabel(PRODUCTS.creditready)}`, upgradePrice: PRODUCTS.upgrade.priceLabel, refundDays: env.moneyBackDays, deliveryNote: env.physicalDeliveryNote, supportEmail: SITE.supportEmail })
+      buyFaq({ guidePrice: PRODUCTS.guide.priceLabel, bundlePrice: PRODUCTS.creditready.priceLabel, refundDays: env.moneyBackDays, supportEmail: SITE.supportEmail })
         .filter((f) => CHECKOUT_FAQ_IDS.includes(f.id)),
     [],
   );
@@ -97,7 +97,6 @@ export default function Checkout() {
     setStatus('preparing');
     setMessage('');
     setElementComplete(isMock);
-    setAddressComplete(isMock || !P.ships);
     (async () => {
       try {
         // Returning from a redirect-based authentication (e.g. some 3DS / bank flows)
@@ -129,13 +128,6 @@ export default function Checkout() {
           stripe.current = s;
           const els = s.elements({ clientSecret: pi.client_secret, appearance: stripeAppearance });
           elements.current = els;
-          if (P.ships && addressRef.current) {
-            // Shipping mode attaches the address to the PaymentIntent on confirmPayment (book fulfillment).
-            const addr = els.create('address', { mode: 'shipping', allowedCountries: ['US'] });
-            addr.on('change', (e) => setAddressComplete(!!e.complete));
-            addr.mount(addressRef.current);
-            mounted.push(addr);
-          }
           const pe = els.create('payment', { layout: 'tabs', fields: { billingDetails: { name: 'auto', email: 'never' } } });
           pe.on('change', (e) => setElementComplete(!!e.complete));
           pe.mount(mountRef.current);
@@ -172,25 +164,19 @@ export default function Checkout() {
       inFlight.current = false;
       return;
     }
-    if (choice !== 'guide') await savePaymentMethodForUpsell(paymentIntentId);
     await refreshEntitlements();
     // Reported once per transaction, with the verified amount.
-    trackPurchase(choice === 'upgrade' ? 'upgrade' : 'front', choice, v.order?.amount_cents ?? totalCents(P), v.order?.order_id);
+    trackPurchase('front', choice, v.order?.amount_cents ?? P.priceCents, v.order?.order_id);
     resetAttemptKey(ATTEMPT_SCOPE[choice]);
     setStatus('success');
-    // Bundle buyers (full or upgrade) see the optional Playbook; book buyers go straight to their welcome.
-    navigate(choice === 'guide' ? '/welcome' : '/complete-your-system', { replace: true });
+    // Straight to the downloads. The package email follows from the webhook.
+    navigate('/welcome', { replace: true });
   }
 
   async function onPay(e: FormEvent) {
     e.preventDefault();
     if (inFlight.current || status === 'processing' || status === 'verifying' || status === 'success') return; // duplicate protection
     if (!intent.current) return;
-    if (!isMock && P.ships && !addressComplete) {
-      setStatus('validation_error');
-      setMessage('Add your shipping address so we can send your book.');
-      return;
-    }
     if (!isMock && !elementComplete) {
       setStatus('validation_error');
       setMessage('Complete your card details to continue.');
@@ -234,7 +220,7 @@ export default function Checkout() {
   }
 
   if (entitlements.status === 'loaded' && status !== 'success' && status !== 'verifying') {
-    if (owns('creditready')) return <Navigate to={owns('playbook') ? '/access' : '/complete-your-system'} replace />;
+    if (owns('creditready')) return <Navigate to="/access" replace />;
     if (requested === 'guide' && ownsGuide) return <Navigate to="/access" replace />;
   }
 
@@ -256,7 +242,7 @@ export default function Checkout() {
             <Journey at={3} />
             <h1 id="sum-h" className="co-title" style={{ fontSize: 'var(--step-4)' }}>{P.name}</h1>
             <p className="muted co-title-sub">{P.promise}</p>
-            {/* The book shows the book; the Bundle (and the upgrade to it) shows the full bundle. */}
+            {/* The eBook shows the book cover; the Bundle shows the full bundle. */}
             {choice === 'guide' ? (
               <div className="co-img co-img-book"><BookVisual size="mid" eager /></div>
             ) : (
@@ -275,23 +261,17 @@ export default function Checkout() {
                 <ul>{ACT.map((t) => <li key={t}><Icon name="check" />{t}</li>)}</ul>
               </div>
             )}
-            <p className="fine">One-time payment. No recurring subscription.{P.ships && ' Your book ships to the address you enter.'}</p>
+            <p className="fine">One-time payment. No recurring subscription. 100% digital — no shipping, no waiting.</p>
 
             <div className="co-next" aria-labelledby="next-h">
               <h2 id="next-h">What happens after you order</h2>
               <ol>
-                <li><strong>Instantly</strong> — your access page opens{choice === 'guide' ? '.' : ' and your dispute letters and video guide unlock.'}</li>
-                <li><strong>Within minutes</strong> — a confirmation email with your receipt and a link back to your access.</li>
-                {P.ships && <li><strong>Your book</strong> — ships to the address you enter.{env.physicalDeliveryNote && ` ${env.physicalDeliveryNote}`}</li>}
+                <li><strong>Instantly</strong> — your downloads open: the eBook{choice === 'guide' ? '' : ', your dispute letters and your video guides'}.</li>
+                <li><strong>Within minutes</strong> — “Your RentReady Digital Package Is Ready!” arrives by email, with your order details and a button back to everything you bought.</li>
+                <li><strong>Anytime later</strong> — sign in with your email on the access page for a fresh link. Your access doesn’t expire.</li>
               </ol>
             </div>
 
-            {choice === 'guide' && (
-              <p className="co-upgrade-note">
-                <Icon name="info" width={18} height={18} />
-                <span>Decide later: upgrade to the Digital Bundle anytime — what you pay for the book counts in full.</span>
-              </p>
-            )}
           </div>
         </aside>
 
@@ -317,43 +297,26 @@ export default function Checkout() {
                 <Link to={`/start?next=${encodeURIComponent(`/checkout?product=${choice}`)}`} className="text-link" style={{ fontSize: '0.9rem' }}>Change</Link>
               </div>
 
-              {choice === 'upgrade' ? (
-                <Alert kind="ok">You already own the book, so your {PRODUCTS.guide.priceLabel} is credited in full. You pay {P.priceLabel} for the dispute letters and video guide — nothing extra ships.</Alert>
+              {ownsGuide ? (
+                <Alert kind="ok">You already own the eBook. The Complete Digital Bundle adds the 20 editable dispute letters and the video guides.</Alert>
               ) : (
                 <fieldset className="format-pick" disabled={busy}>
-                  <legend>Choose how you want to get RentReady</legend>
+                  <legend>Choose your digital package</legend>
                   <label className={choice === 'creditready' ? 'on' : ''}>
                     <input type="radio" name="product" checked={choice === 'creditready'} onChange={() => choose('creditready')} />
-                    <span><strong>Digital Bundle <em className="format-tag">Book + tools</em></strong><small>Book + 20 dispute letters + video guide</small></span>
-                    <b>{PRODUCTS.creditready.priceLabel}<small style={{ display: 'block', fontWeight: 400, fontSize: '0.78rem' }}>{shippingLabel(PRODUCTS.creditready)}</small></b>
+                    <span><strong>Complete Digital Bundle <em className="format-tag">eBook + tools</em></strong><small>eBook + 20 dispute letters + video guides</small></span>
+                    <b>{PRODUCTS.creditready.priceLabel}</b>
                   </label>
                   <label className={choice === 'guide' ? 'on' : ''}>
                     <input type="radio" name="product" checked={choice === 'guide'} onChange={() => choose('guide')} />
-                    <span><strong>The book</strong><small>Physical copy of Before They Say No™</small></span>
-                    <b>{PRODUCTS.guide.priceLabel}<small style={{ display: 'block', fontWeight: 400, fontSize: '0.78rem' }}>{shippingLabel(PRODUCTS.guide)}</small></b>
+                    <span><strong>Digital eBook</strong><small>Know Before They Say NO! (PDF)</small></span>
+                    <b>{PRODUCTS.guide.priceLabel}</b>
                   </label>
                 </fieldset>
               )}
-
-              {P.shippingCents ? (
-                <dl className="fine" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', margin: 0 }}>
-                  <dt>{P.shortName}</dt><dd style={{ margin: 0, textAlign: 'right' }}>{P.priceLabel}</dd>
-                  <dt>Shipping</dt><dd style={{ margin: 0, textAlign: 'right' }}>${(P.shippingCents / 100).toFixed(2)}</dd>
-                  <dt style={{ fontWeight: 700 }}>Total today</dt><dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{totalLabel(P)}</dd>
-                </dl>
-              ) : null}
-
-              {P.ships && (
-                <div className="field">
-                  <span style={{ fontWeight: 600 }}>Shipping address</span>
-                  <div className="pay-box" style={{ minHeight: 0 }}>
-                    {/* Production: Stripe Address Element (shipping mode) mounts here. */}
-                    <div ref={addressRef} hidden={isMock} />
-                    {isMock && <div className="pay-placeholder"><div className="ph"><Icon name="home" width={18} height={18} style={{ marginRight: 10 }} />Stripe Address Element (shipping) renders here</div></div>}
-                  </div>
-                  <span className="fine">For your copy of Before They Say No™.{env.physicalDeliveryNote && ` ${env.physicalDeliveryNote}`}</span>
-                </div>
-              )}
+              <p className="fine" style={{ margin: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Icon name="download" width={16} height={16} />Instant digital access after payment. No shipping, no shipping fees.
+              </p>
 
               <div className="field">
                 <span style={{ fontWeight: 600 }}>Payment</span>
@@ -396,17 +359,10 @@ export default function Checkout() {
               )}
 
               <button className="btn btn-block" type="submit" disabled={!ready || busy} aria-busy={busy}>
-                {status === 'processing' ? <><Spinner /> Processing payment</> : status === 'verifying' || status === 'success' ? <><Spinner /> Confirming your order</> : `Complete my ${totalLabel(P)} order`}
+                {status === 'processing' ? <><Spinner /> Processing payment</> : status === 'verifying' || status === 'success' ? <><Spinner /> Confirming your order</> : `Get Instant Digital Access — ${P.priceLabel}`}
               </button>
               <CheckoutAssurance />
 
-              {choice !== 'guide' && (
-                <p className="fine">
-                  By completing your order, you authorize RentReady to save your payment method securely with our payment
-                  processor, Stripe, so you can choose to add another RentReady product with one click on the next page. You
-                  won’t be charged again unless you choose to.
-                </p>
-              )}
               <div className="fine" style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: 10 }}>
                 <Icon name="lock" width={16} height={16} />
                 <span>

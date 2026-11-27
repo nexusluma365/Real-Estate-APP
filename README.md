@@ -1,8 +1,10 @@
 # RentReady — werentreadygo.com
 
-Rental-application readiness funnel. Products: **Before They Say No™** (physical book, $39.99 + $9.99 shipping) and the
-**RentReady Digital Bundle** ($79.99 + $9.99 shipping — book + 20 Word dispute letters + step-by-step video guide), with a $40 upgrade
-for book owners and the optional **Property Manager Playbook** ($100, one click after the Bundle).
+Rental-application readiness funnel, 100% digital. Products: the **RentReady Digital eBook** ($39.99 — *Know Before They
+Say NO!* as a PDF) and the **RentReady Complete Digital Bundle** ($79.99 — the eBook + 20 Word dispute letters + video guides).
+Nothing ships. After Stripe confirms payment, buyers get their downloads on screen and an automatic delivery email —
+see **`DIGITAL_DELIVERY.md`** (setup, delivery, retries, refunds, affiliate tracking). The $40 upgrade and the $100
+Property Manager Playbook are retired (past buyers keep access).
 
 Stack: React + Vite front end · Netlify Functions API (`/api/*`) · Supabase PostgreSQL · private Cloudflare R2 downloads · Stripe.
 
@@ -22,6 +24,7 @@ through. Checkout and upsell show a **development simulator** to test approve / 
 bank-confirmation states. Reset demo data from **/access → Development tools**.
 
 ## Docs
+* `DIGITAL_DELIVERY.md` — the digital-only system: setup checklist, delivery email, retries, refunds/chargebacks, affiliate tracking, launch test plan
 * `CHANGELOG.md` — the 2026-10 conversion-system upgrade: what changed and why
 * `LAUNCH_CHECKLIST.md` — integration status, deployment, Stripe / email / Ads / Meta checklists, QA results, risks
 * `EMAIL_SEQUENCES.md` — copy + timing + exit rules for every lifecycle email

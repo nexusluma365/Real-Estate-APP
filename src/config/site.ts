@@ -8,7 +8,7 @@ export const SITE = {
   privacyUrl: env.privacyUrl,
   termsUrl: env.termsUrl,
   /** The book is the hero product on the home page. */
-  book: 'Before They Say No™',
+  book: 'Know Before They Say NO!',
   tagline: 'See before they see.',
   /** Short compliance line reused across pages. */
   disclaimer:

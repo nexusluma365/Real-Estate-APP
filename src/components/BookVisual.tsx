@@ -3,7 +3,7 @@ import bookWebpSm from '../assets/book/before-they-say-no-mockup-640.webp';
 import bookPng from '../assets/book/before-they-say-no-mockup.png';
 
 /**
- * The "Before They Say No™" product artwork, in one place.
+ * The "Know Before They Say NO!" eBook cover artwork, in one place.
  * To replace it (e.g. with a transparent 3D mockup), swap the imports above, update width/height,
  * and set `cutout: true` — the frame is dropped and the book floats on a drop shadow. No layout changes needed.
  */

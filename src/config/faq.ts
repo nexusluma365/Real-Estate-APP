@@ -66,7 +66,7 @@ export const OBJECTIONS: FaqItem[] = [
   {
     id: 'dont-know',
     q: 'What if I don’t know what’s on my reports?',
-    a: 'Start with your free reports from all three bureaus at AnnualCreditReport.com — checking your own reports doesn’t affect your score. The book explains what a property may look at; the video guide walks through how to dispute items you believe are wrong.',
+    a: 'Start with your free reports from all three bureaus at AnnualCreditReport.com — checking your own reports doesn’t affect your score. The eBook explains what a property may look at; the video guide walks through how to dispute items you believe are wrong.',
   },
   {
     id: 'guarantee-approval',
@@ -91,15 +91,15 @@ export const OBJECTIONS: FaqItem[] = [
   {
     id: 'accurate',
     q: 'What if the information is accurate?',
-    a: 'Then it isn’t something to dispute. Accurate information can generally remain on your report. The book shows you how to understand it, address any balance if you choose, and be prepared to discuss it with a property.',
+    a: 'Then it isn’t something to dispute. Accurate information can generally remain on your report. The eBook shows you how to understand it, address any balance if you choose, and be prepared to discuss it with a property.',
   },
 ];
 
 /**
  * Buying objections for the landing page, the Digital Bundle page and checkout. Answers are built from
- * live config (prices, refund window, delivery note) so they can never drift from what checkout does.
+ * live config (prices, refund window) so they can never drift from what checkout does. Both offers are digital.
  */
-export function buyFaq(o: { guidePrice: string; bundlePrice: string; upgradePrice: string; refundDays: number; deliveryNote: string; supportEmail: string }): FaqItem[] {
+export function buyFaq(o: { guidePrice: string; bundlePrice: string; refundDays: number; supportEmail: string }): FaqItem[] {
   const refund =
     o.refundDays > 0
       ? `Yes. If RentReady isn’t useful to you, email ${o.supportEmail} within ${o.refundDays} days of purchase for a full refund. No forms, no hoops.`
@@ -108,12 +108,12 @@ export function buyFaq(o: { guidePrice: string; bundlePrice: string; upgradePric
     {
       id: 'bad-credit',
       q: 'Will this help if my credit is bad?',
-      a: 'That’s who it was written for. The book shows what a property may look at and how to prepare an application that explains what you can’t change. The Digital Bundle adds 20 dispute letter templates and a video guide for challenging items you believe are inaccurate, incomplete or outdated. Nothing honest can erase accurate history — but you stop walking in blind.',
+      a: 'That’s who it was written for. The eBook shows what a property may look at and how to prepare an application that explains what you can’t change. The Complete Digital Bundle adds 20 editable dispute letter templates and video guides for challenging items you believe are inaccurate, incomplete or outdated. Nothing honest can erase accurate history — but you stop walking in blind.',
     },
     {
       id: 'already-denied',
       q: 'What if I was already denied?',
-      a: 'Start there. If a denial was based on a credit or screening report, the property generally has to give you an adverse action notice naming the company that supplied it. The book shows you how to use that notice to request your report, check it, and decide what to fix before you pay another application fee.',
+      a: 'Start there. If a denial was based on a credit or screening report, the property generally has to give you an adverse action notice naming the company that supplied it. The eBook shows you how to use that notice to request your report, check it, and decide what to fix before you pay another application fee.',
     },
     {
       id: 'first-time',
@@ -123,22 +123,22 @@ export function buyFaq(o: { guidePrice: string; bundlePrice: string; upgradePric
     {
       id: 'applying-soon',
       q: 'I’m applying in the next few days. Is it too late?',
-      a: 'No — that’s when knowing matters most. The book is physical and ships to you, while the Digital Bundle’s letters and videos unlock right after checkout. Disputes can take about 30 days, so with a short timeline the focus is on knowing what’s on your reports, asking the right questions before you pay a fee, and having your documents and explanations ready.',
+      a: 'No — that’s when knowing matters most. Everything is digital and opens right after payment, so you can start reading today. Disputes can take about 30 days, so with a short timeline the focus is on knowing what’s on your reports, asking the right questions before you pay a fee, and having your documents and explanations ready.',
     },
     {
       id: 'which-one',
-      q: 'What’s the difference between the book and the Digital Bundle?',
-      a: `The book (${o.guidePrice}) is a physical copy of Before They Say No™, mailed to you. The RentReady Digital Bundle (${o.bundlePrice}) includes the same physical book plus 20 Essential Credit Dispute Letter templates you can edit in Microsoft Word and a step-by-step video guide showing how to dispute negative items. Bought the book first? Upgrade for ${o.upgradePrice} — your purchase counts in full.`,
+      q: 'What’s the difference between the eBook and the Complete Digital Bundle?',
+      a: `The RentReady Digital eBook (${o.guidePrice}) is the complete Know Before They Say NO! eBook as a downloadable PDF. The RentReady Complete Digital Bundle (${o.bundlePrice}) includes the same eBook plus 20 credit dispute letter templates you can edit in Microsoft Word and video guides showing how to dispute negative items.`,
     },
     {
       id: 'physical',
       q: 'Is it a physical book or a digital download?',
-      a: `Before They Say No™ is a physical book, mailed to the address you enter at checkout — in both options. In the Digital Bundle, the letter templates (Microsoft Word) and the video guide are digital and unlock right after checkout.${o.deliveryNote ? ` ${o.deliveryNote}` : ''}`,
+      a: 'It’s 100% digital. Know Before They Say NO! is a PDF eBook you can read on any phone, tablet or computer. In the Complete Digital Bundle the letter templates (Microsoft Word) and the video guides are digital too. Nothing ships, so there’s no shipping fee and no wait.',
     },
     {
       id: 'delivery',
       q: 'How do I get my purchase?',
-      a: 'Your book ships to the address you enter at checkout. Right after checkout you land on your access page and we email you a confirmation. Digital Bundle letters and videos open from that access page on any device — if you switch devices, request a secure sign-in link with the email you used at checkout.',
+      a: 'Instantly. As soon as your payment is confirmed your downloads open on screen, and an email titled “Your RentReady Digital Package Is Ready!” arrives with a button back to everything you bought. Lost the email or switched devices? Enter the email you used at checkout on the access page and we’ll send a fresh secure link — your access doesn’t expire.',
     },
     {
       id: 'guarantee',

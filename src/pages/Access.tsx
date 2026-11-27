@@ -7,16 +7,16 @@ import { Icon } from '../components/Icon';
 import { SharePanel } from '../components/Share';
 import { PRODUCTS } from '../config/products';
 import { SITE } from '../config/site';
-import { RESOURCES, type Resource } from '../config/resources';
+import { PackageDownloads } from '../components/PackageDownloads';
 import { loadAssessment } from '../lib/assessmentStore';
 import { requestAccessLink } from '../lib/entitlementService';
-import { getDownloadUrl } from '../lib/fileService';
-import { getMockOutbox, emitLifecycle } from '../lib/lifecycle';
+import { getMockOutbox } from '../lib/lifecycle';
 import { track } from '../lib/analytics';
-import { env, isMock } from '../lib/env';
+import { isMock } from '../lib/env';
 import { read, write } from '../lib/storage';
 import { validateEmail } from '../lib/validation';
 import { useFunnel } from '../state/FunnelContext';
+import type { ProductId } from '../lib/types';
 
 const STEPS = [
   { id: 'credit', title: 'Credit review', body: 'Pull all three reports and mark items to review.', to: '/gameplan#sec-credit' },
@@ -28,8 +28,8 @@ const STEPS = [
 export default function Access() {
   const { entitlements, owns, firstName } = useFunnel();
   if (entitlements.status === 'loading') return <Loader label="Loading your access" />;
-  if (owns('creditready')) return <Home firstName={firstName} hasPlaybook={owns('playbook')} />;
-  if (owns('guide')) return <GuideHome firstName={firstName} />;
+  if (owns('creditready')) return <Home firstName={firstName} hasPlaybook={owns('playbook')} owned={entitlements.products} />;
+  if (owns('guide')) return <GuideHome firstName={firstName} owned={entitlements.products} />;
   return <SignIn />;
 }
 
@@ -44,32 +44,15 @@ function DownloadNotice() {
   return text ? <div style={{ marginTop: 16 }}><Alert kind="info">{text}</Alert></div> : null;
 }
 
-/** Opens an entitlement-checked product file (signed URL in production, a notice in mock mode). */
-function useResourceOpener() {
-  const [notice, setNotice] = useState('');
-  async function open(r: Resource) {
-    track('product_download', { product: r.product, resource: r.id });
-    void emitLifecycle('product_accessed', { resource: r.id });
-    try {
-      const url = await getDownloadUrl(r.fileKey);
-      if (url) window.location.assign(url);
-      else setNotice(`“${r.title}” — product file delivery connects here (mock mode). See INTEGRATION_GUIDE.md → Product files.`);
-    } catch {
-      setNotice('That file didn’t open. Try again, or contact support if it keeps happening.');
-    }
-  }
-  return { open, notice };
-}
-
-/** Book owners: their book is shipping, plus a quiet credited path to the Digital Bundle. */
-function GuideHome({ firstName }: { firstName: string }) {
+/** Digital eBook owners: the eBook, ready to download. */
+function GuideHome({ firstName, owned }: { firstName: string; owned: ProductId[] }) {
   return (
     <Layout chrome="customer">
       <Seo title="My RentReady access" noindex />
       <section className="access-head">
         <div className="wrap">
           <h1 style={{ fontSize: 'var(--step-5)' }}>Welcome{firstName ? `, ${firstName}` : ''}.</h1>
-          <p className="lede" style={{ marginTop: 12, color: '#e3dccf' }}>Your copy of Before They Say No™ is on its way.</p>
+          <p className="lede" style={{ marginTop: 12, color: '#e3dccf' }}>Your digital eBook is ready whenever you are.</p>
           <DownloadNotice />
         </div>
       </section>
@@ -77,25 +60,10 @@ function GuideHome({ firstName }: { firstName: string }) {
         <div className="wrap stack" style={{ ['--s' as string]: '24px', maxWidth: 760 }}>
           <section className="panel" aria-labelledby="res-h">
             <h2 id="res-h">{PRODUCTS.guide.name}</h2>
-            <div className="prod-row" style={{ gridTemplateColumns: '28px 1fr' }}>
-              <Icon name="home" />
-              <p className="muted" style={{ fontSize: '0.95rem' }}>
-                Your physical copy ships to the address you entered at checkout.{env.physicalDeliveryNote && ` ${env.physicalDeliveryNote}`} Questions about
-                delivery? Email <a href={`mailto:${SITE.supportEmail}`}>{SITE.supportEmail}</a>.
-              </p>
-            </div>
+            <p className="muted" style={{ margin: '6px 0 16px' }}>Know Before They Say NO! — a PDF you can read on any phone, tablet or computer.</p>
+            <PackageDownloads owned={owned} ctaLocation="access" />
           </section>
-          <section className="panel" aria-labelledby="kit-h">
-            <h2 id="kit-h">Add the dispute letters and video guide — your {PRODUCTS.guide.priceLabel} counts</h2>
-            <p className="muted" style={{ margin: '6px 0 16px' }}>
-              Upgrade to the RentReady Digital Bundle for {PRODUCTS.upgrade.priceLabel}: 20 Essential Credit Dispute Letter
-              templates you can edit in Microsoft Word, and a step-by-step video guide showing how to dispute negative items.
-              Both unlock right away — you already have the book.
-            </p>
-            <Link className="btn btn-sm" to="/checkout?product=upgrade" onClick={() => track('primary_cta_click', { cta_location: 'access_upgrade', product: 'upgrade' })}>
-              Upgrade for {PRODUCTS.upgrade.priceLabel}
-            </Link>
-          </section>
+          <p className="fine">Questions? Email <a href={`mailto:${SITE.supportEmail}`}>{SITE.supportEmail}</a>.</p>
           {isMock && <DevPanel />}
         </div>
       </section>
@@ -125,8 +93,8 @@ function SignIn() {
       <Seo title="Customer access | RentReady" noindex />
       <div className="state-page">
         <div className="state-card" style={{ textAlign: 'left', width: '100%', maxWidth: 460 }}>
-          <h1 style={{ fontSize: 'var(--step-4)' }}>Find your RentReady access.</h1>
-          <p className="muted" style={{ marginTop: 12 }}>Enter the email you used at checkout. We’ll send a secure link that opens your access on this device.</p>
+          <h1 style={{ fontSize: 'var(--step-4)' }}>Get back to your digital package.</h1>
+          <p className="muted" style={{ marginTop: 12 }}>Lost your package email, or on a new device? Enter the email you used at checkout and we’ll send a fresh, secure sign-in link to everything you bought.</p>
           {/[?&]link=(expired|invalid)/.test(window.location.search) && (
             <div style={{ marginTop: 16 }}><Alert kind="info">That link has expired or was already used. Request a new sign-in link below.</Alert></div>
           )}
@@ -156,11 +124,10 @@ function SignIn() {
   );
 }
 
-function Home({ firstName, hasPlaybook }: { firstName: string; hasPlaybook: boolean }) {
+function Home({ firstName, hasPlaybook, owned }: { firstName: string; hasPlaybook: boolean; owned: ProductId[] }) {
   const a = loadAssessment();
   const assessmentState = a.completedAt ? 'complete' : Object.keys(a.answers).length ? 'progress' : 'none';
   const [done, setDone] = useState<Record<string, boolean>>(() => read('next_steps', {}));
-  const { open, notice } = useResourceOpener();
   const doneCount = STEPS.filter((s) => done[s.id]).length;
 
   useOnce(() => {
@@ -179,7 +146,7 @@ function Home({ firstName, hasPlaybook }: { firstName: string; hasPlaybook: bool
   // Mirrors the planned re-engagement emails, shown in-app
   const reminder =
     assessmentState === 'none'
-      ? { t: 'Start with your video guide', b: 'It shows how to dispute items you believe are inaccurate and how to use your 20 letter templates. Then take the 5-minute assessment for your game plan.', to: '/access#res-h', cta: 'Go to my videos' }
+      ? { t: 'Start with your eBook and video guides', b: 'The video guides show how to dispute items you believe are inaccurate and how to use your 20 letter templates. Then take the 5-minute assessment for your game plan.', to: '/access#res-h', cta: 'Go to my downloads' }
       : assessmentState === 'progress'
         ? { t: 'Finish your RentReady plan', b: 'You’re partway through your assessment. Pick up where you left off.', to: '/assessment', cta: 'Continue assessment' }
         : { t: 'Before you apply, review these questions', b: 'Ask the leasing office these before paying an application fee.', to: '/gameplan#sec-questions', cta: 'Review questions' };
@@ -213,35 +180,23 @@ function Home({ firstName, hasPlaybook }: { firstName: string; hasPlaybook: bool
                   <span className="mini-book cr">Digital<br />Bundle</span>
                   <div>
                     <strong>{PRODUCTS.creditready.name}</strong>
-                    <p className="muted" style={{ fontSize: '0.95rem' }}>Your book (shipping to you), 20 dispute letter templates and the step-by-step video guide.</p>
+                    <p className="muted" style={{ fontSize: '0.95rem' }}>The Know Before They Say NO! eBook, 20 editable dispute letter templates and the video education guides.</p>
                   </div>
                 </div>
-                <div className="prod-row">
-                  <span className={`mini-book pm${hasPlaybook ? '' : ' off'}`}>PM<br />Playbook</span>
-                  <div>
-                    <strong>{PRODUCTS.playbook.name}</strong>
-                    {hasPlaybook ? (
+                {hasPlaybook && (
+                  <div className="prod-row">
+                    <span className="mini-book pm">PM<br />Playbook</span>
+                    <div>
+                      <strong>{PRODUCTS.playbook.name}</strong>
                       <p className="muted" style={{ fontSize: '0.95rem' }}>Rental screening, from the other side of the desk.</p>
-                    ) : (
-                      <p className="muted" style={{ fontSize: '0.95rem' }}>
-                        Not purchased. <Link to="/complete-your-system">About the Playbook</Link>
-                      </p>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </section>
 
               <section className="panel" aria-labelledby="res-h">
-                <h2 id="res-h">Resources</h2>
-                {notice && <div style={{ marginBottom: 14 }}><Alert kind="info">{notice}</Alert></div>}
-                <div className="resources">
-                  {RESOURCES.filter((r) => r.product === 'creditready' || (r.product === 'playbook' && hasPlaybook)).map((r) => (
-                    <button key={r.id} className="res" type="button" onClick={() => open(r)}>
-                      <Icon name={r.icon} />
-                      <span>{r.title}<small>{r.kind}</small></span>
-                    </button>
-                  ))}
-                </div>
+                <h2 id="res-h">My downloads</h2>
+                <PackageDownloads owned={owned} ctaLocation="access" />
               </section>
             </div>
 

@@ -19,7 +19,7 @@ function menuItems(state: MemberState): Item[] {
   const base: Item[] = [
     { label: 'Home', hint: 'Back to the start', home: true },
     { label: 'RentReady Finder', hint: 'Search apartments near you', href: FINDER_URL },
-    { label: 'Get the Book', hint: 'Before They Say No™ — the rental approval playbook', section: 'get' },
+    { label: 'Get the eBook', hint: 'Know Before They Say NO! — instant digital access', section: 'get' },
     { label: 'Affiliate', hint: 'Share RentReady and earn up to 60% per sale', href: AFFILIATE_URL },
   ];
   const account: Item = { label: 'My Account', hint: state === 'active' ? 'Premium · Active' : state === 'past_due' ? 'Premium · Payment due' : 'Saved apartments, purchases and membership', href: '/account' };

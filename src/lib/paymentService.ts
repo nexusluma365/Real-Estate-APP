@@ -3,25 +3,24 @@
  *
  * Architecture (production):
  *   1. createCustomer()          → server creates/reuses Stripe Customer for the lead
- *   2. createPaymentIntent()     → server creates PI (book $39.99 + $9.99 shipping | Digital Bundle $79.99 | upgrade $40);
- *                                  Bundle + upgrade use setup_future_usage='off_session' for the optional one-click Playbook
+ *   2. createPaymentIntent()     → server creates PI (Digital eBook $39.99 | Complete Digital Bundle $79.99 — digital, no shipping)
  *   3. Stripe Payment Element    → card entered inside Stripe iframe (never in our DOM/state/storage)
  *   4. confirmPayment()          → stripe.confirmPayment (client, publishable key only)
  *   5. verifyPaymentServerSide() → server retrieves PI, checks status/amount/customer, creates order+entitlement
- *   6. attachPaymentMethod()     → server-side; PI with setup_future_usage attaches PM to Customer
- *   7. savePaymentMethodForUpsell() → server records PM as the upsell method + consent text shown at checkout
- *   8. chargeUpsell()            → ONLY after explicit click: server creates off_session PI for $100 on saved PM
+ *   6. attachPaymentMethod()     → server-side helper for explicit flows (no card is saved for later charges)
  *
- * Webhooks (payment_intent.succeeded) are the source of truth; verify endpoints are idempotent mirrors.
+ * Webhooks (payment_intent.succeeded) are the source of truth — they also send the digital package email;
+ * verify endpoints are idempotent mirrors. There is no upsell: the $100 Playbook and $40 upgrade are retired.
  * Secret keys exist ONLY in the Netlify Functions environment. Nothing here may use them.
  */
-import { api, ApiError, wait } from './api';
+import { api, wait } from './api';
 import { isMock } from './env';
 import { read, uid, write } from './storage';
 import type { MockOutcome, Order, ProductId } from './types';
-import { PRODUCTS, totalCents } from '../config/products';
+import { PRODUCTS } from '../config/products';
 import { grantMockEntitlement } from './entitlementService';
 import { emitLifecycle } from './lifecycle';
+import { currentAffiliate } from './attribution';
 
 export interface CustomerRef {
   customer_id: string;
@@ -41,12 +40,6 @@ export type ConfirmResult =
   | { status: 'declined'; message: string }
   | { status: 'validation_error'; message: string }
   | { status: 'network_error'; message: string };
-
-export type UpsellChargeResult =
-  | { status: 'succeeded'; payment_intent_id: string }
-  | { status: 'requires_action'; payment_intent_id: string; client_secret: string }
-  | { status: 'declined'; message: string }
-  | { status: 'error'; message: string };
 
 const DECLINE_MSG = 'Your card was declined. Try a different card or contact your bank.';
 
@@ -72,11 +65,12 @@ export async function createPaymentIntent(args: {
 }): Promise<PaymentIntentRef> {
   if (isMock) {
     await wait(350);
-    return { payment_intent_id: uid('mock_pi'), client_secret: 'mock_secret_not_real', amount_cents: totalCents(PRODUCTS[args.product]) };
+    return { payment_intent_id: uid('mock_pi'), client_secret: 'mock_secret_not_real', amount_cents: PRODUCTS[args.product].priceCents };
   }
   // Server decides the amount from the product id — the client never sends a price.
   return api<PaymentIntentRef>('/payments/intent', {
-    json: { customer_id: args.customerId, product: args.product },
+    // The affiliate who referred this visitor (if any) travels with the order into Stripe metadata and rr_orders.
+    json: { customer_id: args.customerId, product: args.product, affiliate: currentAffiliate() },
     headers: { 'Idempotency-Key': args.idempotencyKey },
   });
 }
@@ -123,7 +117,7 @@ export async function verifyPaymentServerSide(paymentIntentId: string, product: 
     const order: Order = {
       order_id: uid('mock_ord'),
       product,
-      amount_cents: totalCents(PRODUCTS[product]),
+      amount_cents: PRODUCTS[product].priceCents,
       payment_intent_id: paymentIntentId,
       created_at: new Date().toISOString(),
     };
@@ -146,46 +140,6 @@ export async function verifyPaymentServerSide(paymentIntentId: string, product: 
 export async function attachPaymentMethod(paymentIntentId: string): Promise<{ attached: boolean }> {
   if (isMock) return { attached: true };
   return api('/payments/attach', { json: { payment_intent_id: paymentIntentId } });
-}
-
-// ---------------------------------------------------------------- 7
-export async function savePaymentMethodForUpsell(paymentIntentId: string): Promise<{ saved: boolean }> {
-  if (isMock) {
-    write('mock.saved_pm', { source_pi: paymentIntentId, card_label: 'saved test card' });
-    return { saved: true };
-  }
-  return api('/payments/save-method', { json: { payment_intent_id: paymentIntentId } });
-}
-
-export function getSavedMethodLabel(): string {
-  const m = read<{ card_label: string } | null>('mock.saved_pm', null);
-  return m?.card_label || 'the card from your Digital Bundle purchase';
-}
-
-// ---------------------------------------------------------------- 8
-/** Called ONLY from the upsell accept button. Never on mount, never on a timer. */
-export async function chargeUpsell(args: { idempotencyKey: string; mockOutcome?: MockOutcome }): Promise<UpsellChargeResult> {
-  if (isMock) {
-    await wait(1400);
-    switch (args.mockOutcome) {
-      case 'decline':
-        return { status: 'declined', message: 'Your saved card was declined for this purchase. You still have full access to your Digital Bundle.' };
-      case 'requires_action':
-        return { status: 'requires_action', payment_intent_id: uid('mock_pi'), client_secret: 'mock_secret_not_real' };
-      case 'network_error':
-        return { status: 'error', message: 'We could not complete that request. You have not been charged.' };
-      default:
-        return { status: 'succeeded', payment_intent_id: uid('mock_pi') };
-    }
-  }
-  try {
-    return await api<UpsellChargeResult>('/upsell/charge', {
-      json: { product: 'playbook' },
-      headers: { 'Idempotency-Key': args.idempotencyKey },
-    });
-  } catch (e) {
-    return { status: 'error', message: e instanceof ApiError ? e.message : 'Something went wrong. You have not been charged.' };
-  }
 }
 
 /** Per-attempt idempotency key so a double click or refresh never creates two charges. */

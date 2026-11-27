@@ -12,7 +12,8 @@ import { sqlDatabase } from './sqliteDatabase';
 import { detectAbandonedCheckouts } from '../netlify/lib/jobs/abandoned';
 import { hmacHex, type Env } from '../netlify/lib/_lib';
 import { r2FileStore } from '../netlify/lib/platform';
-import { DIGITAL_KIT_FILE_KEY } from '../src/config/resources';
+import { DIGITAL_KIT_FILE_KEY, EBOOK_FILE_KEY } from '../src/config/resources';
+import { retryDeliveries } from '../netlify/lib/delivery';
 import { sendListingAlerts } from '../netlify/lib/jobs/alerts';
 import { accessFrom } from '../netlify/lib/premium';
 import { mixListings } from '../netlify/lib/listings';
@@ -22,11 +23,12 @@ import { MIGRATIONS } from '../netlify/lib/migrations';
 const ORIGIN = 'https://rentready.test';
 const client = createClient({ url: 'file::memory:' });
 const toolkitKey = DIGITAL_KIT_FILE_KEY;
-const files = new Map<string, string>([[toolkitKey, 'PK-letters']]);
+const files = new Map<string, string>([[toolkitKey, 'PK-letters'], [EBOOK_FILE_KEY, '%PDF-ebook']]);
 const espCalls: { event: string; marketing_allowed: boolean }[] = [];
 const emails: { to: string; subject: string; html: string; text: string }[] = [];
 const sheetRows: { secret: string; row: Record<string, string> }[] = [];
 let sheetDown = false;
+let resendDown = false;
 const env: Env = {
   STRIPE_SECRET_KEY: 'sk_test_x',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_x',
@@ -46,6 +48,9 @@ const env: Env = {
   PRODUCT_FILES: {
     async createDownloadUrl(key) {
       return files.has(key) ? `https://downloads.test/${encodeURIComponent(key)}?signature=test` : null;
+    },
+    async exists(key) {
+      return files.has(key);
     },
   },
 };
@@ -86,6 +91,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     sheetRows.push(b);
     return new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } });
   }
+  if (url.host === 'api.resend.com' && resendDown) return new Response('{"message":"service unavailable"}', { status: 503 });
   if (url.host === 'api.resend.com') {
     emails.push(JSON.parse(String(init?.body)));
     return new Response('{"id":"em_1"}');
@@ -120,7 +126,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const id = `pi_test${++piSeq}`;
     const pi = {
       id, client_secret: `${id}_secret`, amount: Number(form.get('amount')), currency: form.get('currency'), customer: form.get('customer'),
-      metadata: { product: form.get('metadata[product]'), lead_id: form.get('metadata[lead_id]') },
+      metadata: { product: form.get('metadata[product]'), lead_id: form.get('metadata[lead_id]'), affiliate: form.get('metadata[affiliate]') || undefined, fulfillment: form.get('metadata[fulfillment]') || undefined },
       status: form.get('confirm') === 'true' ? 'succeeded' : 'requires_payment_method', payment_method: form.get('payment_method') || 'pm_card_visa',
     };
     pis.set(id, pi);
@@ -228,12 +234,12 @@ test('exit offer captures email without a name or marketing consent', async () =
   cookie = '';
 });
 
-test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle access → files → upsell → refund', async () => {
-  // lead capture (+ quiz answers, progressive profiling)
+test('digital buyer journey: lead → eBook → package email once → Bundle → files → retired offers refused → refund', async () => {
+  // lead capture (+ quiz answers, progressive profiling, affiliate from the visitor's link)
   const lead = await call('POST', '/api/leads', {
     first_name: 'Jordan', email: 'Jordan@Example.com', email_consent: true, consent_basis: 'notice', consent_text: 'x', lead_source: 'checkout',
     product_interest: 'guide', qualification: { stage: 'soon30', concern: 'credit', help: 'read', intent_tier: 'medium', recommended: 'guide' },
-    attribution: { utm_source: 'google', utm_campaign: 'denied' },
+    attribution: { utm_source: 'google', utm_campaign: 'denied', affiliate: 'PartnerOne' },
   });
   assert.equal(lead.status, 200);
   assert.ok(cookie.startsWith('rr_sid='), 'session cookie set');
@@ -242,76 +248,118 @@ test('full buyer journey: lead → book → upgrade blocked/allowed → Bundle a
   await call('POST', '/api/leads', {
     first_name: '', email: 'jordan@example.com', email_consent: false, lead_source: 'exit', product_interest: 'creditready',
   });
-  const row = (await client.execute("SELECT first_name, intent_tier, qual_stage, utm_source, email_consent FROM rr_leads WHERE email='jordan@example.com'")).rows[0];
+  const row = (await client.execute("SELECT first_name, intent_tier, qual_stage, utm_source, email_consent, affiliate FROM rr_leads WHERE email='jordan@example.com'")).rows[0];
   assert.equal(row.first_name, 'Jordan', 'email-only lead capture does not erase an existing name');
   assert.equal(row.intent_tier, 'medium', 'quiz answers kept on re-submit');
   assert.equal(row.utm_source, 'google');
+  assert.equal(row.affiliate, 'partnerone', 'affiliate id stored (normalised)');
   assert.equal(Number(row.email_consent), 1, 'email-only capture does not revoke prior marketing consent');
 
-  // customer + book PaymentIntent: server decides the price
+  // retired offers can't be started anywhere
   assert.equal((await call('POST', '/api/payments/customer', { lead_id: lead.data.lead_id })).data.customer_id, 'cus_test_1');
-  assert.equal((await call('POST', '/api/payments/intent', { product: 'upgrade' })).status, 409, 'upgrade needs the book');
-  const book = await call('POST', '/api/payments/intent', { product: 'guide' });
-  assert.equal(book.data.amount_cents, 4998, 'book $39.99 + $9.99 shipping');
+  assert.equal((await call('POST', '/api/payments/intent', { product: 'upgrade' })).status, 400, '$40 upgrade retired');
+  assert.equal((await call('POST', '/api/payments/intent', { product: 'playbook' })).status, 400, '$100 Playbook retired');
+  const retired = await call('POST', '/api/upsell/charge', { product: 'playbook' }, { 'Idempotency-Key': 'k1' });
+  assert.equal(retired.status, 410);
+  assert.equal(retired.data.code, 'retired');
 
-  // verify refuses unpaid, grants paid
-  assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: book.data.payment_intent_id, product: 'guide' })).data.verified, false);
-  pay(book.data.payment_intent_id);
-  assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: book.data.payment_intent_id, product: 'guide' })).data.verified, true);
+  // eBook: $39.99, no shipping, affiliate carried into Stripe
+  const ebook = await call('POST', '/api/payments/intent', { product: 'guide' });
+  assert.equal(ebook.data.amount_cents, 3999, 'Digital eBook $39.99 — no shipping');
+  const ebookPi = pis.get(ebook.data.payment_intent_id) as any;
+  assert.equal(ebookPi.metadata.affiliate, 'partnerone');
+  assert.equal(ebookPi.metadata.fulfillment, 'digital');
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(EBOOK_FILE_KEY)}`)).status, 403, 'no eBook before paying');
+
+  // verify refuses unpaid, grants paid — but never emails (only the verified webhook delivers)
+  assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: ebook.data.payment_intent_id, product: 'guide' })).data.verified, false);
+  pay(ebook.data.payment_intent_id);
+  assert.equal((await call('POST', '/api/payments/verify', { payment_intent_id: ebook.data.payment_intent_id, product: 'guide' })).data.verified, true);
   assert.deepEqual((await call('GET', '/api/entitlements')).data.products, ['guide']);
+  const pkg = () => emails.filter((e) => e.subject === 'Your RentReady Digital Package Is Ready!');
+  assert.equal(pkg().length, 0, 'no delivery before the verified webhook');
 
-  // book owners can't buy the Bundle at full price or the book again; upgrade is $40
-  assert.equal((await call('POST', '/api/payments/intent', { product: 'creditready' })).status, 409);
-  assert.equal((await call('POST', '/api/payments/intent', { product: 'guide' })).status, 409);
-  const up = await call('POST', '/api/payments/intent', { product: 'upgrade' });
-  assert.equal(up.data.amount_cents, 4000);
-  assert.equal(pis.get(up.data.payment_intent_id)!.metadata && (pis.get(up.data.payment_intent_id) as any).metadata.product, 'upgrade');
-  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403, 'no Bundle files before paying');
+  // the eBook downloads right away (1-minute signed URL); Bundle files don't
+  const book = await call('GET', `/api/files?key=${encodeURIComponent(EBOOK_FILE_KEY)}`);
+  assert.equal(book.status, 302);
+  assert.match(book.res.headers.get('Location') || '', /^https:\/\/downloads\.test\/ebook%2F/);
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403);
 
-  // webhook is the source of truth: grants Bundle, records purchase once, forwards to ESP
-  pay(up.data.payment_intent_id);
-  const evt = { id: 'evt_up', type: 'payment_intent.succeeded', data: { object: pis.get(up.data.payment_intent_id) } };
+  // webhook = source of truth: one package email, even when Stripe retries
+  const evt = { id: 'evt_ebook', type: 'payment_intent.succeeded', data: { object: pis.get(ebook.data.payment_intent_id) } };
   assert.equal((await webhook(evt)).status, 200);
-  assert.equal((await (await webhook(evt)).json() as any).duplicate, true);
+  assert.equal(((await (await webhook(evt)).json()) as any).duplicate, true);
+  await webhook({ ...evt, id: 'evt_ebook_resent' }); // same payment, different event id
+  assert.equal(pkg().length, 1, 'exactly one delivery email per order');
+  const mail = pkg()[0];
+  assert.equal(mail.to, 'jordan@example.com');
+  assert.match(mail.html, /ACCESS MY DIGITAL PACKAGE/);
+  assert.match(mail.html, /Your Next Chapter Starts Here\./);
+  assert.match(mail.text, /Know Before They Say NO! — Digital eBook/);
+  assert.doesNotMatch(mail.text, /Dispute Letters/, 'eBook package lists only the eBook');
+  assert.match(mail.text, /RR-[0-9A-Z]{1,8}/, 'order reference');
+  assert.match(mail.text, /\$39\.99/);
+  assert.match(mail.text, /By Nexus Luma LLC/);
+  assert.doesNotMatch(mail.html + mail.text, /\/api\/files|downloads\.test|shipping|ships/i, 'no file URLs and no shipping in the email');
+  assert.equal(espCalls.filter((c) => c.event === 'purchase_completed').length, 1);
+  const order = (await client.execute(`SELECT fulfillment, affiliate FROM rr_orders WHERE payment_intent_id = '${ebook.data.payment_intent_id}'`)).rows[0];
+  assert.equal(order.fulfillment, 'digital');
+  assert.equal(order.affiliate, 'partnerone');
+  assert.equal((await client.execute(`SELECT status, attempts FROM rr_deliveries WHERE order_id = '${ebook.data.payment_intent_id}'`)).rows[0].status, 'sent');
+
+  // the package link signs the buyer in, and keeps working on a second device until it expires
+  const link = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s]+)/.exec(mail.text)![1];
+  for (let i = 0; i < 2; i++) {
+    cookie = '';
+    const v = await call('GET', link.slice(ORIGIN.length));
+    assert.equal(v.res.headers.get('Location'), `${ORIGIN}/access`, `package link works (open ${i + 1})`);
+    assert.deepEqual((await call('GET', '/api/entitlements')).data.products, ['guide']);
+  }
+  // …while a requested sign-in link still works only once
+  const before = emails.length;
+  await call('POST', '/api/access/link', { email: 'jordan@example.com' });
+  const signin = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s"]+)/.exec(emails.slice(before).find((e) => e.subject === 'Your RentReady sign-in link')!.text)![1];
+  assert.equal((await call('GET', signin.slice(ORIGIN.length))).res.headers.get('Location'), `${ORIGIN}/access`);
+  assert.match((await call('GET', signin.slice(ORIGIN.length))).res.headers.get('Location') || '', /link=expired/, 'requested link is single-use');
+
+  // eBook owners can't re-buy the eBook, but may choose the Bundle ($79.99, no credit, no shipping)
+  assert.equal((await call('POST', '/api/payments/intent', { product: 'guide' })).status, 409);
+  const bundle = await call('POST', '/api/payments/intent', { product: 'creditready', affiliate: 'Partner-Two' });
+  assert.equal(bundle.data.amount_cents, 7999);
+  assert.equal((pis.get(bundle.data.payment_intent_id) as any).metadata.affiliate, 'partner-two', 'latest affiliate link wins');
+  pay(bundle.data.payment_intent_id);
+  await webhook({ id: 'evt_bundle', type: 'payment_intent.succeeded', data: { object: pis.get(bundle.data.payment_intent_id) } });
   assert.deepEqual((await call('GET', '/api/entitlements')).data.products.sort(), ['creditready', 'guide']);
-  assert.equal(espCalls.filter((c) => c.event === 'purchase_completed').length, 1, 'one purchase email trigger');
+  const bundleMail = pkg()[1];
+  for (const item of ['Know Before They Say NO! — Digital eBook', '20 Editable Credit Dispute Letters', 'Video Education Guides']) assert.ok(bundleMail.text.includes(item), item);
+  assert.match(bundleMail.text, /\$79\.99/);
+  assert.equal(pkg().length, 2);
 
-  // receipt: sent once to the buyer; it sends them to the access page (file links expire after 1 minute, so none are emailed)
-  const receipts = emails.filter((e) => e.subject.includes('receipt'));
-  assert.equal(receipts.length, 1, 'one receipt email');
-  assert.equal(receipts[0].to, 'jordan@example.com');
-  assert.match(receipts[0].text, /\$40\.00/);
-  assert.match(receipts[0].text, /https:\/\/rentready\.test\/access/, 'receipt links to the access page');
-  assert.match(receipts[0].text, /1 minute/);
-  assert.doesNotMatch(receipts[0].text + receipts[0].html, /\/api\/files/, 'no direct file links in email');
-  // a link from an older receipt no longer downloads: it goes to sign-in
-  const old = await call('GET', '/api/files?t=anything.sig', undefined, { Accept: 'text/html' });
-  assert.match(old.res.headers.get('Location') || '', /\/access\?link=expired$/);
-
-  // files: authorized downloads redirect to a short-lived URL; video redirects to its private URL
+  // files: letters (ZIP) and video for the Bundle; unknown keys 404; old receipt links go to sign-in
   const letters = await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`);
   assert.equal(letters.status, 302);
-  assert.match(letters.res.headers.get('Location') || '', /^https:\/\/downloads\.test\//);
   assert.equal(letters.res.headers.get('Referrer-Policy'), 'no-referrer');
   assert.equal((await call('GET', `/api/files?key=${encodeURIComponent('not-an-offered-file.zip')}`)).status, 404);
   const video = await call('GET', '/api/files?key=creditready/video-guide');
-  assert.equal(video.status, 302);
   assert.equal(video.res.headers.get('Location'), env.VIDEO_GUIDE_URL);
+  const old = await call('GET', '/api/files?t=anything.sig', undefined, { Accept: 'text/html' });
+  assert.match(old.res.headers.get('Location') || '', /\/access\?link=expired$/);
 
-  // upsell: saved card recorded, charged only via this endpoint, idempotent ownership
-  await call('POST', '/api/payments/save-method', { payment_intent_id: up.data.payment_intent_id });
-  const charge = await call('POST', '/api/upsell/charge', { product: 'playbook' }, { 'Idempotency-Key': 'k1' });
-  assert.equal(charge.data.status, 'succeeded');
-  assert.equal(pis.get(charge.data.payment_intent_id)!.amount, 10000);
-  await webhook({ id: 'evt_pb', type: 'payment_intent.succeeded', data: { object: pis.get(charge.data.payment_intent_id) } });
-  assert.ok((await call('GET', '/api/entitlements')).data.products.includes('playbook'));
+  // chargeback: an open dispute removes the Bundle; a dispute we win restores it
+  const dispute = (type: string, status: string) => webhook({ id: `evt_dp_${type}_${status}`, type, data: { object: { id: 'dp_1', customer: 'cus_test_1', amount: 7999, currency: 'usd', metadata: {}, status, payment_intent: bundle.data.payment_intent_id } } });
+  await dispute('charge.dispute.created', 'needs_response');
+  assert.ok(!(await call('GET', '/api/entitlements')).data.products.includes('creditready'), 'dispute revokes access');
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403);
+  await dispute('charge.dispute.closed', 'won');
+  assert.ok((await call('GET', '/api/entitlements')).data.products.includes('creditready'), 'won dispute restores access');
 
-  // full refund of the upgrade revokes the Bundle (book stays)
-  await webhook({ id: 'evt_rf', type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_test_1', amount: 4000, amount_refunded: 4000, refunded: true, currency: 'usd', metadata: {}, payment_intent: up.data.payment_intent_id } } });
+  // full refund of the Bundle revokes it (the eBook order stays)
+  await webhook({ id: 'evt_rf', type: 'charge.refunded', data: { object: { id: 'ch_1', customer: 'cus_test_1', amount: 7999, amount_refunded: 7999, refunded: true, currency: 'usd', metadata: {}, payment_intent: bundle.data.payment_intent_id } } });
   const after = (await call('GET', '/api/entitlements')).data.products;
   assert.ok(!after.includes('creditready') && after.includes('guide'));
   assert.equal(espCalls.filter((c) => c.event === 'refund_processed').length, 1);
   assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(toolkitKey)}`)).status, 403, 'refund revokes downloads');
+  assert.equal((await call('GET', `/api/files?key=${encodeURIComponent(EBOOK_FILE_KEY)}`)).status, 302, 'the separately bought eBook stays');
 });
 
 test('webhook rejects a bad signature', async () => {
@@ -343,25 +391,28 @@ test('unsubscribe sync + admin metrics are token-protected and add up', async ()
   assert.equal(m.status, 200);
   assert.equal(m.data.leads, 2);
   const gross = m.data.products.reduce((s: number, p: any) => s + p.gross, 0);
-  assert.equal(gross, 4998 + 4000 + 10000);
+  assert.equal(gross, 3999 + 7999, 'eBook + Bundle, no shipping');
+  assert.deepEqual(m.data.byAffiliate.map((a: any) => a.k).sort(), ['partner-two', 'partnerone']);
+  assert.equal(m.data.deliveries.find((d: any) => d.k === 'sent').n, 2);
   assert.equal(m.data.abandoned, 1);
 });
 
-test('book fulfilment: admin sees the order to ship, marks it shipped, customer emailed once', async () => {
+test('book fulfilment: only orders from before the digital switch are listed to ship; customer emailed once', async () => {
   const auth = { Authorization: `Bearer ${env.ADMIN_TOKEN}` };
   assert.equal((await call('GET', '/api/admin/orders')).status, 401);
-  // Jordan's book (guide) order ships; it was granted via verify, so record it on the lead for this check
+  // Digital orders never appear. An older physical-book order (fulfillment NULL) still does, so it can be shipped.
+  assert.equal((await call('GET', '/api/admin/orders', undefined, auth)).data.orders.length, 0, 'digital orders are never in the shipping list');
+  const leadId = (await client.execute("SELECT lead_id FROM rr_leads WHERE email = 'jordan@example.com'")).rows[0].lead_id as string;
+  await client.execute({ sql: "INSERT INTO rr_orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at) VALUES ('pi_legacybook', 'cus_test_1', 'guide', 4998, ?, ?)", args: [leadId, new Date().toISOString()] });
   const list = await call('GET', '/api/admin/orders', undefined, auth);
   assert.equal(list.status, 200);
-  const book = list.data.orders.find((o: any) => o.product === 'guide');
-  assert.ok(book && !book.shipped, 'unshipped book order listed');
-  const ship = { payment_intent_id: book.payment_intent_id, carrier: 'USPS', tracking: '9400 1000 0000', tracking_url: 'https://tools.usps.com/x' };
+  assert.deepEqual(list.data.orders.map((o: any) => o.payment_intent_id), ['pi_legacybook']);
+  const ship = { payment_intent_id: 'pi_legacybook', carrier: 'USPS', tracking: '9400 1000 0000', tracking_url: 'https://tools.usps.com/x' };
   assert.equal((await call('POST', '/api/admin/orders', ship, auth)).data.already_shipped, false);
   assert.equal((await call('POST', '/api/admin/orders', ship, auth)).data.already_shipped, true);
   const shipped = emails.filter((e) => e.subject.includes('shipped'));
   assert.equal(shipped.length, 1, 'one shipping email');
   assert.match(shipped[0].text, /9400 1000 0000/);
-  assert.ok((await call('GET', '/api/admin/orders', undefined, auth)).data.orders.find((o: any) => o.payment_intent_id === book.payment_intent_id).shipped);
 });
 
 test('admin health reports configuration and missing files without exposing values', async () => {
@@ -854,4 +905,36 @@ test('questionnaire answers are written to the Google Sheet as labels, once, and
   assert.equal((await call('POST', '/api/match', { ...answers, beds: 'studio' })).status, 202);
   env.GOOGLE_SHEETS_WEBHOOK_URL = saved;
   assert.equal((await call('GET', '/api/admin/health', undefined, { Authorization: `Bearer ${env.ADMIN_TOKEN}` })).data.settings.google_sheets, true);
+});
+
+test('delivery email outage: the send fails, is logged, and the retry job delivers it; admin can see and resend', async () => {
+  cookie = '';
+  await call('POST', '/api/leads', { first_name: 'Robin', email: 'robin@example.com', lead_source: 'checkout' });
+  await call('POST', '/api/payments/customer', {});
+  // A checkout started before the digital switch (price + old $9.99 shipping) still delivers when it completes.
+  const pi = { id: 'pi_outage1', amount: 4998, currency: 'usd', customer: 'cus_test_1', status: 'succeeded', metadata: { product: 'guide', lead_id: (await client.execute("SELECT lead_id FROM rr_leads WHERE email='robin@example.com'")).rows[0].lead_id } };
+  pis.set(pi.id, pi);
+  resendDown = true;
+  const before = emails.length;
+  assert.equal((await webhook({ id: 'evt_outage', type: 'payment_intent.succeeded', data: { object: pi } })).status, 200, 'the webhook still succeeds');
+  const row = async () => (await client.execute("SELECT status, attempts, last_error FROM rr_deliveries WHERE order_id = 'pi_outage1'")).rows[0];
+  assert.equal((await row()).status, 'failed');
+  assert.match(String((await row()).last_error), /503/);
+  assert.equal(emails.length, before);
+  // Too soon: back-off not over yet.
+  assert.equal((await retryDeliveries(env)).tried, 0);
+  resendDown = false;
+  const r = await retryDeliveries(env, Date.now() + 3 * 60000);
+  assert.equal(r.sent, 1);
+  assert.equal((await row()).status, 'sent');
+  assert.equal(emails.filter((e) => e.to === 'robin@example.com' && e.subject === 'Your RentReady Digital Package Is Ready!').length, 1);
+  assert.equal((await retryDeliveries(env, Date.now() + 60 * 60000)).tried, 0, 'nothing left to retry');
+
+  const auth = { Authorization: `Bearer ${env.ADMIN_TOKEN}` };
+  assert.equal((await call('GET', '/api/admin/deliveries')).status, 401);
+  const list = await call('GET', '/api/admin/deliveries', undefined, auth);
+  assert.ok(list.data.deliveries.some((d: any) => d.order_id === 'pi_outage1' && d.status === 'sent' && d.email === 'robin@example.com'));
+  assert.equal((await call('POST', '/api/admin/deliveries', { order_id: 'pi_outage1' }, auth)).data.result, 'already_sent', 'no accidental duplicate');
+  assert.equal((await call('POST', '/api/admin/deliveries', { order_id: 'pi_outage1', resend: true }, auth)).data.result, 'sent', 'explicit resend works');
+  assert.equal((await call('GET', '/api/admin/health', undefined, auth)).data.files[EBOOK_FILE_KEY], 'uploaded', 'health checks the eBook file');
 });

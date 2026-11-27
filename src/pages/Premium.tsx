@@ -105,7 +105,7 @@ export default function Premium() {
               ))}
             </div>
             <p className="bk-body" style={{ marginTop: 24 }}>
-              Preparing to apply? <Link className="bk-link" to="/">Before They Say No™</Link> explains what property managers may review and how to prepare.
+              Preparing to apply? <Link className="bk-link" to="/">Know Before They Say NO!</Link> explains what property managers may review and how to prepare.
             </p>
           </div>
         </section>

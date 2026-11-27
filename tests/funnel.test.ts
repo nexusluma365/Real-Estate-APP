@@ -13,7 +13,7 @@ const gtagCalls: unknown[][] = [];
 Object.assign(globalThis, { window: globalThis, localStorage: storage, sessionStorage: storage, location: { pathname: '/checkout' } });
 (globalThis as unknown as { gtag: (...a: unknown[]) => void }).gtag = (...a: unknown[]) => void gtagCalls.push(a);
 
-import { chargeCents, hmacHex, purchaseAllowed, PRICES, SHIPPING, verifyStripeSignature, type Env } from '../netlify/lib/_lib';
+import { amountMatches, chargeCents, hmacHex, purchaseAllowed, PRICES, RETIRED, verifyStripeSignature, type Env } from '../netlify/lib/_lib';
 import { onRequestPost as webhook } from '../netlify/lib/api/webhooks/stripe';
 import { trackPurchase } from '../src/lib/analytics';
 import { intentTier, recommend } from '../src/config/qualification';
@@ -21,32 +21,34 @@ import { buyFaq } from '../src/config/faq';
 import { PRODUCTS } from '../src/config/products';
 
 // ---------------------------------------------------------------- pricing & eligibility
-test('server prices match the catalogue and the upgrade credits the guide in full', () => {
+test('server prices match the catalogue; digital products charge no shipping', () => {
   assert.equal(PRICES.guide, PRODUCTS.guide.priceCents);
   assert.equal(PRICES.creditready, PRODUCTS.creditready.priceCents);
   assert.equal(PRICES.playbook, PRODUCTS.playbook.priceCents);
-  assert.equal(PRICES.upgrade, PRICES.creditready - PRICES.guide);
-  assert.equal(PRICES.upgrade, 4000);
-  assert.equal(SHIPPING.guide, 999, 'book ships for $9.99');
-  assert.equal(SHIPPING.guide, PRODUCTS.guide.shippingCents);
-  assert.equal(chargeCents('guide'), 4998, 'book order charges $39.99 + $9.99');
-  assert.equal(SHIPPING.creditready, PRODUCTS.creditready.shippingCents);
-  assert.equal(chargeCents('creditready'), 8998, 'Bundle charges $79.99 + $9.99');
-  assert.equal(chargeCents('upgrade'), 4000, 'upgrade ships nothing');
-  assert.equal(PRICES.creditready, 7999, 'Digital Bundle $79.99');
-  assert.equal(PRICES.guide, 3999, 'book $39.99');
+  assert.equal(PRICES.creditready, 7999, 'Complete Digital Bundle $79.99');
+  assert.equal(PRICES.guide, 3999, 'Digital eBook $39.99');
+  assert.equal(chargeCents('guide'), 3999, 'eBook charges $39.99, no shipping');
+  assert.equal(chargeCents('creditready'), 7999, 'Bundle charges $79.99, no shipping');
+  for (const p of ['guide', 'creditready'] as const) assert.ok(!('ships' in PRODUCTS[p]) && !('shippingCents' in PRODUCTS[p]), `${p} has no shipping`);
+  // Checkouts started before the switch (price + $9.99 shipping) are still honored when they complete.
+  assert.ok(amountMatches('guide', 3999) && amountMatches('guide', 4998));
+  assert.ok(amountMatches('creditready', 7999) && amountMatches('creditready', 8998));
+  assert.ok(!amountMatches('guide', 100) && !amountMatches('upgrade', 4999), 'no other amount is accepted');
+  assert.ok(RETIRED.has('upgrade') && RETIRED.has('playbook'));
+  assert.ok(PRODUCTS.upgrade.retired && PRODUCTS.playbook.retired);
 });
 
-test('purchaseAllowed never sells something already owned', () => {
+test('purchaseAllowed: only the two digital offers, never something already owned, never a retired offer', () => {
   assert.equal(purchaseAllowed('guide', []), true);
   assert.equal(purchaseAllowed('creditready', []), true);
-  assert.equal(purchaseAllowed('upgrade', []), false, 'upgrade requires the guide');
-  assert.equal(purchaseAllowed('upgrade', ['guide']), true);
-  assert.equal(purchaseAllowed('creditready', ['guide']), false, 'guide owners get the credited price');
+  assert.equal(purchaseAllowed('upgrade', []), false, '$40 upgrade is retired');
+  assert.equal(purchaseAllowed('upgrade', ['guide']), false, '$40 upgrade is retired even for eBook owners');
+  assert.equal(purchaseAllowed('playbook', []), false, '$100 Playbook is retired');
+  assert.equal(purchaseAllowed('playbook', ['creditready']), false);
+  assert.equal(purchaseAllowed('creditready', ['guide']), true, 'eBook owners may still choose the Bundle');
   assert.equal(purchaseAllowed('guide', ['guide']), false);
-  assert.equal(purchaseAllowed('guide', ['creditready']), false);
-  assert.equal(purchaseAllowed('upgrade', ['guide', 'creditready']), false);
-  assert.equal(purchaseAllowed('playbook', ['creditready']), false, 'playbook only via upsell endpoint');
+  assert.equal(purchaseAllowed('guide', ['creditready']), false, 'the Bundle includes the eBook');
+  assert.equal(purchaseAllowed('creditready', ['creditready']), false);
 });
 
 // ---------------------------------------------------------------- webhook (fake database)
@@ -204,13 +206,15 @@ test('recommendation routing', () => {
 });
 
 // ---------------------------------------------------------------- copy accuracy
-test('objection answers follow config (refund window, prices)', () => {
-  const base = { guidePrice: '$39.99 + $9.99 shipping', bundlePrice: '$79.99 + $9.99 shipping', upgradePrice: '$40', deliveryNote: '', supportEmail: 's@x.com' };
+test('objection answers follow config (refund window, prices) and describe digital delivery', () => {
+  const base = { guidePrice: '$39.99', bundlePrice: '$79.99', supportEmail: 's@x.com' };
   const on = buyFaq({ ...base, refundDays: 30 });
   assert.match(on.find((f) => f.id === 'refund')!.a, /within 30 days/);
   const off = buyFaq({ ...base, refundDays: 0 });
   assert.doesNotMatch(off.find((f) => f.id === 'refund')!.a, /days of purchase/);
-  assert.match(on.find((f) => f.id === 'which-one')!.a, /\$39\.99 \+ \$9\.99 shipping[\s\S]*\$79\.99[\s\S]*\$40/);
-  assert.match(on.find((f) => f.id === 'physical')!.a, /physical book/);
+  assert.match(on.find((f) => f.id === 'which-one')!.a, /\$39\.99[\s\S]*\$79\.99/);
+  assert.match(on.find((f) => f.id === 'physical')!.a, /100% digital/);
+  assert.ok(on.every((f) => !/ships to|mailed to|shipping fee of|\$40|upgrade/i.test(f.a)), 'no shipping or retired-upgrade promises');
   assert.ok(on.every((f) => !/guarantee (you|your) (approval|will be approved)/i.test(f.a)));
 });
+

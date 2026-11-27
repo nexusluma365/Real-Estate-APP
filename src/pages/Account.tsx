@@ -177,7 +177,7 @@ export default function Account() {
               <li><Link to="/checklist"><strong>Before-You-Apply Checklist</strong><span>Documents, questions to ask and what to check first</span></Link></li>
               {owns('creditready') && <li><Link to="/gameplan"><strong>Your game plan</strong><span>From your assessment</span></Link></li>}
               {(owns('creditready') || owns('guide')) && <li><Link to="/access"><strong>My purchases & downloads</strong><span>{[owns('guide') && !owns('creditready') && PRODUCTS.guide.name, owns('creditready') && PRODUCTS.creditready.name, owns('playbook') && PRODUCTS.playbook.name].filter(Boolean).join(' · ')}</span></Link></li>}
-              {!owns('creditready') && !owns('guide') && <li><Link to="/"><strong>Before They Say No™</strong><span>What property managers may review, and how to prepare</span></Link></li>}
+              {!owns('creditready') && !owns('guide') && <li><Link to="/"><strong>Know Before They Say NO!</strong><span>What property managers may review, and how to prepare</span></Link></li>}
             </ul>
           </section>
         </div>

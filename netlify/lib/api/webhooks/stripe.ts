@@ -1,9 +1,11 @@
-import { chargeCents, grantEntitlement, isProduct, json, notConfigured, recordLifecycle, stripe, verifyStripeSignature, type Ctx, type Env } from '../../_lib';
+import { amountMatches, entitlementFor, grantEntitlement, isProduct, json, notConfigured, recordLifecycle, stripe, verifyStripeSignature, type Ctx, type Env } from '../../_lib';
 import { activateFromCheckout, leadForCustomer, upsertSubscription, type StripeSub } from '../../premium';
+import { deliverOrder } from '../../delivery';
 
 /**
  * POST /api/webhooks/stripe — source of truth for entitlements, purchase emails and refunds.
  * Configure in Stripe Dashboard → Webhooks: payment_intent.succeeded, payment_intent.payment_failed, charge.refunded,
+ * charge.dispute.created, charge.dispute.closed,
  * and for RentReady Premium: checkout.session.completed, customer.subscription.created / .updated / .deleted,
  * invoice.paid, invoice.payment_failed.
  */
@@ -14,7 +16,8 @@ interface StripeObj {
   amount_refunded?: number;
   refunded?: boolean;
   currency: string;
-  metadata: { product?: string; lead_id?: string };
+  metadata: { product?: string; lead_id?: string; affiliate?: string };
+  status?: string;
   payment_intent?: string;
   invoice?: string | null;
   last_payment_error?: { code?: string; decline_code?: string };
@@ -92,10 +95,12 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
     const leadId = o.metadata?.lead_id;
     if (event.type === 'payment_intent.succeeded') {
       const product = o.metadata.product;
-      if (isProduct(product) && o.amount === chargeCents(product) && o.currency === 'usd') {
-        await grantEntitlement(env, o.customer, product, o.id, o.amount, leadId);
-        // One confirmation per PaymentIntent (ref = pi id) → receipt (Resend) + ESP and stops recovery flows.
-        if (leadId) await recordLifecycle(env, leadId, 'purchase_completed', { product, amount_cents: o.amount, order_id: o.id, customer_id: o.customer }, o.id);
+      if (isProduct(product) && amountMatches(product, o.amount) && o.currency === 'usd') {
+        await grantEntitlement(env, o.customer, product, o.id, o.amount, leadId, o.metadata.affiliate);
+        // One fact per PaymentIntent (ref = pi id) → ESP; stops abandoned-checkout recovery.
+        if (leadId) await recordLifecycle(env, leadId, 'purchase_completed', { product, amount_cents: o.amount, order_id: o.id, customer_id: o.customer, affiliate: o.metadata.affiliate || null }, o.id);
+        // Digital delivery: the package email (exactly once per order; a failure is logged and retried by delivery-retry).
+        await deliverOrder(env, o.id).catch((e) => console.error('delivery error', o.id, e));
         // INTEGRATE: server-side Google Ads conversion upload / Meta Conversions API (event_id = o.id) here.
       }
     }
@@ -116,6 +121,22 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
         await env.DB.prepare('UPDATE rr_entitlements SET revoked_at = ? WHERE customer_id = ? AND product = ?').bind(new Date().toISOString(), o.customer, granted).run();
       }
       if (order?.lead_id) await recordLifecycle(env, order.lead_id, 'refund_processed', { product: order.product, full, amount_refunded: o.amount_refunded }, o.payment_intent);
+    }
+    // Chargebacks: an opened dispute removes access to what that order granted; a dispute closed in our favour restores it
+    // (unless the order was refunded). Membership disputes have no rr_orders row and are left to the subscription.
+    if ((event.type === 'charge.dispute.created' || event.type === 'charge.dispute.closed') && o.payment_intent) {
+      const order = await env.DB.prepare('SELECT product, customer_id, lead_id, refunded_at FROM rr_orders WHERE payment_intent_id = ?').bind(o.payment_intent)
+        .first<{ product: string; customer_id: string; lead_id: string | null; refunded_at: string | null }>();
+      if (order && isProduct(order.product)) {
+        const granted = entitlementFor(order.product);
+        if (event.type === 'charge.dispute.created') {
+          await env.DB.prepare('UPDATE rr_entitlements SET revoked_at = ? WHERE customer_id = ? AND product = ?').bind(new Date().toISOString(), order.customer_id, granted).run();
+          if (order.lead_id) await recordLifecycle(env, order.lead_id, 'dispute_opened', { product: order.product }, o.id);
+        } else if (o.status === 'won' && !order.refunded_at) {
+          await env.DB.prepare('UPDATE rr_entitlements SET revoked_at = NULL WHERE customer_id = ? AND product = ?').bind(order.customer_id, granted).run();
+          if (order.lead_id) await recordLifecycle(env, order.lead_id, 'dispute_won', { product: order.product }, o.id);
+        }
+      }
     }
   }
   await env.DB.prepare('INSERT INTO rr_webhook_events (id, type, received_at) VALUES (?, ?, ?) ON CONFLICT(id) DO NOTHING')

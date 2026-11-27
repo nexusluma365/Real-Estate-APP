@@ -24,6 +24,7 @@ import * as adminDownloadTest from '../lib/api/admin/download-test';
 import * as adminListings from '../lib/api/admin/listings';
 import * as adminPremiumSetup from '../lib/api/admin/premium-setup';
 import * as adminPremiumMetrics from '../lib/api/admin/premium-metrics';
+import * as adminDeliveries from '../lib/api/admin/deliveries';
 import * as premiumCheckout from '../lib/api/premium/checkout';
 import * as premiumReturn from '../lib/api/premium/return';
 import * as premiumPortal from '../lib/api/premium/portal';
@@ -65,6 +66,7 @@ const ROUTES: Record<string, Module> = {
   '/api/admin/listings': adminListings,
   '/api/admin/premium-setup': adminPremiumSetup,
   '/api/admin/premium-metrics': adminPremiumMetrics,
+  '/api/admin/deliveries': adminDeliveries,
   '/api/premium/checkout': premiumCheckout,
   '/api/premium/return': premiumReturn,
   '/api/premium/portal': premiumPortal,

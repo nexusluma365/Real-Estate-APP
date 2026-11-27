@@ -5,7 +5,7 @@ import { Checklist, CtaLink, Faq, Journey, StickyCta, useOnce } from '../compone
 import { BundleImage } from '../components/Funnel';
 import { Icon } from '../components/Icon';
 import { ComplianceBlock, Testimonials } from '../components/Content';
-import { BUNDLE_PARTS, dollars, PRODUCTS, shippingLabel } from '../config/products';
+import { BUNDLE_PARTS, dollars, PRODUCTS } from '../config/products';
 import { buyFaq, OBJECTIONS } from '../config/faq';
 import { SITE } from '../config/site';
 import { env } from '../lib/env';
@@ -15,7 +15,7 @@ const P = PRODUCTS.creditready;
 const CTA = `Get the Digital Bundle — ${P.priceLabel}`;
 const TO = '/checkout?product=creditready';
 const FAQ = [
-  ...buyFaq({ guidePrice: `${PRODUCTS.guide.priceLabel} ${shippingLabel(PRODUCTS.guide)}`, bundlePrice: `${P.priceLabel} ${shippingLabel(P)}`, upgradePrice: PRODUCTS.upgrade.priceLabel, refundDays: env.moneyBackDays, deliveryNote: env.physicalDeliveryNote, supportEmail: SITE.supportEmail })
+  ...buyFaq({ guidePrice: PRODUCTS.guide.priceLabel, bundlePrice: P.priceLabel, refundDays: env.moneyBackDays, supportEmail: SITE.supportEmail })
     .filter((f) => ['which-one', 'applying-soon', 'physical', 'refund', 'subscription'].includes(f.id)),
   ...OBJECTIONS,
 ];
@@ -37,19 +37,19 @@ export default function CreditReady() {
             <Journey at={2} />
             {fromFreeBook && (
               <p className="cr-free-badge" role="status">
-                <Icon name="check" width={16} height={16} /> Your free copy of Before They Say No™ is included with this Bundle
+                <Icon name="check" width={16} height={16} /> The Know Before They Say NO! eBook is included with this Bundle
               </p>
             )}
-            <span className="wordmark-eyebrow">THE RENTREADY DIGITAL BUNDLE</span>
+            <span className="wordmark-eyebrow">THE RENTREADY COMPLETE DIGITAL BUNDLE</span>
             <h1 id="cr-h">Start with the part you can work on.</h1>
             <p className="lede">
-              Before They Say No™ shows you what a property may see. 20 ready-to-edit dispute letters and a step-by-step
-              video guide help you act on it — before your next rental application.
+              Know Before They Say NO! shows you what a property may see. 20 ready-to-edit dispute letters and video
+              guides help you act on it — before your next rental application.
             </p>
             <p className="muted" style={{ color: 'var(--muted-on-ink)' }}>
-              The physical book is included at no additional charge with your Digital Bundle purchase. The Bundle is a paid
-              offer, and its full price is shown before checkout. The toolkit helps you review and dispute information you
-              believe is inaccurate; removals are not guaranteed.
+              Everything is digital and unlocks right after payment — no shipping, no waiting. The full price is shown
+              before checkout. The letters help you review and dispute information you believe is inaccurate; removals are
+              not guaranteed.
             </p>
             <div className="cta-row">
               <CtaLink to={TO} {...cta('hero')}>{CTA}</CtaLink>
@@ -96,7 +96,7 @@ export default function CreditReady() {
           <div className="stack">
             <h2 id="inc-h">Everything in the Digital Bundle.</h2>
             <Checklist items={P.includes} />
-            <p className="muted">The letters and video guide unlock on your access page right after checkout. The book ships to you.</p>
+            <p className="muted">The eBook, letters and video guides unlock right after payment, and your package arrives by email.</p>
           </div>
           <BundleImage />
         </div>
@@ -130,9 +130,9 @@ export default function CreditReady() {
             <h2 id="price-h" style={{ fontSize: 'var(--step-3)' }}>{P.name}</h2>
             <div className="price-line">
               <span className="price">{P.priceLabel}</span>
-              <span className="price-meta">one time {shippingLabel(P)}</span>
+              <span className="price-meta">one time · instant digital access</span>
             </div>
-            <p className="muted">No subscription. No monthly fees. Letters and videos unlock instantly; your book ships.</p>
+            <p className="muted">No subscription. No monthly fees. No shipping. Everything unlocks instantly.</p>
             <div style={{ margin: '24px 0' }}>
               <Checklist items={P.includes.slice(0, 4)} />
             </div>
@@ -143,7 +143,7 @@ export default function CreditReady() {
               </p>
             )}
             <p className="fine" style={{ marginTop: 10, textAlign: 'center' }}>
-              Just want the book? <CtaLink to="/checkout?product=guide" className="text-link" props={{ cta_location: 'price_card_guide', product: 'guide' }}>Get Before They Say No™ — {PRODUCTS.guide.priceLabel} {shippingLabel(PRODUCTS.guide)}</CtaLink>. Your purchase counts in full if you upgrade later.
+              Just want the eBook? <CtaLink to="/checkout?product=guide" className="text-link" props={{ cta_location: 'price_card_guide', product: 'guide' }}>Get the RentReady Digital eBook — {PRODUCTS.guide.priceLabel}</CtaLink>.
             </p>
             <p className="fine" style={{ marginTop: 14 }}>
               Educational resource. Does not guarantee apartment approval, credit score changes or removal of any information.

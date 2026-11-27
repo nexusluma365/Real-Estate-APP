@@ -12,11 +12,11 @@ import { track } from '../lib/analytics';
 import { BuyFaqList, QualifyQuiz, TrustBar } from '../components/Funnel';
 import { SocialProof } from '../components/SocialProof';
 import { buyFaq, LANDING_FAQ } from '../config/faq';
-import { PRODUCTS, shippingLabel } from '../config/products';
+import { PRODUCTS } from '../config/products';
 import { SITE } from '../config/site';
 
 /**
- * Home page — "Before They Say No™" for high-intent Google Search traffic (worried about being denied).
+ * Home page — "Know Before They Say NO!" for high-intent Google Search traffic (worried about being denied). 100% digital.
  * Story: hero → who it's for → the core problem → what the book does → short story → before/after →
  * what's inside → the big transformation → real urgency → final CTA.
  * Conversion layer: trust bar → 3-question finder (skippable) → side-by-side options →
@@ -24,7 +24,7 @@ import { SITE } from '../config/site';
  * Every section answers one question; every CTA leads to a purchase or a genuinely useful next step.
  *
  * Purchase paths (both already supported by checkout; buyers can switch there):
- *   - Before They Say No™, the physical book → /checkout?product=guide   ← the primary action
+ *   - RentReady Digital eBook ($39.99) → /checkout?product=guide   ← the primary action
  *   - RentReady Digital Bundle (book + digital toolkit + video guide) → /checkout?product=creditready
  * Pricing is shown at checkout before payment. Hope through preparation; never promises approval.
  */
@@ -63,8 +63,8 @@ const delay = (ms: number) => ({ ['--d' as string]: `${ms}ms` }) as CSSPropertie
 
 const Arrow = () => <span className="bk-arrow" aria-hidden="true">→</span>;
 
-/** Primary buy action (the book) + a visible but secondary Digital Bundle option. */
-function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · ships to you', center = false }: { location: string; label?: ReactNode; note?: string; center?: boolean }) {
+/** Primary buy action (the $39.99 Digital eBook) + a visible but secondary Complete Digital Bundle option, both with prices. */
+function BuyBlock({ location, label = <>Get Instant Digital Access — {PRODUCTS.guide.priceLabel}</>, note = 'Digital eBook · Instant access · No shipping', center = false }: { location: string; label?: ReactNode; note?: string; center?: boolean }) {
   return (
     <div className={`bk-buy${center ? ' bk-buy-center' : ''}`}>
       <CtaLink to={BOOK_TO} className="btn bk-btn" props={{ cta_location: location, product: 'guide', variant: VARIANT }}>
@@ -74,9 +74,9 @@ function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · s
       <p className="bk-buy-alt">
         Want the dispute letters and videos too?{' '}
         <CtaLink to={BUNDLE_TO} className="bk-link" props={{ cta_location: `${location}_bundle`, product: 'creditready', variant: VARIANT }}>
-          Get the Digital Bundle.
+          Get the Complete Digital Bundle — {PRODUCTS.creditready.priceLabel}.
         </CtaLink>{' '}
-        The physical book is included with the Digital Bundle, along with 20 dispute letters and a video guide.
+        The eBook plus 20 editable dispute letters and video guides, all delivered digitally.
       </p>
     </div>
   );
@@ -85,7 +85,7 @@ function BuyBlock({ location, label = 'Get the Book', note = 'Physical book · s
 /** Fetches the questionnaire's code ahead of the tap (Vite shares the chunk with App's lazy route). */
 const preloadMatch = () => void import('./ApartmentMatch').catch(() => undefined);
 
-/** Hero: apartment seekers go through the apartment-match questionnaire; people preparing to apply get the book. */
+/** Hero: the primary action is the Digital eBook; apartment seekers can still go through the apartment-match questionnaire. */
 function HeroCtas({ variant }: { variant: string }) {
   // Load the questionnaire once the page is idle, so "Find Apartments" opens it instantly.
   useEffect(() => {
@@ -100,20 +100,20 @@ function HeroCtas({ variant }: { variant: string }) {
   return (
     <div className="bk-buy">
       <div className="bk-hero-ctas" onPointerOver={preloadMatch} onFocus={preloadMatch}>
-        <CtaLink to="/find-my-apartment" className="btn bk-btn" props={{ cta_location: 'hero_finder', variant }}>
-          Find Apartments <Arrow />
+        <CtaLink to={BOOK_TO} className="btn bk-btn" props={{ cta_location: 'hero', product: 'guide', variant }}>
+          Get Instant Digital Access <Arrow />
         </CtaLink>
-        <CtaLink to={BOOK_TO} className="btn bk-btn-outline" props={{ cta_location: 'hero', product: 'guide', variant }}>
-          Get the Book
+        <CtaLink to="/find-my-apartment" className="btn bk-btn-outline" props={{ cta_location: 'hero_finder', variant }}>
+          Find Apartments
         </CtaLink>
       </div>
-      <p className="bk-buy-note"><Icon name="home" />Browse free · Premium listing access is a paid subscription · Book ships to you</p>
+      <p className="bk-buy-note"><Icon name="download" />Digital eBook {PRODUCTS.guide.priceLabel} · Instant access · Secure checkout · No shipping</p>
       <p className="bk-buy-alt">
         Want the dispute letters and videos too?{' '}
         <CtaLink to={BUNDLE_TO} className="bk-link" props={{ cta_location: 'hero_bundle', product: 'creditready', variant }}>
-          Get the Digital Bundle.
+          Get the Complete Digital Bundle — {PRODUCTS.creditready.priceLabel}.
         </CtaLink>{' '}
-        The physical book is included, along with 20 editable letters for disputing inaccurate credit-report items and a video guide.
+        The eBook plus 20 editable letters for disputing inaccurate credit-report items and video guides.
       </p>
     </div>
   );
@@ -219,11 +219,9 @@ export default function Landing({ intent }: { intent?: Intent }) {
   useOnce(() => { captureAttribution(search, pathname, intent?.slug); track('landing_view', { variant }); });
   const faq = useMemo(() => {
     const base = buyFaq({
-      guidePrice: `${PRODUCTS.guide.priceLabel} ${shippingLabel(PRODUCTS.guide)}`,
-      bundlePrice: `${PRODUCTS.creditready.priceLabel} ${shippingLabel(PRODUCTS.creditready)}`,
-      upgradePrice: PRODUCTS.upgrade.priceLabel,
+      guidePrice: PRODUCTS.guide.priceLabel,
+      bundlePrice: PRODUCTS.creditready.priceLabel,
       refundDays: GUARANTEE_DAYS,
-      deliveryNote: env.physicalDeliveryNote,
       supportEmail: SITE.supportEmail,
     });
     // Intent pages lead with the answers their searchers came for.
@@ -234,14 +232,14 @@ export default function Landing({ intent }: { intent?: Intent }) {
 
   const headerCta: ReactNode = (
     <CtaLink to={BOOK_TO} className="bk-head-cta" props={{ cta_location: 'header', product: 'guide', variant }}>
-      Get the book
+      Get the eBook
     </CtaLink>
   );
 
   return (
     <Layout chrome="book" headerCta={headerCta}>
       <Seo
-        title={intent?.metaTitle || 'Before They Say No™ — Get Approved for the Home You Want | RentReady'}
+        title={intent?.metaTitle || 'Know Before They Say NO! — Learn What Landlords Check Before You Apply | RentReady'}
         description={
           intent?.metaDescription ||
           'Bad credit, collections, or past rental problems? Learn what property managers look for, what may be hurting your approval chances, and how to prepare a stronger application before you apply.'
@@ -256,15 +254,15 @@ export default function Landing({ intent }: { intent?: Intent }) {
               <BookVisual size="hero" eager />
             </div>
             <div className="bk-hero-copy">
-              <p className="bk-ribbon">Find apartments · Prepare before you apply</p>
-              <h1 id="hero-h" className="bk-title">Find a Smarter Path to Your <span>Next Home.</span></h1>
+              <p className="bk-ribbon">Digital eBook · Instant access</p>
+              <h1 id="hero-h" className="bk-title">Know Before They <span>Say NO!</span></h1>
               <p className="bk-hero-sub">
-                {intent ? intent.hero.headline.filter(Boolean).join(' ') : <>Bad credit? Collections? Past rental problems? <span>You still have options.</span></>}
+                {intent ? intent.hero.headline.filter(Boolean).join(' ') : <>Learn What Landlords Check <span>Before You Apply.</span></>}
               </p>
               <p className="bk-hero-body">
-                Search available rental listings, review published screening information when provided, and learn how to prepare before you apply. Listing eligibility and availability vary by property.
+                Your next home starts with knowing what to expect. Learn how rental screening works, what can affect your application, and how to prepare before spending money on another application.
               </p>
-              <p className="bk-hero-em">Know what they may see. Fix what you can. Apply better prepared.</p>
+              <p className="bk-hero-em">Everything you need to start learning is delivered digitally. No shipping. No waiting.</p>
               <HeroCtas variant={variant} />
               <a className="bk-hero-quiz" href="#find" onClick={() => track('primary_cta_click', { cta_location: 'hero_quiz', variant })}>
                 Not sure which option fits you? Answer 3 quick questions <Arrow />
@@ -336,7 +334,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
             </p>
             <div className="bk-intro-book" data-reveal>
               <BookVisual size="mid" />
-              <p>That’s why we created <strong>Before They Say No™.</strong></p>
+              <p>That’s why we created <strong>Know Before They Say NO!</strong></p>
             </div>
           </div>
         </section>
@@ -347,7 +345,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
             <div className="bk-head center" data-reveal>
               <h2 id="prep-h" className="bk-h2">Don’t Just Apply. <em>Prepare.</em></h2>
               <p className="bk-body bk-on-dark">
-                Before They Say No™ helps you understand the rental approval process before you put another application in someone else’s hands.
+                Know Before They Say NO! helps you understand the rental approval process before you put another application in someone else’s hands.
               </p>
               <Chain steps={['See', 'Identify', 'Prepare', 'Apply']} />
             </div>
@@ -557,7 +555,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
               <h2 id="final-h" className="bk-h2" data-reveal>Your Next Application Shouldn’t Be <em>Another Guess.</em></h2>
               <p className="bk-final-sub" data-reveal>Know what they may see. Understand what may be holding you back. Prepare before you apply.</p>
               <div data-reveal>
-                <BuyBlock location="final" label="Get Before They Say No™" />
+                <BuyBlock location="final" />
               </div>
               <Assurance />
               <p className="bk-final-alt" data-reveal>
@@ -572,7 +570,7 @@ export default function Landing({ intent }: { intent?: Intent }) {
         </section>
       </div>
 
-      <StickyCta to={BOOK_TO} sentinelId="hero-end" label="Get the Book →" meta="Physical book · ships to you" props={{ product: 'guide', variant }} />
+      <StickyCta to={BOOK_TO} sentinelId="hero-end" label="Get Instant Access →" meta={`Digital eBook · ${PRODUCTS.guide.priceLabel} · No shipping`} props={{ product: 'guide', variant }} />
     </Layout>
   );
 }

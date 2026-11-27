@@ -46,7 +46,7 @@ export const publishedTestimonials = () =>
  * actually offers for it. Presented as common concerns — no names, photos, quotes or ratings.
  */
 export const CONCERNS: { id: string; icon: 'chart' | 'alert' | 'card' | 'compass' | 'doc' | 'shield'; worry: string; help: string }[] = [
-  { id: 'credit', icon: 'chart', worry: 'Worried your credit will stop you?', help: 'Before They Say No™ explains what screening may look at — and how to review your credit report before you apply.' },
+  { id: 'credit', icon: 'chart', worry: 'Worried your credit will stop you?', help: 'The Know Before They Say NO! eBook explains what screening may look at — and how to review your credit report before you apply.' },
   { id: 'denial', icon: 'alert', worry: 'Denied before, and afraid to apply again?', help: 'Learn common reasons applications get turned down, and what to review and prepare before your next one.' },
   { id: 'fees', icon: 'card', worry: 'Tired of paying application fees just to hear no?', help: 'See what a property may look for before you pay. Premium shows published screening information when it’s available.' },
   { id: 'second-chance', icon: 'compass', worry: 'Not sure where to even look?', help: 'RentReady Finder lists verified second-chance apartments — properties whose own published policies consider imperfect histories.' },

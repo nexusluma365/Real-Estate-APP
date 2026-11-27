@@ -34,3 +34,26 @@ export function captureAttribution(search: string, path: string, intent?: string
 export function getAttribution(): Attribution {
   return read<Attribution>('attribution', { landing_intent: 'general' });
 }
+
+/** Link parameters that carry an affiliate id. `hop` is the one ClickBank adds to hoplinks. */
+const AFFILIATE_PARAMS = ['hop', 'aff', 'ref', 'affiliate'] as const;
+/** How long an affiliate referral stays attached to this browser (matches a typical 60-day affiliate cookie). */
+const AFFILIATE_DAYS = 60;
+
+/**
+ * Records an affiliate id from the current URL on ANY page (affiliates may link to the home page, the Bundle page or
+ * checkout). The latest referral wins, so the affiliate who sent the visitor most recently is credited.
+ */
+export function captureAffiliate(search: string): void {
+  const params = new URLSearchParams(search);
+  const raw = AFFILIATE_PARAMS.map((k) => params.get(k)).find((v) => v && /^[A-Za-z0-9_.-]{1,40}$/.test(v.trim()));
+  if (!raw) return;
+  write('attribution', { ...read<Attribution>('attribution', {}), affiliate: raw.trim().toLowerCase(), affiliate_at: new Date().toISOString() });
+}
+
+/** The affiliate to credit for a purchase now, if the referral hasn't expired. */
+export function currentAffiliate(): string | undefined {
+  const a = getAttribution();
+  if (!a.affiliate || !a.affiliate_at) return undefined;
+  return Date.now() - Date.parse(a.affiliate_at) <= AFFILIATE_DAYS * 86400000 ? a.affiliate : undefined;
+}

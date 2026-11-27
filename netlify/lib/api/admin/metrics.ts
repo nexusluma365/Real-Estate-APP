@@ -30,7 +30,13 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
     `SELECT COALESCE(l.utm_source, '(direct / none)') AS k, COUNT(DISTINCT o.customer_id) AS customers, SUM(o.amount_cents - COALESCE(o.refunded_cents, 0)) AS net
        FROM rr_orders o LEFT JOIN rr_leads l ON l.lead_id = o.lead_id WHERE o.created_at >= ? GROUP BY k ORDER BY net DESC LIMIT 20`,
   ).bind(since).all<{ k: string; customers: number; net: number }>()).results;
+  // Sales per affiliate id (from the buyer's link: ClickBank hop=, aff=, ref=). Reporting only — payouts are not automatic.
+  const byAffiliate = (await DB.prepare(
+    `SELECT affiliate AS k, COUNT(*) AS orders, SUM(amount_cents - COALESCE(refunded_cents, 0)) AS net, SUM(CASE WHEN refunded_at IS NOT NULL THEN 1 ELSE 0 END) AS refunds
+       FROM rr_orders WHERE affiliate IS NOT NULL AND created_at >= ? GROUP BY affiliate ORDER BY net DESC LIMIT 50`,
+  ).bind(since).all<{ k: string; orders: number; net: number; refunds: number }>()).results;
+  const deliveries = (await DB.prepare('SELECT status AS k, COUNT(*) AS n FROM rr_deliveries WHERE created_at >= ? GROUP BY status').bind(since).all<{ k: string; n: number }>()).results;
   const leadsBySource = (await DB.prepare(`SELECT COALESCE(utm_source, '(direct / none)') AS k, COUNT(*) AS n FROM rr_leads WHERE created_at >= ? GROUP BY k`).bind(since).all<{ k: string; n: number }>()).results;
 
-  return json({ source: 'live', days, visitors, leads, qualStarted, qualCompleted, productViews, checkoutViews, checkoutStarts, abandoned, recovered, tiers, products, bySource, leadsBySource });
+  return json({ source: 'live', days, visitors, leads, qualStarted, qualCompleted, productViews, checkoutViews, checkoutStarts, abandoned, recovered, tiers, products, bySource, leadsBySource, byAffiliate, deliveries });
 };

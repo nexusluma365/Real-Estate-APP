@@ -1,9 +1,10 @@
 import { bearerOk, body, fail, json, notConfigured, recordLifecycle, stripe, type Ctx } from '../../_lib';
 
 /**
- * Book fulfilment for /admin (Authorization: Bearer ADMIN_TOKEN).
- * GET  /api/admin/orders — orders that ship a book (last 120 days), newest first, with the Stripe shipping
- *      address for orders not yet shipped.
+ * Book fulfilment for /admin (Authorization: Bearer ADMIN_TOKEN) — orders placed BEFORE the digital-only switch only.
+ * New orders are digital (rr_orders.fulfillment = 'digital') and are delivered by email, so they never appear here.
+ * GET  /api/admin/orders — older orders that included the physical book (last 120 days), newest first, with the
+ *      Stripe shipping address for orders not yet shipped.
  * POST /api/admin/orders { payment_intent_id, carrier?, tracking?, tracking_url? } — marks one shipped and emails
  *      the customer once (lifecycle `order_shipped`, ref = PaymentIntent id).
  */
@@ -18,7 +19,7 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
     `SELECT o.payment_intent_id, o.product, o.amount_cents, o.created_at, o.refunded_at, l.email, l.first_name, l.lead_id,
             (SELECT e.data FROM rr_lifecycle_events e WHERE e.lead_id = o.lead_id AND e.event = 'order_shipped' AND e.ref = o.payment_intent_id) AS shipped
        FROM rr_orders o LEFT JOIN rr_leads l ON l.lead_id = o.lead_id
-      WHERE o.product IN ('guide', 'creditready') AND o.created_at >= ?
+      WHERE o.product IN ('guide', 'creditready') AND o.fulfillment IS NULL AND o.created_at >= ?
       ORDER BY o.created_at DESC LIMIT 200`,
   ).bind(since).all<Row>()).results;
 

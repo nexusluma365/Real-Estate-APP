@@ -9,6 +9,7 @@ import bundleWebpSm from '../assets/rentready-digital-bundle-768.webp';
 import bundlePng from '../assets/rentready-digital-bundle.png';
 import { QUAL_QUESTIONS, explain, intentTier, recommend, type QualAnswers, type Recommendation } from '../config/qualification';
 import type { FaqItem } from '../config/faq';
+import { PRODUCTS } from '../config/products';
 import { env } from '../lib/env';
 import { track } from '../lib/analytics';
 import { emitLifecycle } from '../lib/lifecycle';
@@ -25,7 +26,7 @@ export function TrustBar() {
     { icon: 'lock', t: 'Secure checkout by Stripe' },
     { icon: 'card', t: 'One-time payment, no subscription' },
     ...(GUARANTEE_DAYS > 0 ? [{ icon: 'shield' as IconName, t: `${GUARANTEE_DAYS}-day money-back guarantee` }] : []),
-    { icon: 'home', t: 'Book ships to your door' },
+    { icon: 'download', t: 'Instant digital access — no shipping' },
     { icon: 'eye', t: 'We never pull your credit' },
   ];
   return (
@@ -54,7 +55,7 @@ export function BundleImage({ className = '', sizes = '(min-width: 900px) 640px,
         height={1000}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        alt="The RentReady Digital Bundle: the Before They Say No™ book, 20 credit dispute letters, and the step-by-step credit dispute video training on laptop, phone and tablet"
+        alt="The RentReady Complete Digital Bundle: the Know Before They Say NO! eBook, 20 credit dispute letters, and credit dispute video guides on laptop, phone and tablet"
       />
       </picture>
     </span>
@@ -64,8 +65,8 @@ export function BundleImage({ className = '', sizes = '(min-width: 900px) 640px,
 /* ------------------------------------------------------------------ quiz */
 
 const REC_LABEL: Record<Recommendation, string> = {
-  creditready: 'The RentReady Digital Bundle',
-  guide: 'Before They Say No™ — the book',
+  creditready: 'The RentReady Complete Digital Bundle',
+  guide: 'Know Before They Say NO! — the Digital eBook',
   checklist: 'The free Before-You-Apply Checklist',
 };
 
@@ -126,17 +127,17 @@ export function QualifyQuiz({ onResult }: { onResult?: (r: Recommendation) => vo
           <div>
             {why && <p>{why}</p>}
             {primary === 'checklist' ? (
-              <p>Start with the free checklist — the questions to ask before you pay an application fee and the documents to gather. When you want the full picture, the book is there.</p>
+              <p>Start with the free checklist — the questions to ask before you pay an application fee and the documents to gather. When you want the full picture, the eBook is there.</p>
             ) : (
               <p className="bk-quiz-price">
-                {primary === 'guide' ? 'Physical book, shipped to you.' : 'Physical book ships; digital tools unlock after checkout.'}
+                {primary === 'guide' ? `Digital eBook · ${PRODUCTS.guide.priceLabel} · instant access` : `Complete Digital Bundle · ${PRODUCTS.creditready.priceLabel} · everything unlocks instantly`}
               </p>
             )}
           </div>
         </div>
         <div className="bk-quiz-actions">
           <CtaLink to={CHECKOUT_TO[primary]} className="btn bk-btn" props={{ cta_location: 'quiz_result', product: primary === 'checklist' ? undefined : primary, recommended: primary }}>
-            {primary === 'checklist' ? 'Get the free checklist' : primary === 'guide' ? 'Get the Book' : 'Get the Digital Bundle'} <span className="bk-arrow" aria-hidden="true">→</span>
+            {primary === 'checklist' ? 'Get the free checklist' : primary === 'guide' ? 'Get Instant Digital Access' : 'Get the Complete Digital Bundle'} <span className="bk-arrow" aria-hidden="true">→</span>
           </CtaLink>
           <CtaLink to="/creditready" className="bk-link" props={{ cta_location: 'quiz_compare' }}>See the Digital Bundle</CtaLink>
         </div>
@@ -193,8 +194,8 @@ const EXIT_HIDDEN = ['/creditready', '/checkout', '/complete-your-system', '/wel
 
 /**
  * Mounted once for the whole app. Opens after 30 seconds on a pre-purchase page, once per page load: every refresh,
- * new tab or return visit starts a new session; moving between pages inside the site doesn't. Never for customers. Esc / backdrop / buttons close it. The email goes on to the Digital Bundle page, where the
- * free physical book and the Bundle's full price are both shown before anyone buys.
+ * new tab or return visit starts a new session; moving between pages inside the site doesn't. Never for customers. Esc / backdrop / buttons close it. The email goes on to the Complete Digital Bundle page, where
+ * what's included (the eBook among it) and the Bundle's full price are both shown before anyone buys.
  */
 export function ExitOffer() {
   const { entitlements } = useFunnel();
@@ -237,21 +238,21 @@ export function ExitOffer() {
       <div className="bk-exit-card" role="dialog" aria-modal="true" aria-labelledby="exit-h" aria-describedby="exit-d">
         <button ref={closeRef} type="button" className="bk-exit-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
         <BookVisual size="thumb" eager className="bk-exit-book" />
-        <h2 id="exit-h" className="bk-exit-h">GET THIS BOOK FOR FREE</h2>
+        <h2 id="exit-h" className="bk-exit-h">GET THE EBOOK — AND THE TOOLS TO ACT ON IT</h2>
         <p id="exit-d" className="bk-exit-sub">
-          Your physical copy of <strong>Before They Say No™</strong> is included free with the RentReady Digital Bundle,
-          along with 20 editable dispute letters and the step-by-step video guide.
+          The <strong>Know Before They Say NO!</strong> eBook is included in the RentReady Complete Digital Bundle,
+          along with 20 editable dispute letters and video guides. Instant digital access — no shipping.
         </p>
         <LeadForm
           source="exit"
-          submitLabel="Claim My Free Book →"
+          submitLabel="See the Complete Digital Bundle →"
           productInterest="creditready"
           optIn={false}
           requireFirstName={false}
           emailConsentValue={false}
           consentText="Email entered to continue to the RentReady Digital Bundle offer. No promotional email consent was given."
-          helpText="Enter your email to see the Bundle with your free book."
-          finePrint="The book is free with the paid Digital Bundle; you'll see the full Bundle price before you buy. No credit pull, and we never sell your email."
+          helpText="Enter your email to see everything in the Bundle."
+          finePrint="The eBook is part of the paid Complete Digital Bundle; you'll see the full Bundle price before you buy. No credit pull, and we never sell your email."
           onDone={() => {
             track('exit_offer_click', { cta_location: 'exit', product: 'creditready' });
             setOpen(false);

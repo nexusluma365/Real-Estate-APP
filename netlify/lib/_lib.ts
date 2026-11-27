@@ -57,28 +57,36 @@ declare global {
 
 export type Ctx = { request: Request; env: Env; params: Record<string, string> };
 
-/** Prices live on the server. The client only ever sends a product id. */
+/** Prices live on the server. The client only ever sends a product id. Retired products keep a price for old orders. */
 export const PRICES = { creditready: 7999, playbook: 10000, guide: 3999, upgrade: 4000 } as const;
 export type ProductId = keyof typeof PRICES;
-/** Shipping charged on top of the product price. Anything that ships the book (the book, the Digital Bundle) pays $9.99; the upgrade ships nothing. */
-export const SHIPPING: Partial<Record<ProductId, number>> = { guide: 999, creditready: 999 };
-/** What Stripe actually charges: product price + shipping. Every amount check (intent, verify, webhook) uses this. */
-export const chargeCents = (p: ProductId): number => PRICES[p] + (SHIPPING[p] ?? 0);
+/**
+ * Digital-only since 2026-11: the $39.99 Digital eBook (`guide`) and the $79.99 Complete Digital Bundle (`creditready`).
+ * The $40 upgrade and the $100 Property Manager Playbook are retired: nothing can start a new purchase of them, but
+ * past buyers keep their access and a payment that was already under way is still honored.
+ */
+export const RETIRED: ReadonlySet<ProductId> = new Set<ProductId>(['upgrade', 'playbook']);
+/** What Stripe charges for a new order. No shipping — everything is delivered digitally. */
+export const chargeCents = (p: ProductId): number => PRICES[p];
+/** Amounts a successful payment may carry: today's price, or price + the old $9.99 shipping for checkouts started before the digital switch. */
+export const LEGACY_SHIPPING_CENTS = 999;
+export const amountMatches = (p: ProductId, amount: number) =>
+  amount === PRICES[p] || ((p === 'guide' || p === 'creditready') && amount === PRICES[p] + LEGACY_SHIPPING_CENTS);
 export const isProduct = (p: unknown): p is ProductId => typeof p === 'string' && Object.prototype.hasOwnProperty.call(PRICES, p);
 /** An `upgrade` order (book → Digital Bundle) grants the Digital Bundle (`creditready`) entitlement. */
 export const entitlementFor = (p: ProductId): ProductId => (p === 'upgrade' ? 'creditready' : p);
 
 /**
- * Which front-door product a customer may buy right now, given what they own. Pure — unit tested.
- * - Bundle owners can't buy the book, the Bundle or the upgrade again.
- * - Book owners can only take the credited upgrade (never pay full price for the Bundle, never re-buy the book).
- * - The upgrade requires owning the guide.
+ * Which product a customer may start buying right now, given what they own. Pure — unit tested.
+ * - Retired products (upgrade, Playbook) can never be bought again.
+ * - Bundle owners already have everything for sale.
+ * - eBook owners can't re-buy the eBook; they may still choose the Bundle.
  */
 export function purchaseAllowed(product: ProductId, owned: ProductId[]): boolean {
-  if (product === 'playbook') return false; // sold only through /api/upsell/charge
+  if (RETIRED.has(product)) return false;
   if (owned.includes('creditready')) return false;
-  if (owned.includes('guide')) return product === 'upgrade';
-  return product !== 'upgrade';
+  if (owned.includes('guide')) return product === 'creditready';
+  return true;
 }
 
 export const json = (data: unknown, status = 200, headers: HeadersInit = {}) =>
@@ -164,13 +172,17 @@ export async function verifyStripeSignature(payload: string, header: string | nu
   return header.split(',').some((p) => p.startsWith('v1=') && safeEqual(p.slice(3), expected));
 }
 
+/** Affiliate ids arrive from links (ClickBank `hop=`, `aff=`, `ref=`): keep them short and plain. */
+export const cleanAffiliate = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9_.-]{1,40}$/.test(v.trim()) ? v.trim().toLowerCase() : null);
+
 // ---------------------------------------------------------------- entitlements
 /** Idempotent. Called by the webhook (source of truth) and the verify endpoint. */
-export async function grantEntitlement(env: Env, customerId: string, product: ProductId, paymentIntentId: string, amount: number, leadId?: string) {
+export async function grantEntitlement(env: Env, customerId: string, product: ProductId, paymentIntentId: string, amount: number, leadId?: string, affiliate?: string | null) {
   if (!env.DB) throw new Error('DB binding missing');
+  // fulfillment = 'digital' for every order since the digital switch (older rows are NULL: they may still have a book to ship).
   await env.DB.prepare(
-    'INSERT INTO rr_orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
-  ).bind(paymentIntentId, customerId, product, amount, leadId || null, new Date().toISOString()).run();
+    "INSERT INTO rr_orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at, fulfillment, affiliate) VALUES (?, ?, ?, ?, ?, ?, 'digital', ?) ON CONFLICT DO NOTHING",
+  ).bind(paymentIntentId, customerId, product, amount, leadId || null, new Date().toISOString(), cleanAffiliate(affiliate)).run();
   // A refunded-then-repurchased product is re-activated.
   await env.DB.prepare(
     'INSERT INTO rr_entitlements (customer_id, product, granted_at) VALUES (?, ?, ?) ON CONFLICT(customer_id, product) DO UPDATE SET revoked_at = NULL',

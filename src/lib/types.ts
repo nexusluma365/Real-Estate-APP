@@ -10,6 +10,9 @@ export interface Attribution {
   gclid?: string;
   landing_intent?: string;
   landing_path?: string;
+  /** Affiliate id from the visitor's link (ClickBank hop=, aff=, ref=, affiliate=). Latest referral wins. */
+  affiliate?: string;
+  affiliate_at?: string;
   referrer?: string;
   captured_at?: string;
 }

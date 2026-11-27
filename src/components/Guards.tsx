@@ -53,7 +53,7 @@ function LockedPage() {
           </div>
           <h1 style={{ fontSize: 'var(--step-4)' }}>This page is for RentReady customers.</h1>
           <p className="muted">
-            If you’ve purchased, open the access link we emailed you on this device. If you haven’t yet, see your options — the book or the RentReady Digital Bundle.
+            If you’ve purchased, open the access link we emailed you on this device. If you haven’t yet, see your options — the RentReady Digital eBook or the Complete Digital Bundle.
           </p>
           <div className="cta-row" style={{ justifyContent: 'center' }}>
             <Link className="btn" to="/creditready">See the options</Link>

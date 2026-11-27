@@ -26,8 +26,6 @@ export const env = {
   requireTrackingConsent: e.VITE_REQUIRE_TRACKING_CONSENT === 'true',
   metaPixelId: e.VITE_META_PIXEL_ID || '',
   turnstileSiteKey: e.VITE_TURNSTILE_SITE_KEY || '',
-  /** Book delivery estimate shown at checkout and in the FAQ (from your print/fulfillment partner). */
-  physicalDeliveryNote: e.VITE_PHYSICAL_DELIVERY_NOTE || '',
   /** Privacy policy / terms URLs. Footer links render only when set. */
   privacyUrl: e.VITE_PRIVACY_URL || '/privacy',
   termsUrl: e.VITE_TERMS_URL || '/premium#terms',

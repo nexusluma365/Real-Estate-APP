@@ -1,19 +1,29 @@
-import { RESOURCES } from '../../src/config/resources';
-import { SHIPPING, type Env, type ProductId } from './_lib';
+import type { Env, ProductId } from './_lib';
 
 /**
- * Transactional email sent directly through Resend (RESEND_API_KEY + FROM_EMAIL): purchase receipts (with a link to
- * the access page — file links expire after a minute, so none are emailed), the "your book has shipped" update and sign-in links. Marketing/recovery flows stay with the
+ * Transactional email sent directly through Resend (RESEND_API_KEY + FROM_EMAIL): the digital package delivery email
+ * (sent by netlify/lib/delivery.ts after Stripe confirms payment; it carries a 7-day access link, never a file or a
+ * file URL), sign-in links and — for orders placed before the digital switch — the "your book has shipped" update. Marketing/recovery flows stay with the
  * ESP webhook. Without the Resend settings nothing is sent and the fact is still stored in rr_lifecycle_events.
  */
 
 const NAMES: Record<ProductId, string> = {
-  guide: 'Before They Say No™ (physical book)',
-  creditready: 'RentReady Digital Bundle',
-  upgrade: 'RentReady Digital Bundle upgrade',
+  guide: 'RentReady Digital eBook',
+  creditready: 'RentReady Complete Digital Bundle',
+  upgrade: 'RentReady Complete Digital Bundle (upgrade)',
   playbook: 'The Property Manager Playbook',
 };
-const SHIPS: ProductId[] = ['guide', 'creditready'];
+
+/** What's inside each package, exactly as delivered (the eBook, letters and videos live on the access page). */
+export const PACKAGE_ITEMS: Record<ProductId, string[]> = {
+  guide: ['Know Before They Say NO! — Digital eBook'],
+  creditready: ['Know Before They Say NO! — Digital eBook', '20 Editable Credit Dispute Letters', 'Video Education Guides'],
+  upgrade: ['Know Before They Say NO! — Digital eBook', '20 Editable Credit Dispute Letters', 'Video Education Guides'],
+  playbook: ['The Property Manager Playbook and its worksheets'],
+};
+
+/** Short, readable order reference for support conversations (the full Stripe id is kept in the database). */
+export const orderRef = (orderId: string) => `RR-${orderId.replace(/^pi_/, '').slice(-8).toUpperCase()}`;
 
 export const siteOrigin = (env: Env) => (env.ALLOWED_ORIGIN || 'https://werentreadygo.com').replace(/\/+$/, '');
 
@@ -53,40 +63,56 @@ const button = (href: string, label: string) =>
 
 export interface Recipient { email: string; first_name: string }
 
-/** Receipt: order summary, where to get digital products, and the shipping promise for the book. */
-export async function receiptEmail(env: Env, to: Recipient, d: { product: ProductId; amount_cents: number; order_id: string }) {
-  const hi = to.first_name ? `Hi ${esc(to.first_name)},` : 'Hi,';
-  const owned: ProductId = d.product === 'upgrade' ? 'creditready' : d.product;
-  const digital = RESOURCES.some((r) => r.product === owned);
-  const accessUrl = `${siteOrigin(env)}/access`;
-  const ships = SHIPS.includes(d.product);
+/**
+ * "Your RentReady Digital Package Is Ready!" — sent once per paid order, after Stripe confirms the payment.
+ * The button is a 7-day sign-in link to /access, where every file is served through a 1-minute signed URL.
+ */
+export async function packageEmail(env: Env, to: Recipient, d: { product: ProductId; amount_cents: number; order_id: string; access_link: string; link_days: number }) {
+  const items = PACKAGE_ITEMS[d.product];
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const shippingCents = SHIPPING[d.product] ?? 0;
+  const support = supportEmail(env);
+  const accessPage = `${siteOrigin(env)}/access`;
+  const bundle = d.product !== 'guide';
+  const gold = '#d4af6a';
+  const muted = 'color:#4f596b';
 
-  let body = p(hi) + p(`Here’s your receipt${digital ? ' and how to get your downloads' : ''}.`);
-  body += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 22px;border:1px solid #e7dfcf;border-radius:12px;font-size:15px">
-<tr><td style="padding:14px 16px;border-bottom:1px solid #e7dfcf">${esc(NAMES[d.product])}${shippingCents ? `<br><span style="font-size:13px;color:#4f596b">Includes ${money(shippingCents)} shipping</span>` : ''}</td><td align="right" style="padding:14px 16px;border-bottom:1px solid #e7dfcf;font-weight:700">${money(d.amount_cents)}</td></tr>
-<tr><td style="padding:10px 16px;color:#4f596b">Order ${esc(d.order_id)}<br>${date}</td><td align="right" style="padding:10px 16px;color:#4f596b">Paid · USD<br>One-time, no subscription</td></tr></table>`;
-  if (digital) {
-    body += `<h2 style="margin:0 0 10px;font-size:18px">Your digital files</h2>`;
-    body += button(accessUrl, 'Open my downloads');
-    body += p(`<span style="font-size:14px;color:#4f596b">Sign in with this email on the access page. For your security, each download link works for 1 minute — click Download again any time for a fresh one.</span>`);
-  }
-  if (ships) {
-    body += `<h2 style="margin:22px 0 10px;font-size:18px">Your book is on its way</h2>`;
-    body += p('Your physical copy of <strong>Before They Say No™</strong> is being prepared for shipping to the address you entered at checkout. We’ll email you again as soon as it ships.');
-  }
-  const subject = ships ? 'Your RentReady receipt — your book is on its way' : 'Your RentReady receipt and downloads';
+  let body = p(to.first_name ? `Hi ${esc(to.first_name)},` : 'Hi,') +
+    p('Thank you for choosing RentReady! Your digital education package is ready. Everything you purchased is now available for you to access.');
+  body += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 22px;border:1px solid #e7dfcf;border-radius:12px;font-size:15px">
+<tr><td style="padding:14px 16px;border-bottom:1px solid #e7dfcf"><strong>${esc(NAMES[d.product])}</strong></td><td align="right" style="padding:14px 16px;border-bottom:1px solid #e7dfcf;font-weight:700">${money(d.amount_cents)}</td></tr>
+<tr><td style="padding:10px 16px;${muted}">Order <span style="white-space:nowrap">${esc(orderRef(d.order_id))}</span><br><span style="white-space:nowrap">${date}</span></td><td align="right" style="padding:10px 16px;${muted}">Paid · USD<br>One-time · Digital delivery</td></tr></table>`;
+  body += `<h2 style="margin:0 0 12px;font-size:18px">Here’s what’s inside your package</h2>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;font-size:16px">${items.map((i) => `<tr><td valign="top" style="padding:4px 10px 4px 0;color:${gold};font-weight:700">✓</td><td style="padding:4px 0">${esc(i)}</td></tr>`).join('')}</table>`;
+  body += `<p style="margin:8px 0 10px;text-align:center"><a href="${esc(d.access_link)}" style="display:inline-block;background:${gold};color:#0b1426;text-decoration:none;font-weight:800;font-size:16px;letter-spacing:.04em;padding:16px 28px;border-radius:999px">ACCESS MY DIGITAL PACKAGE</a></p>`;
+  body += p(`<span style="font-size:14px;${muted}">Your purchase is yours to access. Save this email so you can easily return to your materials. This button signs you in for the next ${d.link_days} days; after that, go to <a href="${esc(accessPage)}" style="color:#7a5a24">${esc(accessPage.replace(/^https?:\/\//, ''))}</a> and enter this email address for a fresh link — your access doesn’t expire.</span>`);
+  body += `<h2 style="margin:22px 0 8px;font-size:16px">Opening your files</h2>` +
+    p(`<span style="font-size:14px;${muted}">Your eBook is a PDF — it opens in any web browser, Apple Books, Google Play Books or Adobe Acrobat Reader, on your phone or computer.${bundle ? ' Your 20 dispute letters download as one ZIP file of Microsoft Word documents — open it on a computer, then edit the letters in Word, Google Docs or Pages. Your video guides play right in your browser from the same page.' : ''} Each download button makes a fresh, private link, so you can download again any time.</span>`);
+  body += `<p style="margin:26px 0 0;font-size:16px;line-height:1.55;font-style:italic;color:#0b1426">Knowledge changes how you prepare. Now you have the tools to take your next step with confidence.</p>
+<p style="margin:14px 0 0;font-size:15px;line-height:1.5"><strong>RentReady Education</strong><br><span style="${muted}">By Nexus Luma LLC</span></p>`;
+
   const text = [
     to.first_name ? `Hi ${to.first_name},` : 'Hi,',
     '',
-    `Thank you for your order: ${NAMES[d.product]} — ${money(d.amount_cents)}${shippingCents ? ` (includes ${money(shippingCents)} shipping)` : ''} (order ${d.order_id}, ${date}).`,
-    ...(digital ? ['', `Your digital files: sign in with this email at ${accessUrl}. Each download link works for 1 minute; click Download again any time for a fresh one.`] : []),
-    ...(ships ? ['', 'Your physical copy of Before They Say No™ is being prepared for shipping. We’ll email you again as soon as it ships.'] : []),
+    'Thank you for choosing RentReady! Your digital education package is ready.',
     '',
-    `Questions? ${supportEmail(env)}`,
+    `${NAMES[d.product]} — ${money(d.amount_cents)} · Order ${orderRef(d.order_id)} · ${date}`,
+    '',
+    'Here’s what’s inside your package:',
+    ...items.map((i) => `  ✓ ${i}`),
+    '',
+    `ACCESS MY DIGITAL PACKAGE: ${d.access_link}`,
+    `(This link signs you in for ${d.link_days} days. After that, visit ${accessPage} and enter this email for a fresh link — your access doesn’t expire.)`,
+    '',
+    `Your eBook is a PDF and opens in any browser or reader app.${bundle ? ' The 20 letters are Microsoft Word files in one ZIP — open it on a computer. Videos play in your browser.' : ''}`,
+    '',
+    'Knowledge changes how you prepare. Now you have the tools to take your next step with confidence.',
+    '',
+    'RentReady Education',
+    'By Nexus Luma LLC',
+    '',
+    `Questions? ${support}`,
   ].join('\n');
-  return sendEmail(env, to.email, subject, layout(env, 'Thank you for your order', body), text);
+  return sendEmail(env, to.email, 'Your RentReady Digital Package Is Ready!', layout(env, 'Your Next Chapter Starts Here.', body), text);
 }
 
 export async function shippedEmail(env: Env, to: Recipient, d: { carrier?: string; tracking?: string; tracking_url?: string }) {
@@ -160,7 +186,7 @@ async function premiumEmail(env: Env, to: Recipient, event: string, d: Record<st
 
 /** Lifecycle events that trigger a transactional email. Called once per stored (non-duplicate) event. */
 export async function sendTransactional(env: Env, to: Recipient, event: string, data: Record<string, unknown>) {
-  if (event === 'purchase_completed') return receiptEmail(env, to, data as Parameters<typeof receiptEmail>[2]);
+  // purchase_completed: the package email is sent by netlify/lib/delivery.ts (logged and retried), not here.
   if (event === 'order_shipped') return shippedEmail(env, to, data as Parameters<typeof shippedEmail>[2]);
   if (event === 'access_link_requested') return accessLinkEmail(env, to, String(data.link));
   if (event.startsWith('premium_') || event === 'listing_alert') return premiumEmail(env, to, event, data);

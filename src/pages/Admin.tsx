@@ -32,6 +32,9 @@ interface Metrics {
   products: { k: string; n: number; gross: number; refunded: number; refunds: number }[];
   bySource: { k: string; customers: number; net: number }[];
   leadsBySource: { k: string; n: number }[];
+  /** Live only: sales per affiliate id, and digital delivery email outcomes. */
+  byAffiliate?: { k: string; orders: number; net: number; refunds: number }[];
+  deliveries?: { k: string; n: number }[];
 }
 
 function sampleFromThisBrowser(): Metrics {
@@ -109,11 +112,8 @@ export default function Admin() {
   const net = gross - refunded;
   const frontOrders = d ? d.products.filter((p) => p.k === 'guide' || p.k === 'creditready').reduce((s, p) => s + p.n, 0) : 0;
   const allOrders = sum((p) => p.n);
-  const upsell = d?.products.find((p) => p.k === 'playbook');
-  const kits = d ? d.products.filter((p) => p.k === 'creditready' || p.k === 'upgrade').reduce((s, p) => s + p.n, 0) : 0;
   const spendCents = Math.round((Number(costs.spend) || 0) * 100);
   const fees = Math.round(gross * (Number(costs.feePct) || 0) / 100 + allOrders * (Number(costs.feeFixed) || 0) * 100);
-  const fulfil = Math.round(kits * (Number(costs.kitCost) || 0) * 100);
   const high = d?.tiers.find((t) => t.k === 'high')?.n ?? 0;
   const tierTotal = d?.tiers.reduce((s, t) => s + t.n, 0) ?? 0;
 
@@ -153,7 +153,7 @@ export default function Admin() {
                 <Tile label="Average order value" value={frontOrders ? money(Math.round(net / frontOrders)) : '—'} sub="Net revenue ÷ front-door orders" />
                 <Tile label="Lead conversion" value={pct(d.leads, d.visitors)} sub={`${d.leads} leads / ${d.visitors} visitors`} />
                 <Tile label="Visitor → buyer" value={pct(frontOrders, d.visitors)} sub={`${frontOrders} front-door orders`} />
-                <Tile label="Upsell take rate" value={pct(upsell?.n ?? 0, kits)} sub={`${upsell?.n ?? 0} Playbooks · ${money(upsell?.gross ?? 0)}`} />
+                <Tile label="Package emails sent" value={String(d.deliveries?.find((x) => x.k === 'sent')?.n ?? 0)} sub={`${(d.deliveries || []).filter((x) => x.k !== 'sent' && x.k !== 'skipped').reduce((s, x) => s + x.n, 0)} waiting / failed — see Digital deliveries`} />
                 <Tile label="High-intent leads" value={pct(high, tierTotal)} sub={`${tierTotal} leads answered the finder`} />
               </div>
 
@@ -217,6 +217,20 @@ export default function Admin() {
                 </table>
               </section>
 
+              {d.source === 'live' && (
+                <section className="panel">
+                  <h2>Sales by affiliate</h2>
+                  <p className="muted" style={{ marginBottom: 12 }}>Orders whose buyer arrived through an affiliate link (?hop=, ?aff=, ?ref=). Reporting only — commissions on these Stripe sales are not paid automatically.</p>
+                  <table className="adm-table">
+                    <thead><tr><th>Affiliate</th><th>Orders</th><th>Refunds</th><th>Net revenue</th></tr></thead>
+                    <tbody>
+                      {!d.byAffiliate?.length && <tr><td colSpan={4} className="muted">No affiliate orders in this period.</td></tr>}
+                      {d.byAffiliate?.map((a) => <tr key={a.k}><td>{a.k}</td><td>{a.orders}</td><td>{a.refunds}</td><td>{money(a.net)}</td></tr>)}
+                    </tbody>
+                  </table>
+                </section>
+              )}
+              {d.source === 'live' && <DeliveriesPanel token={token} />}
               {d.source === 'live' && <PremiumPanel token={token} days={d.days} spendCents={spendCents} />}
               {d.source === 'live' && <ShippingPanel token={token} />}
               {d.source === 'live' && <ListingsPanel token={token} />}
@@ -226,7 +240,6 @@ export default function Admin() {
                 <p className="muted" style={{ marginBottom: 16 }}>No ad platform is connected, so enter spend for this period. Values stay in this browser.</p>
                 <div className="adm-costs">
                   <Num label="Ad spend ($)" v={costs.spend} on={(v) => setCost('spend', v)} />
-                  <Num label="Book + shipping per shipped order ($)" v={costs.kitCost} on={(v) => setCost('kitCost', v)} />
                   <Num label="Stripe % fee" v={costs.feePct} on={(v) => setCost('feePct', v)} />
                   <Num label="Stripe fixed fee ($)" v={costs.feeFixed} on={(v) => setCost('feeFixed', v)} />
                 </div>
@@ -234,7 +247,7 @@ export default function Admin() {
                   <Tile label="Cost per lead" value={spendCents && d.leads ? money(Math.round(spendCents / d.leads)) : '—'} />
                   <Tile label="Customer acquisition cost" value={spendCents && frontOrders ? money(Math.round(spendCents / frontOrders)) : '—'} />
                   <Tile label="Return on ad spend" value={spendCents ? `${(net / spendCents).toFixed(2)}×` : '—'} />
-                  <Tile label="Contribution margin" value={money(net - fees - fulfil - spendCents)} sub={`after ~${money(fees)} fees, ${money(fulfil)} fulfilment, ad spend`} />
+                  <Tile label="Contribution margin" value={money(net - fees - spendCents)} sub={`after ~${money(fees)} fees and ad spend (digital: no fulfilment cost)`} />
                 </div>
               </section>
             </>
@@ -277,7 +290,65 @@ interface ShipOrder {
   shipping: { name?: string; address?: Record<string, string | undefined> } | null;
 }
 
-/** Books to ship: address from Stripe, then "Mark shipped" emails the customer once (with tracking, if given). */
+/** Digital delivery log: one package email per paid order, with status, attempts and the last error; resend on request. */
+function DeliveriesPanel({ token }: { token: string }) {
+  type Row = { order_id: string; ref: string; product: string; status: string; attempts: number; last_error: string | null; created_at: string; sent_at: string | null; email: string | null };
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`${env.apiBase}/admin/deliveries`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit' });
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      setRows(((await r.json()) as { deliveries: Row[] }).deliveries);
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Couldn’t load deliveries.');
+    }
+  }, [token]);
+  useEffect(() => void load(), [load]);
+  async function send(id: string, resend: boolean) {
+    setBusy(id);
+    try {
+      const r = await fetch(`${env.apiBase}/admin/deliveries`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, credentials: 'omit', body: JSON.stringify({ order_id: id, resend }) });
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      await load();
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Couldn’t send.');
+    } finally {
+      setBusy('');
+    }
+  }
+  return (
+    <section className="panel">
+      <h2>Digital deliveries <span className="muted">(last 30 days)</span></h2>
+      {err && <p className="field-error">{err}</p>}
+      {!rows && !err && <p className="muted">Loading…</p>}
+      {rows && (
+        <table className="adm-table">
+          <thead><tr><th>Order</th><th>Email</th><th>Package</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {rows.length === 0 && <tr><td colSpan={5} className="muted">No orders yet.</td></tr>}
+            {rows.map((r) => (
+              <tr key={r.order_id}>
+                <td>{r.ref}<br /><span className="muted">{new Date(r.created_at).toLocaleString()}</span></td>
+                <td>{r.email || '—'}</td>
+                <td>{PRODUCTS[r.product as keyof typeof PRODUCTS]?.shortName || r.product}</td>
+                <td>{r.status}{r.attempts > 1 ? ` (${r.attempts} tries)` : ''}{r.last_error && <><br /><span className="muted">{r.last_error}</span></>}</td>
+                <td>
+                  <button className="btn btn-sm btn-outline" type="button" disabled={busy === r.order_id} onClick={() => send(r.order_id, r.status === 'sent')}>
+                    {r.status === 'sent' ? 'Resend' : 'Send now'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+/** Books to ship — orders placed BEFORE the digital-only switch that included the physical book. New orders never appear here. */
 function ShippingPanel({ token }: { token: string }) {
   const [orders, setOrders] = useState<ShipOrder[] | null>(null);
   const [err, setErr] = useState('');
@@ -315,7 +386,8 @@ function ShippingPanel({ token }: { token: string }) {
 
   return (
     <section className="panel">
-      <h2>Books to ship {orders && <span className="muted">({todo.length})</span>}</h2>
+      <h2>Books to ship — older orders {orders && <span className="muted">({todo.length})</span>}</h2>
+      <p className="muted" style={{ marginTop: 4 }}>Only orders placed before RentReady went digital-only. Every new order is delivered by email automatically.</p>
       {err && <Alert kind="error">{err}</Alert>}
       {!orders && !err && <p className="muted"><Spinner /> Loading orders…</p>}
       {orders && todo.length === 0 && <p className="muted" style={{ marginTop: 10 }}>Nothing waiting to ship.</p>}

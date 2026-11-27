@@ -735,7 +735,7 @@ a:hover > .bk-arrow { transform: translateX(3px); }
 .bk-hero .bk-buy { margin-top: 40px; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'btn alt' 'note note'; align-items: center; gap: 16px 36px; }
 .bk-hero .bk-buy > .btn { grid-area: btn; min-height: 66px; padding: 0 40px; font-size: 1.25rem; font-weight: 700; }
 .bk-hero .bk-buy-alt { grid-area: alt; max-width: 20em; font-size: .95rem; }
-.bk-hero .bk-buy-alt .bk-link { font-weight: 700; font-size: 1.1rem; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; white-space: nowrap; }
+.bk-hero .bk-buy-alt .bk-link { font-weight: 700; font-size: 1.1rem; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; white-space: normal; }
 .bk-hero .bk-buy-note { grid-area: note; }
 @media (max-width: 999px) {
   .bk-hero .bk-buy { grid-template-columns: 1fr; grid-template-areas: 'btn' 'note' 'alt'; justify-items: center; }
@@ -1151,6 +1151,10 @@ a:hover > .bk-arrow { transform: translateX(3px); }
 .bk-hero-ctas { display: flex; flex-wrap: wrap; gap: 12px; }
 .bk-hero-ctas .bk-btn-outline { display: inline-flex; align-items: center; justify-content: center; padding: 0 30px; text-decoration: none; }
 @media (max-width: 520px) { .bk-hero-ctas > * { flex: 1 1 100%; } }
+/* Two buttons leave no room for a column beside them: the Bundle line goes under the buttons, at every width. */
+.bk-hero .bk-buy:has(> .bk-hero-ctas) { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'btn' 'alt' 'note'; gap: 14px; }
+.bk-hero .bk-buy:has(> .bk-hero-ctas) > .bk-hero-ctas { grid-area: btn; }
+.bk-hero .bk-buy:has(> .bk-hero-ctas) .bk-buy-alt { max-width: 34em; }
 
 /* /premium */
 .pm-price { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; color: #fff; font-size: 1.1rem; }

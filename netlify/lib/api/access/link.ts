@@ -1,8 +1,6 @@
 import { body, json, notConfigured, ownedProducts, recordLifecycle, type Ctx } from '../../_lib';
 import { premiumStatus, safeReturn } from '../../premium';
-
-const sha256 = async (s: string) =>
-  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+import { issueAccessLink } from '../../delivery';
 
 /**
  * POST /api/access/link { email, next? } — magic-link sign-in for returning customers, Premium members (current or past)
@@ -21,11 +19,8 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   const searched = !!lead && !customer && !!(await env.DB.prepare("SELECT 1 AS x FROM rr_lifecycle_events WHERE lead_id = ? AND event = 'search_saved' LIMIT 1").bind(lead.lead_id).first());
   const known = customer || searched;
   if (lead && known) {
-    const raw = [...crypto.getRandomValues(new Uint8Array(32))].map((x) => x.toString(16).padStart(2, '0')).join('');
-    const hash = await sha256(raw);
-    await env.DB.prepare('INSERT INTO rr_access_tokens (token_hash, lead_id, expires_at) VALUES (?, ?, ?)').bind(hash, lead.lead_id, new Date(Date.now() + 30 * 60 * 1000).toISOString()).run();
-    const origin = env.ALLOWED_ORIGIN || new URL(request.url).origin;
-    await recordLifecycle(env, lead.lead_id, 'access_link_requested', { link: `${origin}/api/access/verify?token=${raw}${b.next ? `&next=${encodeURIComponent(safeReturn(b.next, '/access'))}` : ''}` }, hash.slice(0, 16));
+    const { link, hash } = await issueAccessLink(env, lead.lead_id, { ttlMs: 30 * 60 * 1000, reusable: false, next: b.next ? safeReturn(b.next, '/access') : undefined });
+    await recordLifecycle(env, lead.lead_id, 'access_link_requested', { link }, hash.slice(0, 16));
   }
   return json({ sent: true });
 };

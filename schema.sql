@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS rr_leads (
   session_id TEXT,
   utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, utm_term TEXT, utm_content TEXT,
   gclid TEXT, landing_intent TEXT, landing_path TEXT,
+  affiliate TEXT,                            -- affiliate id from the visitor's link (ClickBank hop=, aff=, ref=)
   lead_source TEXT,                          -- start | checkout | checklist | exit
   product_interest TEXT,
   qual_stage TEXT, qual_concern TEXT, qual_help TEXT,   -- quiz answers (never sent to ad platforms)
@@ -32,7 +33,9 @@ CREATE TABLE IF NOT EXISTS rr_orders (
   lead_id TEXT,
   refunded_cents INTEGER NOT NULL DEFAULT 0,
   refunded_at TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  fulfillment TEXT,                          -- 'digital' since 2026-11; NULL = older order that may have shipped a book
+  affiliate TEXT                             -- affiliate id from the buyer's link (ClickBank hop=, aff=, ref=)
 );
 CREATE TABLE IF NOT EXISTS rr_entitlements (
   customer_id TEXT NOT NULL,
@@ -54,7 +57,14 @@ CREATE INDEX IF NOT EXISTS rr_idx_lifecycle_event_at ON rr_lifecycle_events (eve
 CREATE INDEX IF NOT EXISTS rr_idx_orders_lead ON rr_orders (lead_id, created_at);
 CREATE INDEX IF NOT EXISTS rr_idx_events_event_at ON rr_events (event, at);
 CREATE INDEX IF NOT EXISTS rr_idx_leads_created ON rr_leads (created_at);
-CREATE TABLE IF NOT EXISTS rr_access_tokens (token_hash TEXT PRIMARY KEY, lead_id TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);
+CREATE TABLE IF NOT EXISTS rr_access_tokens (token_hash TEXT PRIMARY KEY, lead_id TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT, reusable INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS rr_deliveries (
+  order_id TEXT PRIMARY KEY, lead_id TEXT NOT NULL, product TEXT NOT NULL,
+  status TEXT NOT NULL,                      -- pending | sent | failed | gave_up | skipped
+  attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, sent_at TEXT
+);
+CREATE INDEX IF NOT EXISTS rr_idx_deliveries_status ON rr_deliveries (status, updated_at);
+CREATE INDEX IF NOT EXISTS rr_idx_orders_affiliate ON rr_orders (affiliate, created_at);
 
 -- These tables are accessed only by the server-side Netlify PostgreSQL connection.
 -- Do not expose personal, payment, or assessment data through Supabase's browser API.
@@ -169,3 +179,5 @@ ALTER TABLE rr_area_scans ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE rr_place_scans FROM anon, authenticated;
 REVOKE ALL ON TABLE rr_scan_queue FROM anon, authenticated;
 REVOKE ALL ON TABLE rr_area_scans FROM anon, authenticated;
+ALTER TABLE rr_deliveries ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE rr_deliveries FROM anon, authenticated;

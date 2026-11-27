@@ -1,5 +1,5 @@
 import { fail as apiFail, getSession, notConfigured, ownedProducts, type Ctx } from '../_lib';
-import { RESOURCES } from '../../../src/config/resources';
+import { canAccess, RESOURCES } from '../../../src/config/resources';
 
 /**
  * GET /api/files?key=CREDIT%20REPAIR%20TOOLKIT%E2%84%A2.zip — entitlement-checked product file delivery.
@@ -19,7 +19,7 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
   if (!customerId) return fail(401, 'Sign in to download.', 'signin');
   const resource = RESOURCES.find((item) => item.fileKey === key);
   if (!resource) return fail(404, 'File not found.', 'unavailable');
-  if (!(await ownedProducts(env, customerId)).includes(resource.product)) return fail(403, 'Not included in your purchase.', 'not_owned');
+  if (!canAccess(await ownedProducts(env, customerId), resource.product)) return fail(403, 'Not included in your purchase.', 'not_owned');
   // The video guide is hosted (Vimeo/Wistia/etc.), not a file: redirect entitled owners to the private URL.
   if (key === 'creditready/video-guide') {
     if (!env.VIDEO_GUIDE_URL) return fail(404, 'The video guide link is not configured yet.', 'unavailable');
