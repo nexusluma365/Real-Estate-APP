@@ -1,4 +1,4 @@
-import { notConfigured, setSession, type Ctx } from '../../_lib';
+import { isMissingSchema, notConfigured, setSession, type Ctx } from '../../_lib';
 import { safeReturn } from '../../premium';
 
 const sha256 = async (s: string) =>
@@ -16,8 +16,11 @@ export const onRequestGet = async ({ request, env }: Ctx) => {
   const back = (q: string) => Response.redirect(`${url.origin}/access${q}`, 302);
   if (!/^[a-f0-9]{64}$/.test(token)) return back('?link=invalid');
   const hash = await sha256(token);
-  const row = await env.DB.prepare('SELECT t.lead_id, t.expires_at, t.used_at, t.reusable, l.stripe_customer_id FROM rr_access_tokens t JOIN rr_leads l ON l.lead_id = t.lead_id WHERE t.token_hash = ?')
-    .bind(hash).first<{ lead_id: string; expires_at: string; used_at: string | null; reusable: number | null; stripe_customer_id: string | null }>();
+  type Row = { lead_id: string; expires_at: string; used_at: string | null; reusable?: number | null; stripe_customer_id: string | null };
+  const find = (cols: string) => env.DB!.prepare(`SELECT t.lead_id, t.expires_at, t.used_at${cols}, l.stripe_customer_id FROM rr_access_tokens t JOIN rr_leads l ON l.lead_id = t.lead_id WHERE t.token_hash = ?`)
+    .bind(hash).first<Row>();
+  // Before the 2026-11 migration there is no `reusable` column: every link is single-use.
+  const row = await find(', t.reusable').catch((e) => { if (isMissingSchema(e)) return find(''); throw e; });
   if (!row || (row.used_at && !row.reusable) || row.expires_at < new Date().toISOString()) return back('?link=expired');
   if (!row.used_at) await env.DB.prepare('UPDATE rr_access_tokens SET used_at = ? WHERE token_hash = ?').bind(new Date().toISOString(), hash).run();
   const cookie = await setSession(env, { lead_id: row.lead_id, ...(row.stripe_customer_id ? { customer_id: row.stripe_customer_id } : {}), verified: true });

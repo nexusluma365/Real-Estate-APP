@@ -938,3 +938,45 @@ test('delivery email outage: the send fails, is logged, and the retry job delive
   assert.equal((await call('POST', '/api/admin/deliveries', { order_id: 'pi_outage1', resend: true }, auth)).data.result, 'sent', 'explicit resend works');
   assert.equal((await call('GET', '/api/admin/health', undefined, auth)).data.files[EBOOK_FILE_KEY], 'uploaded', 'health checks the eBook file');
 });
+
+test('migration not applied yet: lead capture, checkout, payment confirmation and sign-in links still work', async () => {
+  // A database from before 20261126120000_rentready_digital: no affiliate/fulfillment/reusable columns, no rr_deliveries.
+  const missing = (q: string) => /\baffiliate\b|\bfulfillment\b|\breusable\b|rr_deliveries/.test(q);
+  const err = (q: string) => Promise.reject(new Error(`column "${(/\b(affiliate|fulfillment|reusable)\b/.exec(q) || ['rr_deliveries'])[0]}" does not exist`));
+  const old: SqlDatabase = {
+    prepare(q: string) {
+      if (missing(q)) return { bind: () => ({ first: () => err(q), all: () => err(q), run: () => err(q) }) };
+      return env.DB!.prepare(q);
+    },
+  };
+  const e2 = { ...env, DB: old };
+  let jar = '';
+  const send = async (method: string, path: string, body?: unknown) => {
+    const res = await route(new Request(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'Content-Type': 'application/json', ...(jar ? { Cookie: jar } : {}) }, body: body ? JSON.stringify(body) : undefined }), e2);
+    const set = res.headers.get('Set-Cookie');
+    if (set) jar = set.split(';')[0];
+    return { res, data: res.headers.get('Content-Type')?.includes('json') ? await res.json() as any : null };
+  };
+  const lead = await send('POST', '/api/leads', { first_name: 'Pat', email: 'pat-oldschema@example.com', lead_source: 'checkout', attribution: { affiliate: 'someone' } });
+  assert.equal(lead.res.status, 200, 'lead saved without the affiliate column');
+  assert.equal((await send('POST', '/api/payments/customer', {})).res.status, 200);
+  const intent = await send('POST', '/api/payments/intent', { product: 'creditready', affiliate: 'someone' });
+  assert.equal(intent.res.status, 200, 'payment can start');
+  assert.equal(intent.data.amount_cents, 7999);
+  pay(intent.data.payment_intent_id);
+  const v = await send('POST', '/api/payments/verify', { payment_intent_id: intent.data.payment_intent_id, product: 'creditready' });
+  assert.equal(v.data.verified, true, 'payment confirmed and order recorded without the new columns');
+  const hook = await route(await (async () => {
+    const payload = JSON.stringify({ id: 'evt_oldschema', type: 'payment_intent.succeeded', data: { object: pis.get(intent.data.payment_intent_id) } });
+    const t = Math.floor(Date.now() / 1000);
+    return new Request(ORIGIN + '/api/webhooks/stripe', { method: 'POST', body: payload, headers: { 'Stripe-Signature': `t=${t},v1=${await hmacHex(env.STRIPE_WEBHOOK_SECRET!, `${t}.${payload}`)}` } });
+  })(), e2);
+  assert.equal(hook.status, 200, 'webhook succeeds (delivery waits for the migration and the retry job)');
+  assert.ok((await send('GET', '/api/entitlements')).data.products.includes('creditready'));
+  // sign-in links still issue and verify (single-use until the migration adds `reusable`)
+  jar = '';
+  const before = emails.length;
+  await send('POST', '/api/access/link', { email: 'pat-oldschema@example.com' });
+  const link = /(https:\/\/rentready\.test\/api\/access\/verify\?[^\s"]+)/.exec(emails.slice(before).find((e) => e.subject === 'Your RentReady sign-in link')!.text)![1];
+  assert.equal((await send('GET', link.slice(ORIGIN.length))).res.headers.get('Location'), `${ORIGIN}/access`);
+});

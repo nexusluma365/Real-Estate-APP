@@ -1,4 +1,4 @@
-import { isProduct, type Env, type ProductId } from './_lib';
+import { isMissingSchema, isProduct, type Env, type ProductId } from './_lib';
 import { packageEmail, siteOrigin } from './email';
 
 /**
@@ -29,8 +29,14 @@ const sha256 = async (s: string) =>
 export async function issueAccessLink(env: Env, leadId: string, o: { ttlMs: number; reusable: boolean; next?: string }) {
   const raw = [...crypto.getRandomValues(new Uint8Array(32))].map((x) => x.toString(16).padStart(2, '0')).join('');
   const hash = await sha256(raw);
+  const expires = new Date(Date.now() + o.ttlMs).toISOString();
   await env.DB!.prepare('INSERT INTO rr_access_tokens (token_hash, lead_id, expires_at, reusable) VALUES (?, ?, ?, ?)')
-    .bind(hash, leadId, new Date(Date.now() + o.ttlMs).toISOString(), o.reusable ? 1 : 0).run();
+    .bind(hash, leadId, expires, o.reusable ? 1 : 0).run()
+    .catch((e) => {
+      // Before the 2026-11 migration there is no `reusable` column: the link still works, once.
+      if (!isMissingSchema(e)) throw e;
+      return env.DB!.prepare('INSERT INTO rr_access_tokens (token_hash, lead_id, expires_at) VALUES (?, ?, ?)').bind(hash, leadId, expires).run();
+    });
   return { link: `${siteOrigin(env)}/api/access/verify?token=${raw}${o.next ? `&next=${encodeURIComponent(o.next)}` : ''}`, hash };
 }
 

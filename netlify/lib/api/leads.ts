@@ -1,4 +1,4 @@
-import { body, cleanAffiliate, fail, json, notConfigured, setSession, type Ctx } from '../_lib';
+import { body, cleanAffiliate, fail, isMissingSchema, json, notConfigured, setSession, type Ctx } from '../_lib';
 
 const TIERS = new Set(['high', 'medium', 'early']);
 const RECS = new Set(['creditready', 'guide', 'checklist']);
@@ -36,15 +36,15 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   const a = b.attribution || {};
   const q = b.qualification || {};
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  // `affiliate` comes from the 2026-11 migration; without it the lead is still saved (without the affiliate id).
+  const save = (withAffiliate: boolean) => env.DB!.prepare(
     `INSERT INTO rr_leads (lead_id, email, first_name, email_consent, consent_basis, consent_text, consent_at, session_id,
        utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, landing_intent, landing_path,
-       lead_source, product_interest, qual_stage, qual_concern, qual_help, intent_tier, recommended_product, created_at, updated_at, affiliate)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       lead_source, product_interest, qual_stage, qual_concern, qual_help, intent_tier, recommended_product, created_at, updated_at${withAffiliate ? ', affiliate' : ''})
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?${withAffiliate ? ',?' : ''})
      ON CONFLICT(email) DO UPDATE SET
        first_name = CASE WHEN excluded.first_name <> '' THEN excluded.first_name ELSE rr_leads.first_name END,
-       gclid = COALESCE(excluded.gclid, rr_leads.gclid),
-       affiliate = COALESCE(excluded.affiliate, rr_leads.affiliate),
+       gclid = COALESCE(excluded.gclid, rr_leads.gclid),${withAffiliate ? '\n       affiliate = COALESCE(excluded.affiliate, rr_leads.affiliate),' : ''}
        email_consent = CASE WHEN rr_leads.email_consent > excluded.email_consent THEN rr_leads.email_consent ELSE excluded.email_consent END,
        consent_basis = CASE WHEN excluded.email_consent = 1 THEN excluded.consent_basis ELSE rr_leads.consent_basis END,
        consent_text = CASE WHEN excluded.email_consent = 1 THEN excluded.consent_text ELSE rr_leads.consent_text END,
@@ -60,8 +60,14 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
     lead_id, email, first, b.email_consent ? 1 : 0, clip(b.consent_basis, 20), clip(b.consent_text, 300), b.email_consent ? now : null, clip(b.session_id, 80),
     clip(a.utm_source, 200), clip(a.utm_medium, 200), clip(a.utm_campaign, 200), clip(a.utm_term, 200), clip(a.utm_content, 200), clip(a.gclid, 200), clip(a.landing_intent, 80), clip(a.landing_path, 200),
     clip(b.lead_source, 20), clip(b.product_interest, 20), clip(q.stage, 20), clip(q.concern, 20), clip(q.help, 20),
-    TIERS.has(String(q.intent_tier)) ? q.intent_tier : null, RECS.has(String(q.recommended)) ? q.recommended : null, now, now, cleanAffiliate(a.affiliate),
+    TIERS.has(String(q.intent_tier)) ? q.intent_tier : null, RECS.has(String(q.recommended)) ? q.recommended : null, now, now,
+    ...(withAffiliate ? [cleanAffiliate(a.affiliate)] : []),
   ).run();
+  await save(true).catch((e) => {
+    if (!isMissingSchema(e)) throw e;
+    console.warn('rr_leads.affiliate missing — run POST /api/admin/migrate');
+    return save(false);
+  });
 
   return json({ lead_id }, 200, { 'Set-Cookie': await setSession(env, { lead_id }) });
 };

@@ -172,6 +172,14 @@ export async function verifyStripeSignature(payload: string, header: string | nu
   return header.split(',').some((p) => p.startsWith('v1=') && safeEqual(p.slice(3), expected));
 }
 
+/**
+ * True when a query failed only because a column/table from a newer migration isn't in the database yet
+ * (POST /api/admin/migrate not run). Callers then fall back to the older query, so a pending migration can never
+ * break lead capture, checkout or order recording.
+ */
+export const isMissingSchema = (e: unknown) =>
+  /column .* does not exist|no such column|has no column named|relation .* does not exist|no such table/i.test(e instanceof Error ? e.message : String(e));
+
 /** Affiliate ids arrive from links (ClickBank `hop=`, `aff=`, `ref=`): keep them short and plain. */
 export const cleanAffiliate = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9_.-]{1,40}$/.test(v.trim()) ? v.trim().toLowerCase() : null);
 
@@ -180,9 +188,15 @@ export const cleanAffiliate = (v: unknown) => (typeof v === 'string' && /^[A-Za-
 export async function grantEntitlement(env: Env, customerId: string, product: ProductId, paymentIntentId: string, amount: number, leadId?: string, affiliate?: string | null) {
   if (!env.DB) throw new Error('DB binding missing');
   // fulfillment = 'digital' for every order since the digital switch (older rows are NULL: they may still have a book to ship).
+  const at = new Date().toISOString();
   await env.DB.prepare(
     "INSERT INTO rr_orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at, fulfillment, affiliate) VALUES (?, ?, ?, ?, ?, ?, 'digital', ?) ON CONFLICT DO NOTHING",
-  ).bind(paymentIntentId, customerId, product, amount, leadId || null, new Date().toISOString(), cleanAffiliate(affiliate)).run();
+  ).bind(paymentIntentId, customerId, product, amount, leadId || null, at, cleanAffiliate(affiliate)).run().catch((e) => {
+    if (!isMissingSchema(e)) throw e;
+    console.warn('rr_orders.fulfillment/affiliate missing — run POST /api/admin/migrate');
+    return env.DB!.prepare('INSERT INTO rr_orders (payment_intent_id, customer_id, product, amount_cents, lead_id, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
+      .bind(paymentIntentId, customerId, product, amount, leadId || null, at).run();
+  });
   // A refunded-then-repurchased product is re-activated.
   await env.DB.prepare(
     'INSERT INTO rr_entitlements (customer_id, product, granted_at) VALUES (?, ?, ?) ON CONFLICT(customer_id, product) DO UPDATE SET revoked_at = NULL',
